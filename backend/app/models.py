@@ -25,6 +25,26 @@ class ApplicationStatus(str, enum.Enum):
     ACCEPTED = "accepted"    # Acceptée 🎉
 
 
+class User(Base):
+    """Un utilisateur du cockpit (multi-utilisateurs)."""
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    # unique=True garantit l'unicité en base ; index=True accélère le lookup
+    # par email (login et contrôle de doublon à l'inscription).
+    email: Mapped[str] = mapped_column(
+        String(255), unique=True, index=True, nullable=False
+    )
+    # On ne stocke JAMAIS le mot de passe en clair, seulement son empreinte bcrypt.
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
 class Application(Base):
     """Une candidature suivie dans le cockpit."""
 
