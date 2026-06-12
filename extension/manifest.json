@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Alternance Cockpit",
+  "version": "0.1.0",
+  "description": "Ajoute l'offre d'emploi affichée à ton cockpit en un clic.",
+
+  "action": {
+    "default_title": "Ajouter cette offre au cockpit"
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "permissions": [
+    "activeTab",
+    "scripting"
+  ],
+
+  "host_permissions": [
+    "http://127.0.0.1:8000/*"
+  ]
+}
