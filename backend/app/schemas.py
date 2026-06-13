@@ -36,6 +36,22 @@ class UserRead(BaseModel):
     created_at: datetime
 
 
+class UserLogin(BaseModel):
+    """Identifiants de connexion. Pas de contrainte de longueur ici : on valide
+    le mot de passe en le comparant au hash, pas en rejouant la politique
+    d'inscription (un mot de passe valide hier ne doit pas devenir non saisissable)."""
+
+    email: EmailStr
+    password: str
+
+
+class Token(BaseModel):
+    """Réponse du login : le JWT et son type, au format attendu par OAuth2."""
+
+    access_token: str
+    token_type: str = "bearer"
+
+
 class ApplicationCreate(BaseModel):
     """Payload pour créer une candidature (formulaire ou bookmarklet)."""
 

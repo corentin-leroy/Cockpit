@@ -24,13 +24,17 @@ pour l'ajout manuel depuis les autres sites. AUCUN scraping serveur.
 # Règles
 - Toujours valider les entrées API avec des modèles Pydantic.
 - Jamais de secrets en dur : tout passe par les variables d'environnement (.env).
+- Installer les dépendances UNIQUEMENT via `.venv\Scripts\python.exe -m pip install -r requirements.txt`
+  (chemin explicite, ne jamais utiliser `py` ni `pip` nus pour installer).
 - Style : type hints partout, docstrings en français, code en anglais.
 - Commits en anglais, format conventional commits (feat:, fix:, docs:...).
 - Ne pas ajouter de dépendance sans la justifier dans le message de commit.
 
 # Roadmap V1 (objectif : en ligne en 6 semaines)
 1. [fait] CRUD candidatures + extension navigateur (extraction générique + JSON-LD)
-2. [en cours] Auth JWT multi-utilisateurs (inscription, connexion, ownership)
+2. [en cours] Auth JWT multi-utilisateurs
+   - [fait] Modèle User + inscription (POST /auth/register)
+   - [à faire] Login + émission JWT, protection des endpoints, ownership
 3. Front React : kanban + formulaire d'ajout
 4. Connecteur La Bonne Alternance (API officielle)
 5. Déploiement
