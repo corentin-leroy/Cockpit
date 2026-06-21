@@ -63,3 +63,15 @@ def create_access_token(data: dict) -> str:
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode["exp"] = expire
     return jwt.encode(to_encode, _get_secret_key(), algorithm=JWT_ALGORITHM)
+
+
+def decode_access_token(token: str) -> dict:
+    """Décode et vérifie un JWT, puis renvoie son payload.
+
+    `jwt.decode` valide la signature ET l'expiration (claim `exp`). En cas de
+    problème, PyJWT lève l'exception appropriée — `jwt.ExpiredSignatureError`
+    si le token est expiré, une autre sous-classe de `jwt.PyJWTError` (signature
+    invalide, token malformé...) sinon. On laisse remonter : c'est à l'appelant
+    (la dépendance `get_current_user`) de la traduire en réponse HTTP 401.
+    """
+    return jwt.decode(token, _get_secret_key(), algorithms=[JWT_ALGORITHM])

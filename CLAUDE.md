@@ -18,8 +18,10 @@ pour l'ajout manuel depuis les autres sites. AUCUN scraping serveur.
 - `app/models.py` = tables SQLAlchemy ; `app/schemas.py` = contrats Pydantic.
   Ne jamais exposer un modèle ORM directement dans une réponse API.
 - Un router par ressource dans `app/routers/`.
-- `user_id` est nullable temporairement : il devient obligatoire dès que
-  l'auth JWT est en place.
+- `user_id` (Application) est obligatoire depuis la mise en place de l'auth :
+  il est renseigné côté serveur depuis le current_user, jamais via le payload.
+- Endpoints authentifiés : dépendance `get_current_user` (app/dependencies.py).
+  Ownership cloisonné par user_id ; accès à la ressource d'autrui → 404 (pas 403).
 
 # Règles
 - Toujours valider les entrées API avec des modèles Pydantic.
@@ -32,9 +34,10 @@ pour l'ajout manuel depuis les autres sites. AUCUN scraping serveur.
 
 # Roadmap V1 (objectif : en ligne en 6 semaines)
 1. [fait] CRUD candidatures + extension navigateur (extraction générique + JSON-LD)
-2. [en cours] Auth JWT multi-utilisateurs
+2. [fait] Auth JWT multi-utilisateurs
    - [fait] Modèle User + inscription (POST /auth/register)
-   - [à faire] Login + émission JWT, protection des endpoints, ownership
+   - [fait] Login + émission JWT (POST /auth/login)
+   - [fait] Protection des endpoints (get_current_user) + ownership des candidatures
 3. Front React : kanban + formulaire d'ajout
 4. Connecteur La Bonne Alternance (API officielle)
 5. Déploiement

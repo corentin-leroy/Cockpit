@@ -67,8 +67,10 @@ class Application(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime)
 
-    # --- Multi-utilisateurs (à activer avec l'auth) ---
-    user_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    # --- Multi-utilisateurs ---
+    # Désormais obligatoire : toute candidature appartient à un utilisateur,
+    # renseigné à la création depuis le current_user (jamais via le payload).
+    user_id: Mapped[int] = mapped_column(Integer, index=True, nullable=False)
 
     # --- Métadonnées ---
     created_at: Mapped[datetime] = mapped_column(
