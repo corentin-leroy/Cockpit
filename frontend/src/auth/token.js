@@ -4,7 +4,10 @@
 // directement. Avantage : si l'on change de stratégie de stockage (sessionStorage,
 // cookie httpOnly via le backend, mémoire...), un seul fichier est à modifier.
 
-const TOKEN_KEY = 'cockpit_token'
+// Exportée pour permettre au contexte d'identifier la bonne clé dans les
+// événements `storage` (synchro entre onglets). Le stockage lui-même reste
+// manipulé exclusivement ici.
+export const TOKEN_KEY = 'cockpit_token'
 
 /** Renvoie le token stocké, ou null s'il n'y en a pas. */
 export function getToken() {

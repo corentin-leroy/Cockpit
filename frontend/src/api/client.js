@@ -4,6 +4,7 @@
 // obligatoire pour être exposée au client), avec une valeur par défaut pointant
 // vers le backend en développement, pour que le projet démarre sans config.
 
+import { emitSessionExpired } from '../auth/authEvents.js'
 import { getToken, removeToken } from '../auth/token.js'
 
 export const API_BASE_URL =
@@ -54,8 +55,11 @@ export async function apiFetch(endpoint, options = {}) {
 
   if (!response.ok) {
     if (response.status === 401) {
-      // Token invalide ou expiré : on le purge pour ne pas le renvoyer en boucle.
+      // Token invalide ou expiré : on le purge pour ne pas le renvoyer en boucle,
+      // puis on notifie le contexte d'auth pour qu'il bascule isAuthenticated à
+      // false (sinon l'UI resterait « connectée » jusqu'au rechargement).
       removeToken()
+      emitSessionExpired()
     }
     // FastAPI renvoie le motif dans `detail` ; fallback sur le texte de statut.
     const message = data?.detail || response.statusText || 'Erreur API'
