@@ -4,12 +4,37 @@
 
 import { useEffect, useMemo, useState } from 'react'
 
-import { getApplications } from '../api/applications.js'
+import {
+  getApplications,
+  createApplication,
+  updateApplication,
+  deleteApplication,
+} from '../api/applications.js'
 import Navbar from '../components/Navbar.jsx'
 import KanbanColumn from '../components/KanbanColumn.jsx'
+import Modal from '../components/Modal.jsx'
+import ApplicationForm from '../components/ApplicationForm.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
 
 const mainStyle = { padding: 24, textAlign: 'left' }
+
+const headerRowStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 16,
+  marginBottom: 16,
+}
+
+const addButtonStyle = {
+  padding: '8px 14px',
+  borderRadius: 8,
+  border: '1px solid var(--accent-border)',
+  background: 'var(--accent-bg)',
+  color: 'var(--text-h)',
+  font: 'inherit',
+  cursor: 'pointer',
+}
 
 const boardStyle = {
   display: 'flex',
@@ -31,6 +56,12 @@ export default function BoardPage() {
   const [applications, setApplications] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  // État de la modale : null (fermée), { mode: 'create' }, ou
+  // { mode: 'edit', application }. Une seule modale ouverte à la fois.
+  const [modal, setModal] = useState(null)
+  // Id de la candidature en cours de suppression (désactive les actions).
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     // `active` : évite de poser l'état si le composant est démonté avant la
@@ -71,11 +102,62 @@ export default function BoardPage() {
     return groups
   }, [applications])
 
+  function closeModal() {
+    setModal(null)
+  }
+
+  // Création : la candidature créée est renvoyée par le backend (statut « saved »).
+  // On la préfixe à la liste locale (le backend trie par updated_at décroissant),
+  // ce qui la fait apparaître dans la colonne « Repérée » sans rechargement.
+  async function handleCreate(data) {
+    const created = await createApplication(data)
+    setApplications((prev) => [created, ...prev])
+    closeModal()
+  }
+
+  // Édition : on remplace la candidature par la version à jour renvoyée par l'API.
+  async function handleUpdate(data) {
+    const updated = await updateApplication(modal.application.id, data)
+    setApplications((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item)),
+    )
+    closeModal()
+  }
+
+  // Suppression : confirmation, puis retrait de la carte de l'affichage.
+  async function handleDelete() {
+    const target = modal.application
+    if (!window.confirm(`Supprimer la candidature « ${target.title} » ?`)) {
+      return
+    }
+
+    setDeletingId(target.id)
+    try {
+      await deleteApplication(target.id)
+      setApplications((prev) => prev.filter((item) => item.id !== target.id))
+      closeModal()
+    } catch (err) {
+      // Erreur réseau/serveur : on garde la modale ouverte et on signale l'échec.
+      window.alert(err.message || 'La suppression a échoué. Réessayez.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   return (
     <>
       <Navbar />
       <main style={mainStyle}>
-        <h1>Mon kanban</h1>
+        <div style={headerRowStyle}>
+          <h1 style={{ margin: 0 }}>Mon kanban</h1>
+          <button
+            type="button"
+            style={addButtonStyle}
+            onClick={() => setModal({ mode: 'create' })}
+          >
+            Ajouter une candidature
+          </button>
+        </div>
 
         {loading && <p style={messageStyle}>Chargement des candidatures…</p>}
 
@@ -87,8 +169,8 @@ export default function BoardPage() {
 
         {!loading && !error && applications.length === 0 && (
           <p style={messageStyle}>
-            Vous n’avez pas encore de candidature. Vous pourrez bientôt en
-            ajouter ici (formulaire et extension navigateur).
+            Vous n’avez pas encore de candidature. Cliquez sur « Ajouter une
+            candidature » pour commencer.
           </p>
         )}
 
@@ -99,11 +181,37 @@ export default function BoardPage() {
                 key={status.key}
                 label={status.label}
                 applications={byStatus[status.key]}
+                onEditApplication={(application) =>
+                  setModal({ mode: 'edit', application })
+                }
               />
             ))}
           </div>
         )}
       </main>
+
+      {modal?.mode === 'create' && (
+        <Modal title="Ajouter une candidature" onClose={closeModal}>
+          <ApplicationForm
+            submitLabel="Ajouter"
+            onSubmit={handleCreate}
+            onCancel={closeModal}
+          />
+        </Modal>
+      )}
+
+      {modal?.mode === 'edit' && (
+        <Modal title="Modifier la candidature" onClose={closeModal}>
+          <ApplicationForm
+            initialValues={modal.application}
+            submitLabel="Enregistrer"
+            onSubmit={handleUpdate}
+            onCancel={closeModal}
+            onDelete={handleDelete}
+            deleting={deletingId === modal.application.id}
+          />
+        </Modal>
+      )}
     </>
   )
 }

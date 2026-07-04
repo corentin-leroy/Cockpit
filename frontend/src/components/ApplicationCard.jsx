@@ -12,7 +12,20 @@ const titleStyle = { margin: 0, fontSize: 15, color: 'var(--text-h)' }
 const companyStyle = { margin: '4px 0 0', fontSize: 14 }
 const locationStyle = { margin: '2px 0 0', fontSize: 13, opacity: 0.8 }
 
-export default function ApplicationCard({ application }) {
+const footerStyle = { marginTop: 8, display: 'flex', justifyContent: 'flex-end' }
+
+const editButtonStyle = {
+  border: '1px solid var(--border)',
+  borderRadius: 6,
+  background: 'transparent',
+  color: 'inherit',
+  font: 'inherit',
+  fontSize: 12,
+  padding: '2px 8px',
+  cursor: 'pointer',
+}
+
+export default function ApplicationCard({ application, onEdit }) {
   const { title, company, location, url } = application
 
   return (
@@ -29,6 +42,20 @@ export default function ApplicationCard({ application }) {
       </h3>
       <p style={companyStyle}>{company}</p>
       {location && <p style={locationStyle}>{location}</p>}
+
+      {onEdit && (
+        // Bouton explicite plutôt que carte entière cliquable : préserve le lien
+        // vers l'offre et reste accessible au clavier.
+        <div style={footerStyle}>
+          <button
+            type="button"
+            style={editButtonStyle}
+            onClick={() => onEdit(application)}
+          >
+            Éditer
+          </button>
+        </div>
+      )}
     </article>
   )
 }

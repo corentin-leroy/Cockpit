@@ -35,7 +35,7 @@ const listStyle = { display: 'flex', flexDirection: 'column', gap: 8 }
 
 const emptyColumnStyle = { fontSize: 13, opacity: 0.6, padding: '4px 0' }
 
-export default function KanbanColumn({ label, applications }) {
+export default function KanbanColumn({ label, applications, onEditApplication }) {
   return (
     <section style={columnStyle}>
       <header style={headerStyle}>
@@ -48,7 +48,11 @@ export default function KanbanColumn({ label, applications }) {
           <p style={emptyColumnStyle}>—</p>
         ) : (
           applications.map((application) => (
-            <ApplicationCard key={application.id} application={application} />
+            <ApplicationCard
+              key={application.id}
+              application={application}
+              onEdit={onEditApplication}
+            />
           ))
         )}
       </div>
