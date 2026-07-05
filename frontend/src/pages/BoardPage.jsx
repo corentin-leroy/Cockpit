@@ -3,6 +3,7 @@
 // chargement, erreur, succès (dont le cas liste vide).
 
 import { useEffect, useMemo, useState } from 'react'
+import { DragDropProvider } from '@dnd-kit/react'
 
 import {
   getApplications,
@@ -62,6 +63,10 @@ export default function BoardPage() {
   const [modal, setModal] = useState(null)
   // Id de la candidature en cours de suppression (désactive les actions).
   const [deletingId, setDeletingId] = useState(null)
+  // Erreur d'une action ponctuelle (ex. échec du changement de statut). Distincte
+  // de `error` (échec de chargement) : elle ne masque pas le board, s'affiche en
+  // bannière au-dessus, et est effacée à la prochaine action réussie.
+  const [actionError, setActionError] = useState('')
 
   useEffect(() => {
     // `active` : évite de poser l'état si le composant est démonté avant la
@@ -104,6 +109,53 @@ export default function BoardPage() {
 
   function closeModal() {
     setModal(null)
+  }
+
+  // Fin d'un glisser-déposer. La carte porte l'id de la candidature ; la colonne
+  // cible porte la clé du statut. On change le statut via PATCH, en optimiste.
+  function handleDragEnd(event) {
+    const { operation, canceled } = event
+    // Drag annulé (Échap) ou relâché hors d'une colonne : rien à faire.
+    if (canceled) return
+
+    const source = operation.source
+    const target = operation.target
+    if (!source || !target) return
+
+    const applicationId = source.id // id de la candidature (nombre)
+    const newStatus = target.id // clé du statut de la colonne cible (chaîne)
+
+    // Statut d'origine mémorisé sur la carte (data.status), qui sert à la fois à
+    // détecter un dépôt sans changement et de valeur de rollback en cas d'échec.
+    const previousStatus = source.data?.status
+
+    // Étape 6 : reposée dans sa colonne d'origine → aucun PATCH.
+    if (previousStatus === newStatus) return
+
+    // Étape 4 : mise à jour optimiste immédiate (la carte change de colonne avant
+    // la réponse de l'API), via une mise à jour fonctionnelle ciblée sur la carte.
+    setActionError('')
+    setApplications((prev) =>
+      prev.map((item) =>
+        item.id === applicationId ? { ...item, status: newStatus } : item,
+      ),
+    )
+
+    // Étape 5 : PATCH en arrière-plan ; rollback ciblé si l'appel échoue. On ne
+    // restaure QUE le statut de cette carte (à previousStatus) plutôt qu'un
+    // snapshot complet du tableau : la mise à jour fonctionnelle se compose ainsi
+    // proprement avec d'éventuelles autres modifications survenues entre-temps.
+    updateApplication(applicationId, { status: newStatus }).catch((err) => {
+      setApplications((prev) =>
+        prev.map((item) =>
+          item.id === applicationId ? { ...item, status: previousStatus } : item,
+        ),
+      )
+      setActionError(
+        err.message ||
+          'Le changement de statut a échoué. La carte a été replacée.',
+      )
+    })
   }
 
   // Création : la candidature créée est renvoyée par le backend (statut « saved »).
@@ -159,6 +211,12 @@ export default function BoardPage() {
           </button>
         </div>
 
+        {actionError && (
+          <p role="alert" style={{ ...errorStyle, marginBottom: 16 }}>
+            {actionError}
+          </p>
+        )}
+
         {loading && <p style={messageStyle}>Chargement des candidatures…</p>}
 
         {!loading && error && (
@@ -175,18 +233,21 @@ export default function BoardPage() {
         )}
 
         {!loading && !error && applications.length > 0 && (
-          <div style={boardStyle}>
-            {APPLICATION_STATUSES.map((status) => (
-              <KanbanColumn
-                key={status.key}
-                label={status.label}
-                applications={byStatus[status.key]}
-                onEditApplication={(application) =>
-                  setModal({ mode: 'edit', application })
-                }
-              />
-            ))}
-          </div>
+          <DragDropProvider onDragEnd={handleDragEnd}>
+            <div style={boardStyle}>
+              {APPLICATION_STATUSES.map((status) => (
+                <KanbanColumn
+                  key={status.key}
+                  statusKey={status.key}
+                  label={status.label}
+                  applications={byStatus[status.key]}
+                  onEditApplication={(application) =>
+                    setModal({ mode: 'edit', application })
+                  }
+                />
+              ))}
+            </div>
+          </DragDropProvider>
         )}
       </main>
 

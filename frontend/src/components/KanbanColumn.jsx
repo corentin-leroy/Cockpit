@@ -1,5 +1,9 @@
 // Une colonne du kanban : un statut, son libellé, le nombre de candidatures
-// qu'elle contient, et les cartes correspondantes.
+// qu'elle contient, et les cartes correspondantes. Zone droppable (@dnd-kit/react)
+// identifiée par la clé technique du statut : y déposer une carte la fait changer
+// de statut.
+
+import { useDroppable } from '@dnd-kit/react'
 
 import ApplicationCard from './ApplicationCard.jsx'
 
@@ -11,6 +15,13 @@ const columnStyle = {
   border: '1px solid var(--border)',
   borderRadius: 10,
   padding: 12,
+  transition: 'border-color 120ms, background 120ms',
+}
+
+// Surbrillance de la colonne survolée pendant un drag (étape 7).
+const dropTargetStyle = {
+  borderColor: 'var(--accent-border)',
+  background: 'var(--accent-bg)',
 }
 
 const headerStyle = {
@@ -35,9 +46,21 @@ const listStyle = { display: 'flex', flexDirection: 'column', gap: 8 }
 
 const emptyColumnStyle = { fontSize: 13, opacity: 0.6, padding: '4px 0' }
 
-export default function KanbanColumn({ label, applications, onEditApplication }) {
+export default function KanbanColumn({
+  statusKey,
+  label,
+  applications,
+  onEditApplication,
+}) {
+  // Identifiant droppable = clé technique du statut (saved, applied, …), lue au
+  // drop pour déterminer le nouveau statut.
+  const { ref, isDropTarget } = useDroppable({ id: statusKey })
+
   return (
-    <section style={columnStyle}>
+    <section
+      ref={ref}
+      style={{ ...columnStyle, ...(isDropTarget ? dropTargetStyle : {}) }}
+    >
       <header style={headerStyle}>
         <span>{label}</span>
         <span style={countStyle}>{applications.length}</span>
