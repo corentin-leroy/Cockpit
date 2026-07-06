@@ -52,9 +52,39 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
-class ApplicationCreate(BaseModel):
-    """Payload pour créer une candidature (formulaire ou bookmarklet)."""
+class BoardCreate(BaseModel):
+    """Payload pour créer un tableau. Seul le nom est fourni ; le propriétaire
+    (user_id) est renseigné côté serveur depuis le current_user."""
 
+    name: str = Field(min_length=1, max_length=255)
+
+
+class BoardUpdate(BaseModel):
+    """Payload pour renommer un tableau. Le nom est le seul champ modifiable."""
+
+    name: str = Field(min_length=1, max_length=255)
+
+
+class BoardRead(BaseModel):
+    """Ce que l'API renvoie pour un tableau."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    user_id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class ApplicationCreate(BaseModel):
+    """Payload pour créer une candidature (formulaire ou extension).
+
+    board_id désigne le tableau cible ; le serveur vérifie qu'il appartient bien
+    au current_user (sinon 404). Le statut n'est pas fourni : il démarre en
+    « saved » (voir le modèle)."""
+
+    board_id: int
     title: str = Field(min_length=1, max_length=255)
     company: str = Field(min_length=1, max_length=255)
     location: str | None = Field(default=None, max_length=255)
@@ -82,6 +112,7 @@ class ApplicationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)  # lecture depuis l'objet ORM
 
     id: int
+    board_id: int
     title: str
     company: str
     location: str | None

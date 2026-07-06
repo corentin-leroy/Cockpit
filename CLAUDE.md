@@ -24,11 +24,23 @@ Frontend (depuis frontend/) :
 # Architecture backend
 - `app/models.py` = tables SQLAlchemy ; `app/schemas.py` = contrats Pydantic.
   Ne jamais exposer un modèle ORM directement dans une réponse API.
-- Un router par ressource dans `app/routers/`.
-- `user_id` (Application) est obligatoire : renseigné côté serveur depuis le
-  current_user, jamais via le payload.
-- Endpoints authentifiés : dépendance `get_current_user` (app/dependencies.py).
-  Ownership cloisonné par user_id ; accès à la ressource d'autrui → 404 (pas 403).
+- Un router par ressource dans `app/routers/` (auth, boards, applications).
+- Hiérarchie des données : User → Boards → Applications.
+  - Un Board (tableau kanban) appartient à un User (board.user_id).
+  - Une Application appartient à un Board (application.board_id). Elle ne porte
+    PLUS de user_id : le propriétaire se déduit en chaîne (application → board →
+    user), pour éviter toute redondance.
+- Ownership : cloisonné par user. Pour un board, filtre direct sur board.user_id
+  (helper `get_owned_board` dans routers/boards.py, réutilisé par applications).
+  Pour une candidature, jointure application → board et filtre sur board.user_id.
+  Accès à la ressource d'autrui → 404 (pas 403), pour ne pas confirmer un id.
+- À l'inscription, un board par défaut "Mes candidatures" est créé : un user a
+  TOUJOURS au moins un tableau. Corollaire : la suppression du DERNIER tableau
+  d'un user est refusée (409). Supprimer un board supprime ses candidatures
+  (cascade ORM all, delete-orphan).
+- Créer une candidature exige un board_id ; le serveur vérifie qu'il appartient
+  au current_user (sinon 404). GET /applications filtre par ?board_id= et/ou
+  ?status_filter=.
 - Le statut d'une candidature n'est PAS modifiable à la création (démarre
   toujours en "saved"/Repérée) ; il évolue via PATCH (drag & drop côté front).
 
@@ -64,7 +76,11 @@ Frontend (depuis frontend/) :
    - [fait] Création / édition / suppression de candidatures (modale)
    - [fait] Drag & drop des cartes entre colonnes
 4. Reconnecter l'extension à l'auth (elle ne peut plus créer sans token)
-5. Déploiement
+5. Multi-tableaux (Boards)
+   - [fait] Backend : modèle Board, CRUD, ownership en chaîne, board par défaut,
+     dernier tableau non supprimable, cascade
+   - [à faire] Front : sélection/gestion des tableaux, board_id à la création
+6. Déploiement
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
 - Agrégation API officielles (La Bonne Alternance, France Travail) → V1.5

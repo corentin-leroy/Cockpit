@@ -19,29 +19,57 @@ function extractOffer() {
   // Ordre de fallback (inchangé) : JSON-LD JobPosting d'abord, repli générique
   // sur le titre de page ensuite. Ce résultat n'est plus posté tel quel : il
   // PRÉ-REMPLIT le formulaire de la popup, que l'utilisateur corrige avant envoi.
-  const jsonLd = document.querySelector('script[type="application/ld+json"]');
-  let structured = null;
-  if (jsonLd) {
-    try {
-      const data = JSON.parse(jsonLd.textContent);
-      // Certains sites mettent un tableau, d'autres un objet
-      const posting = Array.isArray(data)
-        ? data.find((d) => d["@type"] === "JobPosting")
-        : data["@type"] === "JobPosting"
-          ? data
-          : null;
-      if (posting) {
-        structured = {
-          title: posting.title,
-          company: posting.hiringOrganization?.name,
-          location:
-            posting.jobLocation?.address?.addressLocality ??
-            posting.jobLocation?.[0]?.address?.addressLocality,
-        };
+
+  // Cherche récursivement une entité JobPosting dans une valeur JSON-LD. Une page
+  // peut exposer PLUSIEURS blocs (HelloWork : WebSite, Organization, Breadcrumb,
+  // puis JobPosting), et un même bloc peut être un objet, un tableau, ou un objet
+  // à `@graph` imbriquant plusieurs entités. `@type` est parfois un tableau.
+  function findJobPosting(value) {
+    if (!value || typeof value !== "object") return null;
+    const nodes = Array.isArray(value) ? value : [value];
+    for (const node of nodes) {
+      if (!node || typeof node !== "object") continue;
+      const type = node["@type"];
+      if (type === "JobPosting" || (Array.isArray(type) && type.includes("JobPosting"))) {
+        return node;
       }
-    } catch (_) {
-      /* JSON-LD illisible : on retombe sur le générique */
+      if (Array.isArray(node["@graph"])) {
+        const nested = findJobPosting(node["@graph"]);
+        if (nested) return nested;
+      }
     }
+    return null;
+  }
+
+  // Parcourt TOUS les blocs et s'arrête au premier JobPosting trouvé. Un bloc mal
+  // formé (JSON.parse qui échoue) est ignoré, sans interrompre les suivants.
+  let posting = null;
+  for (const block of document.querySelectorAll(
+    'script[type="application/ld+json"]',
+  )) {
+    let data;
+    try {
+      data = JSON.parse(block.textContent);
+    } catch (_) {
+      continue;
+    }
+    posting = findJobPosting(data);
+    if (posting) break;
+  }
+
+  let structured = null;
+  if (posting) {
+    // hiringOrganization : objet { name } le plus souvent, parfois une chaîne.
+    const org = posting.hiringOrganization;
+    // jobLocation : objet unique ou tableau (offre multi-sites) → on prend le 1er.
+    const jobLocation = Array.isArray(posting.jobLocation)
+      ? posting.jobLocation[0]
+      : posting.jobLocation;
+    structured = {
+      title: posting.title,
+      company: typeof org === "string" ? org : org?.name,
+      location: jobLocation?.address?.addressLocality,
+    };
   }
 
   // Champs non trouvés → chaîne vide (et non un placeholder « À compléter ») :

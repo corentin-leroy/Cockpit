@@ -11,7 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models import Application, ApplicationStatus, User
+from app.models import Application, ApplicationStatus, Board, User
+from app.routers.boards import get_owned_board
 from app.schemas import ApplicationCreate, ApplicationRead, ApplicationUpdate
 
 router = APIRouter(prefix="/applications", tags=["applications"])
@@ -22,16 +23,19 @@ def _get_owned_application(
 ) -> Application:
     """Récupère une candidature appartenant à `current_user`, ou lève 404.
 
-    On filtre directement sur le user_id : une candidature qui existe mais
-    appartient à autrui est traitée EXACTEMENT comme une candidature
-    inexistante (404). Renvoyer un 403 dans ce cas confirmerait son existence,
+    L'ownership passe désormais par la chaîne application → board → user : on
+    joint le tableau et on filtre sur board.user_id. Une candidature qui existe
+    mais dont le tableau appartient à autrui est traitée EXACTEMENT comme une
+    candidature inexistante (404). Renvoyer un 403 confirmerait son existence,
     ce qui est déjà une fuite d'information (énumération d'IDs). Le 404 ne
     révèle rien : du point de vue du client, la ressource n'existe pas pour lui.
     """
     application = db.scalar(
-        select(Application).where(
+        select(Application)
+        .join(Board, Application.board_id == Board.id)
+        .where(
             Application.id == application_id,
-            Application.user_id == current_user.id,
+            Board.user_id == current_user.id,
         )
     )
     if application is None:
@@ -41,19 +45,28 @@ def _get_owned_application(
 
 @router.get("", response_model=list[ApplicationRead])
 def list_applications(
+    board_id: int | None = None,
     status_filter: ApplicationStatus | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Liste les candidatures de l'utilisateur courant, filtre optionnel par statut.
+    """Liste les candidatures de l'utilisateur courant (tous tableaux confondus).
 
-    Exemple : GET /applications?status_filter=applied
+    Filtres optionnels par tableau et/ou statut :
+      GET /applications?board_id=3&status_filter=applied
+
+    Le cloisonnement passe par la jointure sur board.user_id : seules les
+    candidatures des tableaux de l'utilisateur remontent. Un board_id qui ne lui
+    appartient pas ne « fuit » rien — il donne simplement une liste vide.
     """
     query = (
         select(Application)
-        .where(Application.user_id == current_user.id)
+        .join(Board, Application.board_id == Board.id)
+        .where(Board.user_id == current_user.id)
         .order_by(Application.updated_at.desc())
     )
+    if board_id is not None:
+        query = query.where(Application.board_id == board_id)
     if status_filter is not None:
         query = query.where(Application.status == status_filter)
     return db.scalars(query).all()
@@ -65,12 +78,16 @@ def create_application(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Crée une candidature (formulaire web ou bookmarklet).
+    """Crée une candidature dans un tableau de l'utilisateur (formulaire ou extension).
 
-    Le propriétaire vient du token, jamais du payload : un client ne peut pas
-    créer une candidature au nom d'un autre utilisateur.
+    Le tableau cible (payload.board_id) doit appartenir au current_user : sinon
+    404 (via get_owned_board). L'ownership n'est donc jamais pris dans le payload
+    à l'aveugle — il est vérifié par la possession du board.
     """
-    application = Application(**payload.model_dump(), user_id=current_user.id)
+    # Vérifie que le tableau cible appartient bien à l'utilisateur (sinon 404).
+    get_owned_board(payload.board_id, current_user, db)
+
+    application = Application(**payload.model_dump())
     db.add(application)
     db.commit()
     db.refresh(application)

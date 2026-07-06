@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User
+from app.models import Board, User
 from app.schemas import Token, UserCreate, UserLogin, UserRead
 from app.security import (
     DUMMY_PASSWORD_HASH,
@@ -42,6 +42,14 @@ def register(payload: UserCreate, db: Session = Depends(get_db)):
         hashed_password=hash_password(payload.password),
     )
     db.add(user)
+    db.flush()  # attribue user.id sans clore la transaction
+
+    # Tout utilisateur possède au moins un tableau : on lui en crée un par défaut
+    # à l'inscription (garantit l'invariant « toujours ≥ 1 board » dès la création
+    # du compte). Même transaction que l'utilisateur : les deux réussissent ou
+    # échouent ensemble.
+    db.add(Board(name="Mes candidatures", user_id=user.id))
+
     db.commit()
     db.refresh(user)
     return user
