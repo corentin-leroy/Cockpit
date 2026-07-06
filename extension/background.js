@@ -1,24 +1,24 @@
-// Service worker de l'extension (Manifest V3).
+// Service worker de l'extension (Manifest V3), chargé comme module ES
+// ("type": "module" dans le manifest) pour pouvoir importer la couche API.
 //
-// Flux quand l'utilisateur clique sur l'icône :
-//   1. On injecte extractOffer() dans la page active (lecture seule du DOM)
-//   2. On récupère le résultat ici, dans le contexte de l'extension
-//   3. On POST vers l'API depuis ce contexte → pas soumis à la CSP du site
+// Le clic sur l'icône ouvre la popup (action.default_popup). La popup pilote
+// deux opérations, via deux messages distincts :
+//   - EXTRACT_OFFER : injecter l'extraction dans la page active et renvoyer le
+//     résultat à la popup, SANS rien poster (elle pré-remplit un formulaire) ;
+//   - ADD_OFFER     : poster vers l'API les données VALIDÉES par l'utilisateur.
 //
-// Pourquoi ce détour ? Un fetch lancé depuis la page elle-même serait soumis
-// aux règles de sécurité (CSP/CORS) du site visité. Le service worker, lui,
-// n'obéit qu'au manifest (host_permissions).
+// Pourquoi passer par le service worker plutôt que la page ? L'injection et le
+// POST se font depuis le contexte de l'extension → pas soumis à la CSP du site.
 
-const API_URL = "http://127.0.0.1:8000/applications";
+import { createApplication } from "./api.js";
 
-// --- Étape 1 : la fonction injectée dans la page ---
+// --- La fonction injectée dans la page ---
 // ATTENTION : cette fonction est sérialisée puis exécutée DANS la page.
-// Elle ne peut donc utiliser aucune variable extérieure (pas de API_URL ici).
+// Elle ne peut donc utiliser aucune variable extérieure.
 function extractOffer() {
-  // Extraction générique V1 : titre de page + URL.
-  // TODO chantier suivant : extracteurs spécifiques par site, par exemple
-  //   if (location.hostname.includes("welcometothejungle.com")) { ... }
-  // en lisant les balises structurées (JSON-LD type JobPosting, og:title...)
+  // Ordre de fallback (inchangé) : JSON-LD JobPosting d'abord, repli générique
+  // sur le titre de page ensuite. Ce résultat n'est plus posté tel quel : il
+  // PRÉ-REMPLIT le formulaire de la popup, que l'utilisateur corrige avant envoi.
   const jsonLd = document.querySelector('script[type="application/ld+json"]');
   let structured = null;
   if (jsonLd) {
@@ -44,49 +44,67 @@ function extractOffer() {
     }
   }
 
+  // Champs non trouvés → chaîne vide (et non un placeholder « À compléter ») :
+  // le formulaire les montre vides et la validation cliente force l'utilisateur
+  // à les renseigner, plutôt que d'enregistrer une donnée factice.
   return {
-    title: (structured?.title ?? document.title).slice(0, 255),
-    company: (structured?.company ?? "À compléter").slice(0, 255),
-    location: structured?.location ?? null,
+    title: (structured?.title ?? document.title ?? "").slice(0, 255),
+    company: (structured?.company ?? "").slice(0, 255),
+    location: structured?.location ?? "",
     url: location.href,
     source: "extension",
   };
 }
 
-// --- Étapes 2 et 3 : au clic sur l'icône ---
-chrome.action.onClicked.addListener(async (tab) => {
+/**
+ * Extrait l'offre de l'onglet actif (sans rien poster).
+ * Renvoie { ok: true, offer } ou { ok: false, error } pour l'affichage popup.
+ */
+async function handleExtractOffer() {
   try {
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    if (!tab?.id) {
+      return { ok: false, error: "Aucun onglet actif." };
+    }
+
+    // activeTab (accordé à l'ouverture de la popup par clic) autorise l'injection
+    // dans l'onglet courant sans host_permission sur chaque site.
     const [{ result: offer }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: extractOffer,
     });
-
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(offer),
-    });
-
-    await notify(tab.id, response.ok ? "✅ Offre ajoutée au cockpit !" : `❌ Erreur API : ${response.status}`);
+    return { ok: true, offer };
   } catch (err) {
-    await notify(tab.id, `❌ ${err.message} — le backend tourne ?`);
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * Poste au cockpit les données VALIDÉES par l'utilisateur (celles du formulaire,
+ * pas l'extraction brute). Renvoie un résultat structuré ; err.status permet à
+ * la popup de distinguer le 401 (→ reconnexion).
+ */
+async function handleCreateApplication(offer) {
+  try {
+    const application = await createApplication(offer);
+    return { ok: true, application };
+  } catch (err) {
+    return { ok: false, status: err.status, error: err.message };
+  }
+}
+
+// Canal popup → service worker. On renvoie true pour signaler une réponse
+// asynchrone (sendResponse sera appelé après l'opération).
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "EXTRACT_OFFER") {
+    handleExtractOffer().then(sendResponse);
+    return true;
+  }
+  if (message?.type === "ADD_OFFER") {
+    handleCreateApplication(message.offer).then(sendResponse);
+    return true;
   }
 });
-
-// Petit feedback visuel injecté dans la page (toast éphémère).
-function notify(tabId, message) {
-  return chrome.scripting.executeScript({
-    target: { tabId },
-    args: [message],
-    func: (msg) => {
-      const el = document.createElement("div");
-      el.textContent = msg;
-      el.style.cssText =
-        "position:fixed;top:16px;right:16px;z-index:99999;padding:12px 16px;" +
-        "background:#1e293b;color:#fff;border-radius:8px;font:14px sans-serif;" +
-        "box-shadow:0 4px 12px rgba(0,0,0,.3)";
-      document.body.appendChild(el);
-      setTimeout(() => el.remove(), 3000);
-    },
-  });
-}

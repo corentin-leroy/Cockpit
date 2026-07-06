@@ -62,7 +62,7 @@ Frontend (depuis frontend/) :
    - [fait] Écrans Login/Register + routes protégées
    - [fait] Kanban en lecture seule
    - [fait] Création / édition / suppression de candidatures (modale)
-   - [à faire] Drag & drop des cartes entre colonnes
+   - [fait] Drag & drop des cartes entre colonnes
 4. Reconnecter l'extension à l'auth (elle ne peut plus créer sans token)
 5. Déploiement
 

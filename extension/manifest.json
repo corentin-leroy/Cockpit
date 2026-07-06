@@ -5,16 +5,19 @@
   "description": "Ajoute l'offre d'emploi affichée à ton cockpit en un clic.",
 
   "action": {
-    "default_title": "Ajouter cette offre au cockpit"
+    "default_title": "Alternance Cockpit",
+    "default_popup": "popup.html"
   },
 
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
 
   "permissions": [
     "activeTab",
-    "scripting"
+    "scripting",
+    "storage"
   ],
 
   "host_permissions": [
