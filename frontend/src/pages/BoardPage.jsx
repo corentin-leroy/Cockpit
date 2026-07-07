@@ -1,6 +1,6 @@
-// Écran principal (protégé) : le kanban des candidatures, en lecture seule.
-// Charge les candidatures au montage et gère explicitement les trois états :
-// chargement, erreur, succès (dont le cas liste vide).
+// Écran principal (protégé) : le kanban des candidatures du TABLEAU COURANT.
+// Recharge les candidatures quand le tableau courant change et gère explicitement
+// les trois états : chargement, erreur, succès (dont le cas liste vide).
 
 import { useEffect, useMemo, useState } from 'react'
 import { DragDropProvider } from '@dnd-kit/react'
@@ -11,13 +11,21 @@ import {
   updateApplication,
   deleteApplication,
 } from '../api/applications.js'
+import { useBoards } from '../boards/useBoards.js'
 import Navbar from '../components/Navbar.jsx'
+import Sidebar from '../components/Sidebar.jsx'
 import KanbanColumn from '../components/KanbanColumn.jsx'
 import Modal from '../components/Modal.jsx'
 import ApplicationForm from '../components/ApplicationForm.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
 
-const mainStyle = { padding: 24, textAlign: 'left' }
+const layoutStyle = {
+  display: 'flex',
+  alignItems: 'stretch',
+  minHeight: 'calc(100dvh - 57px)', // hauteur restante sous la Navbar
+}
+
+const mainStyle = { flex: 1, minWidth: 0, padding: 24, textAlign: 'left' }
 
 const headerRowStyle = {
   display: 'flex',
@@ -54,9 +62,27 @@ const errorStyle = {
 }
 
 export default function BoardPage() {
+  // Tableau courant (source de vérité partagée) : pilote quelles candidatures
+  // afficher et le titre du kanban.
+  const {
+    boards,
+    currentBoard,
+    currentBoardId,
+    selectBoard,
+    loading: boardsLoading,
+    error: boardsError,
+  } = useBoards()
+
   const [applications, setApplications] = useState([])
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // Tableau auquel correspondent les candidatures actuellement en mémoire. Sert à
+  // DÉRIVER l'état de chargement (voir `loading` plus bas) sans setState synchrone
+  // dans l'effet : dès que le tableau courant change, `loading` repasse à true.
+  const [dataBoardId, setDataBoardId] = useState(null)
+
+  // Chargement dérivé : true tant que les candidatures en mémoire ne correspondent
+  // pas au tableau courant (transition, ou premier chargement).
+  const loading = dataBoardId !== currentBoardId
 
   // État de la modale : null (fermée), { mode: 'create' }, ou
   // { mode: 'edit', application }. Une seule modale ouverte à la fois.
@@ -69,29 +95,37 @@ export default function BoardPage() {
   const [actionError, setActionError] = useState('')
 
   useEffect(() => {
-    // `active` : évite de poser l'état si le composant est démonté avant la
-    // réponse (ex. redirection sur 401, ou double-montage StrictMode en dev).
+    // Tant que le tableau courant n'est pas déterminé (tableaux en cours de
+    // chargement), on ne charge rien : l'écran affiche l'état des tableaux.
+    if (currentBoardId == null) return
+
+    // `active` : évite de poser l'état si le composant est démonté ou si le
+    // tableau change avant la réponse (course entre deux sélections).
     let active = true
 
-    // Pas de setLoading(true)/setError('') ici : l'état initial les couvre déjà
-    // (loading=true, error='') et l'effet ne s'exécute qu'au montage.
-    getApplications()
+    // Aucun setState synchrone ici : tout se joue dans les callbacks async. Le
+    // marquage `setDataBoardId(currentBoardId)` (succès comme échec) fait
+    // repasser `loading` à false et associe le résultat au bon tableau. Pendant
+    // la transition, `loading` (dérivé) masque déjà les candidatures/erreur du
+    // tableau précédent.
+    getApplications(currentBoardId)
       .then((data) => {
-        if (active) setApplications(data)
+        if (!active) return
+        setApplications(data)
+        setError('')
+        setDataBoardId(currentBoardId)
       })
       .catch((err) => {
-        if (active) {
-          setError(err.message || 'Impossible de charger les candidatures.')
-        }
-      })
-      .finally(() => {
-        if (active) setLoading(false)
+        if (!active) return
+        setApplications([])
+        setError(err.message || 'Impossible de charger les candidatures.')
+        setDataBoardId(currentBoardId)
       })
 
     return () => {
       active = false
     }
-  }, [])
+  }, [currentBoardId])
 
   // Répartition des candidatures par statut, en respectant l'ordre des colonnes.
   // Une candidature au statut inconnu (désync backend) est simplement ignorée.
@@ -199,57 +233,81 @@ export default function BoardPage() {
   return (
     <>
       <Navbar />
-      <main style={mainStyle}>
-        <div style={headerRowStyle}>
-          <h1 style={{ margin: 0 }}>Mon kanban</h1>
-          <button
-            type="button"
-            style={addButtonStyle}
-            onClick={() => setModal({ mode: 'create' })}
-          >
-            Ajouter une candidature
-          </button>
-        </div>
 
-        {actionError && (
-          <p role="alert" style={{ ...errorStyle, marginBottom: 16 }}>
-            {actionError}
-          </p>
-        )}
+      {boardsLoading && (
+        <main style={mainStyle}>
+          <p style={messageStyle}>Chargement des tableaux…</p>
+        </main>
+      )}
 
-        {loading && <p style={messageStyle}>Chargement des candidatures…</p>}
-
-        {!loading && error && (
+      {!boardsLoading && boardsError && (
+        <main style={mainStyle}>
           <p role="alert" style={errorStyle}>
-            {error}
+            {boardsError}
           </p>
-        )}
+        </main>
+      )}
 
-        {!loading && !error && applications.length === 0 && (
-          <p style={messageStyle}>
-            Vous n’avez pas encore de candidature. Cliquez sur « Ajouter une
-            candidature » pour commencer.
-          </p>
-        )}
+      {!boardsLoading && !boardsError && (
+        <div style={layoutStyle}>
+          <Sidebar
+            boards={boards}
+            currentBoardId={currentBoardId}
+            onSelect={selectBoard}
+          />
 
-        {!loading && !error && applications.length > 0 && (
-          <DragDropProvider onDragEnd={handleDragEnd}>
-            <div style={boardStyle}>
-              {APPLICATION_STATUSES.map((status) => (
-                <KanbanColumn
-                  key={status.key}
-                  statusKey={status.key}
-                  label={status.label}
-                  applications={byStatus[status.key]}
-                  onEditApplication={(application) =>
-                    setModal({ mode: 'edit', application })
-                  }
-                />
-              ))}
+          <main style={mainStyle}>
+            <div style={headerRowStyle}>
+              <h1 style={{ margin: 0 }}>{currentBoard?.name ?? 'Tableau'}</h1>
+              <button
+                type="button"
+                style={addButtonStyle}
+                onClick={() => setModal({ mode: 'create' })}
+              >
+                Ajouter une candidature
+              </button>
             </div>
-          </DragDropProvider>
-        )}
-      </main>
+
+            {actionError && (
+              <p role="alert" style={{ ...errorStyle, marginBottom: 16 }}>
+                {actionError}
+              </p>
+            )}
+
+            {loading && <p style={messageStyle}>Chargement des candidatures…</p>}
+
+            {!loading && error && (
+              <p role="alert" style={errorStyle}>
+                {error}
+              </p>
+            )}
+
+            {!loading && !error && applications.length === 0 && (
+              <p style={messageStyle}>
+                Ce tableau n’a pas encore de candidature.
+              </p>
+            )}
+
+            {!loading && !error && applications.length > 0 && (
+              <DragDropProvider onDragEnd={handleDragEnd}>
+                <div style={boardStyle}>
+                  {APPLICATION_STATUSES.map((status) => (
+                    <KanbanColumn
+                      key={status.key}
+                      statusKey={status.key}
+                      label={status.label}
+                      applications={byStatus[status.key]}
+                      onEditApplication={(application) =>
+                        setModal({ mode: 'edit', application })
+                      }
+                    />
+                  ))}
+                </div>
+              </DragDropProvider>
+            )}
+          </main>
+        </div>
+      )}
 
       {modal?.mode === 'create' && (
         <Modal title="Ajouter une candidature" onClose={closeModal}>

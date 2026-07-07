@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 
 import GuestRoute from '../components/GuestRoute.jsx'
 import ProtectedRoute from '../components/ProtectedRoute.jsx'
+import { BoardsProvider } from '../boards/BoardsProvider.jsx'
 import BoardPage from '../pages/BoardPage.jsx'
 import LoginPage from '../pages/LoginPage.jsx'
 import RegisterPage from '../pages/RegisterPage.jsx'
@@ -17,7 +18,9 @@ export default function AppRoutes() {
         path="/"
         element={
           <ProtectedRoute>
-            <BoardPage />
+            <BoardsProvider>
+              <BoardPage />
+            </BoardsProvider>
           </ProtectedRoute>
         }
       />

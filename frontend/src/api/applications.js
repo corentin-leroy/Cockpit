@@ -4,12 +4,15 @@ import { apiFetch } from './client.js'
 
 /**
  * Récupère les candidatures de l'utilisateur connecté. GET /applications.
- * Le cloisonnement par utilisateur est assuré côté backend (filtre user_id) ;
- * apiFetch ajoute déjà le header Bearer et gère le 401.
+ * Le cloisonnement par utilisateur est assuré côté backend (jointure board →
+ * user) ; apiFetch ajoute déjà le header Bearer et gère le 401.
+ * @param {number} [boardId] filtre optionnel : ne renvoyer que les candidatures
+ *   de ce tableau (GET /applications?board_id=...).
  * @returns {Promise<Array>} liste des candidatures.
  */
-export function getApplications() {
-  return apiFetch('/applications')
+export function getApplications(boardId) {
+  const query = boardId != null ? `?board_id=${encodeURIComponent(boardId)}` : ''
+  return apiFetch(`/applications${query}`)
 }
 
 /**
