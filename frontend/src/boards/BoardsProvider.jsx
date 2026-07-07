@@ -10,7 +10,12 @@
 
 import { useEffect, useState } from 'react'
 
-import { getBoards } from '../api/boards.js'
+import {
+  getBoards,
+  createBoard as apiCreateBoard,
+  updateBoard as apiUpdateBoard,
+  deleteBoard as apiDeleteBoard,
+} from '../api/boards.js'
 import { BoardsContext } from './context.js'
 import { getLastBoardId, setLastBoardId } from './lastBoard.js'
 
@@ -58,6 +63,43 @@ export function BoardsProvider({ children }) {
     setLastBoardId(id)
   }
 
+  // Les mutations vivent ICI, sur la source de vérité : après l'appel réseau,
+  // elles ajustent la liste locale sans re-fetch, comme le kanban le fait pour ses
+  // candidatures. Elles renvoient (ou propagent l'erreur de) la promesse d'apiFetch,
+  // pour que le formulaire appelant affiche l'échec et ne ferme pas la modale.
+
+  /** Crée un tableau, l'ajoute à la liste et en fait le tableau courant. */
+  async function createBoard(name) {
+    const created = await apiCreateBoard(name)
+    setBoards((prev) => [...prev, created])
+    setCurrentBoardId(created.id)
+    setLastBoardId(created.id)
+    return created
+  }
+
+  /** Renomme un tableau et met à jour la liste (le titre du kanban suit via currentBoard). */
+  async function renameBoard(id, name) {
+    const updated = await apiUpdateBoard(id, name)
+    setBoards((prev) => prev.map((b) => (b.id === id ? updated : b)))
+    return updated
+  }
+
+  /**
+   * Supprime un tableau. Si c'était le tableau courant, bascule sur le premier
+   * tableau restant pour ne jamais laisser l'app sur un tableau inexistant.
+   */
+  async function removeBoard(id) {
+    await apiDeleteBoard(id)
+    setBoards((prev) => prev.filter((b) => b.id !== id))
+    if (id === currentBoardId) {
+      // `boards` (closure du rendu courant) reflète l'état avant retrait : on y
+      // cherche le premier tableau différent de celui supprimé.
+      const fallbackId = boards.find((b) => b.id !== id)?.id ?? null
+      setCurrentBoardId(fallbackId)
+      if (fallbackId != null) setLastBoardId(fallbackId)
+    }
+  }
+
   // Objet complet du tableau courant, dérivé de l'id (pour le titre, etc.).
   const currentBoard = boards.find((b) => b.id === currentBoardId) ?? null
 
@@ -66,6 +108,9 @@ export function BoardsProvider({ children }) {
     currentBoard,
     currentBoardId,
     selectBoard,
+    createBoard,
+    renameBoard,
+    removeBoard,
     loading,
     error,
   }

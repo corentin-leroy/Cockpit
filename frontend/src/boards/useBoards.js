@@ -5,7 +5,8 @@ import { useContext } from 'react'
 import { BoardsContext } from './context.js'
 
 /**
- * Renvoie { boards, currentBoard, currentBoardId, selectBoard, loading, error }.
+ * Renvoie { boards, currentBoard, currentBoardId, selectBoard, createBoard,
+ * renameBoard, removeBoard, loading, error }.
  * Garde-fou si utilisé hors d'un <BoardsProvider>.
  */
 export function useBoards() {

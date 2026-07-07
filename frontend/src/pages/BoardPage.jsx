@@ -17,6 +17,7 @@ import Sidebar from '../components/Sidebar.jsx'
 import KanbanColumn from '../components/KanbanColumn.jsx'
 import Modal from '../components/Modal.jsx'
 import ApplicationForm from '../components/ApplicationForm.jsx'
+import BoardForm from '../components/BoardForm.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
 
 const layoutStyle = {
@@ -69,6 +70,9 @@ export default function BoardPage() {
     currentBoard,
     currentBoardId,
     selectBoard,
+    createBoard,
+    renameBoard,
+    removeBoard,
     loading: boardsLoading,
     error: boardsError,
   } = useBoards()
@@ -89,6 +93,10 @@ export default function BoardPage() {
   const [modal, setModal] = useState(null)
   // Id de la candidature en cours de suppression (désactive les actions).
   const [deletingId, setDeletingId] = useState(null)
+  // Modale de tableau : null, { mode: 'create' }, ou { mode: 'rename', board }.
+  const [boardModal, setBoardModal] = useState(null)
+  // Id du tableau en cours de suppression (désactive son action dans la sidebar).
+  const [deletingBoardId, setDeletingBoardId] = useState(null)
   // Erreur d'une action ponctuelle (ex. échec du changement de statut). Distincte
   // de `error` (échec de chargement) : elle ne masque pas le board, s'affiche en
   // bannière au-dessus, et est effacée à la prochaine action réussie.
@@ -230,6 +238,48 @@ export default function BoardPage() {
     }
   }
 
+  // --- Gestion des tableaux (création / renommage / suppression) ---
+  // Les appels réseau + la mise à jour de la liste vivent dans BoardsProvider ;
+  // ici on ne pilote que l'ouverture des modales et la confirmation de suppression.
+
+  function closeBoardModal() {
+    setBoardModal(null)
+  }
+
+  // Création : createBoard (contexte) crée, ajoute à la liste ET bascule le
+  // tableau courant sur le nouveau ; on ferme la modale au succès. Une erreur
+  // (réseau/serveur) est propagée à BoardForm, qui l'affiche sans fermer.
+  async function handleCreateBoard(name) {
+    await createBoard(name)
+    closeBoardModal()
+  }
+
+  // Renommage : le titre du kanban suit automatiquement (currentBoard dérivé).
+  async function handleRenameBoard(name) {
+    await renameBoard(boardModal.board.id, name)
+    closeBoardModal()
+  }
+
+  // Suppression : confirmation explicite (la cascade supprime aussi les
+  // candidatures), puis appel. Le contexte rebascule le tableau courant si on
+  // supprime celui affiché. Un échec (ex. 409 dernier tableau, en filet de
+  // sécurité malgré l'action masquée) est signalé sans planter.
+  async function handleDeleteBoard(board) {
+    const confirmed = window.confirm(
+      `Supprimer le tableau « ${board.name} » et toutes ses candidatures ?`,
+    )
+    if (!confirmed) return
+
+    setDeletingBoardId(board.id)
+    try {
+      await removeBoard(board.id)
+    } catch (err) {
+      window.alert(err.message || 'La suppression du tableau a échoué. Réessayez.')
+    } finally {
+      setDeletingBoardId(null)
+    }
+  }
+
   return (
     <>
       <Navbar />
@@ -254,6 +304,10 @@ export default function BoardPage() {
             boards={boards}
             currentBoardId={currentBoardId}
             onSelect={selectBoard}
+            onCreate={() => setBoardModal({ mode: 'create' })}
+            onRename={(board) => setBoardModal({ mode: 'rename', board })}
+            onDelete={handleDeleteBoard}
+            deletingBoardId={deletingBoardId}
           />
 
           <main style={mainStyle}>
@@ -328,6 +382,27 @@ export default function BoardPage() {
             onCancel={closeModal}
             onDelete={handleDelete}
             deleting={deletingId === modal.application.id}
+          />
+        </Modal>
+      )}
+
+      {boardModal?.mode === 'create' && (
+        <Modal title="Nouveau tableau" onClose={closeBoardModal}>
+          <BoardForm
+            submitLabel="Créer"
+            onSubmit={handleCreateBoard}
+            onCancel={closeBoardModal}
+          />
+        </Modal>
+      )}
+
+      {boardModal?.mode === 'rename' && (
+        <Modal title="Renommer le tableau" onClose={closeBoardModal}>
+          <BoardForm
+            initialName={boardModal.board.name}
+            submitLabel="Enregistrer"
+            onSubmit={handleRenameBoard}
+            onCancel={closeBoardModal}
           />
         </Modal>
       )}
