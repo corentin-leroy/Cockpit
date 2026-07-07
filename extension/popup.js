@@ -13,7 +13,13 @@
 // pré-remplit le formulaire ; c'est l'utilisateur qui valide/complète, puis on
 // poste les données DU FORMULAIRE.
 
-import { getToken, setToken, clearToken } from "./storage.js";
+import {
+  getToken,
+  setToken,
+  clearToken,
+  getLastBoardId,
+  setLastBoardId,
+} from "./storage.js";
 import { login } from "./api.js";
 
 const loadingEl = document.getElementById("loading");
@@ -31,6 +37,8 @@ const titleEl = document.getElementById("f-title");
 const companyEl = document.getElementById("f-company");
 const locationEl = document.getElementById("f-location");
 const urlEl = document.getElementById("f-url");
+const boardFieldEl = document.getElementById("board-field");
+const boardSelectEl = document.getElementById("f-board");
 const addBtn = document.getElementById("add-btn");
 const logoutBtn = document.getElementById("logout-btn");
 
@@ -38,6 +46,12 @@ const logoutBtn = document.getElementById("logout-btn");
 // (source) et l'url même si l'utilisateur ne la touche pas — au moment de l'envoi,
 // les valeurs du formulaire sont fusionnées PAR-DESSUS cet objet.
 let currentOffer = null;
+
+// Tableaux de l'utilisateur et tableau de destination choisi. board_id part
+// TOUJOURS de selectedBoardId (même quand le déroulant est masqué, cas d'un seul
+// tableau) : c'est ce qui répare l'ajout (POST /applications exige un board_id).
+let boards = [];
+let selectedBoardId = null;
 
 /** Affiche un message d'info/erreur/succès sous les boutons. */
 function showMessage(text, kind = "") {
@@ -99,6 +113,81 @@ async function startExtraction() {
   titleEl.select();
 }
 
+/** Remplit le déroulant des tableaux et applique la règle de complexité progressive. */
+function populateBoardSelect() {
+  boardSelectEl.innerHTML = "";
+  for (const board of boards) {
+    const option = document.createElement("option");
+    option.value = String(board.id);
+    option.textContent = board.name;
+    boardSelectEl.appendChild(option);
+  }
+  boardSelectEl.value = String(selectedBoardId);
+  // Complexité progressive : on ne propose de CHOISIR que s'il y a plusieurs
+  // tableaux. Avec un seul, le déroulant reste masqué (l'offre y va sans choix).
+  boardFieldEl.style.display = boards.length > 1 ? "block" : "none";
+}
+
+/**
+ * Charge les tableaux (via le service worker) et détermine le tableau
+ * pré-sélectionné. Renvoie true si tout est prêt, false si l'ajout ne peut pas
+ * se faire (401 → écran de connexion ; erreur réseau → message). Dans ces deux
+ * cas de false, l'UI a déjà été mise à jour ici.
+ */
+async function loadBoards() {
+  const result = await chrome.runtime.sendMessage({ type: "GET_BOARDS" });
+
+  if (result?.ok) {
+    boards = result.boards ?? [];
+    if (boards.length === 0) {
+      // Ne devrait pas arriver (le backend garantit au moins un tableau), mais on
+      // évite un POST sans board_id qui échouerait en 422.
+      showMessage("Aucun tableau disponible.", "error");
+      return false;
+    }
+
+    // Pré-sélection (repli inclus) : dernier tableau mémorisé s'il existe ENCORE
+    // dans la liste, sinon le premier. Le find neutralise un id périmé (tableau
+    // supprimé depuis le dernier ajout).
+    const lastId = await getLastBoardId();
+    const remembered =
+      lastId != null && boards.find((b) => b.id === Number(lastId));
+    selectedBoardId = remembered ? remembered.id : boards[0].id;
+
+    populateBoardSelect();
+    return true;
+  }
+
+  // Token expiré/invalide : le service worker a déjà purgé le token. On rebascule
+  // vers l'écran de connexion (cohérent avec l'ajout). On NE ferme PAS la popup.
+  if (result?.status === 401) {
+    await clearToken();
+    render(false);
+    showMessage("Session expirée, reconnectez-vous.", "error");
+    return false;
+  }
+
+  showMessage(`❌ ${result?.error || "Impossible de charger les tableaux."}`, "error");
+  return false;
+}
+
+/**
+ * Entrée dans l'état connecté : on charge d'abord les tableaux (nécessaires au
+ * board_id, et détecte un 401 d'emblée) ; seulement si c'est bon, on lance
+ * l'extraction qui affiche le formulaire de correction.
+ */
+async function enterConnectedState() {
+  render(true);
+  const ready = await loadBoards();
+  if (!ready) return;
+  startExtraction();
+}
+
+// Changement de tableau de destination dans le déroulant.
+boardSelectEl.addEventListener("change", () => {
+  selectedBoardId = Number(boardSelectEl.value);
+});
+
 // --- État (a) : connexion ---
 loggedOutEl.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -117,8 +206,7 @@ loggedOutEl.addEventListener("submit", async (event) => {
     const { access_token: token } = await login(email, password);
     await setToken(token);
     passwordEl.value = "";
-    render(true);
-    startExtraction();
+    enterConnectedState();
   } catch (err) {
     // 401 : identifiants invalides. Le backend renvoie déjà un message générique.
     showMessage(err.message || "Échec de la connexion.", "error");
@@ -142,11 +230,19 @@ offerFormEl.addEventListener("submit", async (event) => {
     showMessage("L'intitulé et l'entreprise sont obligatoires.", "error");
     return;
   }
+  if (selectedBoardId == null) {
+    // Garde-fou : sans tableau cible, le POST échouerait (422). En pratique
+    // loadBoards a déjà bloqué ce cas avant d'afficher le formulaire.
+    showMessage("Aucun tableau sélectionné.", "error");
+    return;
+  }
 
   // Fusion par-dessus l'offre extraite : conserve l'url (même non modifiée) et
   // marque la source comme « extension » même si l'extraction avait échoué.
+  // board_id : tableau de destination choisi (ou l'unique tableau).
   const offer = {
     ...currentOffer,
+    board_id: selectedBoardId,
     title,
     company,
     location: locationEl.value.trim() || null,
@@ -163,6 +259,8 @@ offerFormEl.addEventListener("submit", async (event) => {
 
     if (result?.ok) {
       succeeded = true;
+      // Mémorise le tableau choisi pour le pré-sélectionner au prochain ajout.
+      await setLastBoardId(selectedBoardId);
       showMessage("✅ Offre ajoutée au cockpit !", "success");
       // Laisse le message de succès visible un court instant, puis referme la
       // popup : ~900 ms est assez long pour lire le ✅ (perçu comme un accusé de
@@ -203,6 +301,9 @@ logoutBtn.addEventListener("click", async () => {
 // --- Au chargement de la popup : choisir l'état selon la présence d'un token ---
 (async () => {
   const token = await getToken();
-  render(Boolean(token));
-  if (token) startExtraction();
+  if (token) {
+    enterConnectedState();
+  } else {
+    render(false);
+  }
 })();

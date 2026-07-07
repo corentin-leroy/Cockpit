@@ -95,8 +95,14 @@ class ApplicationCreate(BaseModel):
 
 class ApplicationUpdate(BaseModel):
     """Payload pour modifier une candidature. Tous les champs optionnels :
-    on ne met à jour que ce qui est fourni (PATCH sémantique)."""
+    on ne met à jour que ce qui est fourni (PATCH sémantique).
 
+    board_id permet de DÉPLACER une candidature vers un autre tableau. Le
+    serveur vérifie que ce tableau cible appartient bien au current_user (sinon
+    404), exactement comme à la création — on ne fait jamais confiance au payload
+    pour l'ownership."""
+
+    board_id: int | None = None
     title: str | None = Field(default=None, min_length=1, max_length=255)
     company: str | None = Field(default=None, min_length=1, max_length=255)
     location: str | None = None

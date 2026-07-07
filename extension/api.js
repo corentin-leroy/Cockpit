@@ -43,6 +43,31 @@ export async function login(email, password) {
 }
 
 /**
+ * Récupère les tableaux de l'utilisateur. GET /boards avec Bearer.
+ * Sert à alimenter le choix du tableau dans la popup. Même gestion du 401 que
+ * createApplication (purge du token → la popup rebascule vers la connexion).
+ */
+export async function getBoards() {
+  const token = await getToken();
+  if (!token) {
+    throw new ApiError("Session expirée, reconnectez-vous.", 401);
+  }
+
+  const response = await fetch(`${API_BASE_URL}/boards`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    if (response.status === 401) {
+      await clearToken();
+    }
+    throw new ApiError(data?.detail || `Erreur ${response.status}`, response.status);
+  }
+  return data;
+}
+
+/**
  * Crée une candidature. POST /applications avec Authorization: Bearer <token>.
  * Sur 401 (token expiré/invalide), purge le token stocké — la popup rebascule
  * alors vers l'état « non connecté ».

@@ -58,6 +58,9 @@ const dangerButtonStyle = {
 /**
  * @param {Object}   props
  * @param {Object}  [props.initialValues]  valeurs pré-remplies (mode édition).
+ * @param {Array}   [props.boards]         tableaux de l'utilisateur (pour le déroulant).
+ * @param {number}  [props.initialBoardId] tableau pré-sélectionné (courant à la
+ *   création, tableau actuel de la candidature à l'édition).
  * @param {string}   props.submitLabel      libellé du bouton de validation.
  * @param {(data: Object) => Promise<void>} props.onSubmit  soumission (async).
  * @param {() => void} props.onCancel        fermeture sans enregistrer.
@@ -66,6 +69,8 @@ const dangerButtonStyle = {
  */
 export default function ApplicationForm({
   initialValues,
+  boards = [],
+  initialBoardId,
   submitLabel,
   onSubmit,
   onCancel,
@@ -73,14 +78,21 @@ export default function ApplicationForm({
   deleting = false,
 }) {
   // On ne conserve que les champs éditables ; les valeurs manquantes (null côté
-  // API) sont normalisées en chaîne vide pour des <input> contrôlés.
+  // API) sont normalisées en chaîne vide pour des <input> contrôlés. board_id est
+  // toujours dans l'état (requis à la création) même si le déroulant n'est pas
+  // affiché — il vaut alors le tableau pré-sélectionné.
   const [values, setValues] = useState(() => ({
     title: initialValues?.title ?? '',
     company: initialValues?.company ?? '',
     location: initialValues?.location ?? '',
     url: initialValues?.url ?? '',
     notes: initialValues?.notes ?? '',
+    board_id: initialBoardId ?? null,
   }))
+
+  // Complexité progressive : on ne propose de CHOISIR un tableau que si
+  // l'utilisateur en a plusieurs. Avec un seul tableau, aucun choix à faire.
+  const showBoardSelect = boards.length > 1
   const [fieldErrors, setFieldErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -106,8 +118,10 @@ export default function ApplicationForm({
     if (Object.keys(errors).length > 0) return
 
     // Normalisation : trim des champs ; champs optionnels vides → null (le backend
-    // accepte null pour location/url/notes).
+    // accepte null pour location/url/notes). board_id part toujours : requis à la
+    // création, et à l'édition il permet le déplacement (inchangé s'il est égal).
     const payload = {
+      board_id: values.board_id,
       title: values.title.trim(),
       company: values.company.trim(),
       location: values.location.trim() || null,
@@ -205,6 +219,33 @@ export default function ApplicationForm({
           onChange={update('notes')}
         />
       </div>
+
+      {showBoardSelect && (
+        <div style={styles.field}>
+          <label style={styles.label} htmlFor="app-board">
+            Tableau
+          </label>
+          <select
+            id="app-board"
+            style={styles.input}
+            value={values.board_id ?? ''}
+            // La valeur d'un <select> est une chaîne : on reconvertit en nombre
+            // pour rester cohérent avec les ids côté API.
+            onChange={(event) =>
+              setValues((prev) => ({
+                ...prev,
+                board_id: Number(event.target.value),
+              }))
+            }
+          >
+            {boards.map((board) => (
+              <option key={board.id} value={board.id}>
+                {board.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div style={actionsStyle}>
         {onDelete && (

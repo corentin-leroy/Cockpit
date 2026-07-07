@@ -24,8 +24,20 @@
       #logged-out,
       #logged-in,
       #extract-status,
-      #offer-form {
+      #offer-form,
+      #board-field {
         display: none;
+      }
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px;
+        margin-bottom: 10px;
+        border: 1px solid #8884;
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        font: inherit;
       }
       label {
         display: block;
@@ -120,6 +132,13 @@
 
         <label for="f-url">Lien de l'offre</label>
         <input id="f-url" type="url" />
+
+        <!-- Champ tableau : révélé par popup.js seulement si l'utilisateur a
+             plusieurs tableaux (complexité progressive). -->
+        <div id="board-field">
+          <label for="f-board">Tableau</label>
+          <select id="f-board"></select>
+        </div>
 
         <button id="add-btn" type="submit">Ajouter au cockpit</button>
       </form>

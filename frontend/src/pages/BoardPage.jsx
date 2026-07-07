@@ -201,19 +201,30 @@ export default function BoardPage() {
   }
 
   // Création : la candidature créée est renvoyée par le backend (statut « saved »).
-  // On la préfixe à la liste locale (le backend trie par updated_at décroissant),
-  // ce qui la fait apparaître dans la colonne « Repérée » sans rechargement.
+  // Le formulaire y attache un board_id (tableau courant par défaut, ou un autre
+  // tableau choisi). On ne l'ajoute au kanban QUE si elle appartient au tableau
+  // affiché ; créée dans un autre tableau, elle n'a pas à apparaître ici.
   async function handleCreate(data) {
     const created = await createApplication(data)
-    setApplications((prev) => [created, ...prev])
+    if (created.board_id === currentBoardId) {
+      // Préfixée à la liste (le backend trie par updated_at décroissant) → elle
+      // apparaît en tête de la colonne « Repérée » sans rechargement.
+      setApplications((prev) => [created, ...prev])
+    }
     closeModal()
   }
 
-  // Édition : on remplace la candidature par la version à jour renvoyée par l'API.
+  // Édition : la version à jour est renvoyée par l'API. Deux cas selon le tableau
+  // de destination :
+  //  - restée dans le tableau courant → on remplace la carte sur place ;
+  //  - déplacée vers un AUTRE tableau → elle sort de la vue courante (on ne montre
+  //    que les candidatures du tableau affiché), donc on la retire de la liste.
   async function handleUpdate(data) {
     const updated = await updateApplication(modal.application.id, data)
     setApplications((prev) =>
-      prev.map((item) => (item.id === updated.id ? updated : item)),
+      updated.board_id === currentBoardId
+        ? prev.map((item) => (item.id === updated.id ? updated : item))
+        : prev.filter((item) => item.id !== updated.id),
     )
     closeModal()
   }
@@ -367,6 +378,8 @@ export default function BoardPage() {
         <Modal title="Ajouter une candidature" onClose={closeModal}>
           <ApplicationForm
             submitLabel="Ajouter"
+            boards={boards}
+            initialBoardId={currentBoardId}
             onSubmit={handleCreate}
             onCancel={closeModal}
           />
@@ -377,6 +390,8 @@ export default function BoardPage() {
         <Modal title="Modifier la candidature" onClose={closeModal}>
           <ApplicationForm
             initialValues={modal.application}
+            boards={boards}
+            initialBoardId={modal.application.board_id}
             submitLabel="Enregistrer"
             onSubmit={handleUpdate}
             onCancel={closeModal}

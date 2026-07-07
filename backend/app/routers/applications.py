@@ -115,7 +115,16 @@ def update_application(
     application = _get_owned_application(application_id, current_user, db)
 
     # exclude_unset=True : on n'applique que les champs réellement envoyés
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+
+    # Déplacement vers un autre tableau : vérifier que le tableau cible appartient
+    # bien à l'utilisateur (sinon 404), même garde qu'à la création. Sans ce
+    # contrôle, un client pourrait « pousser » sa candidature dans le tableau
+    # d'autrui via un board_id arbitraire.
+    if "board_id" in data:
+        get_owned_board(data["board_id"], current_user, db)
+
+    for field, value in data.items():
         setattr(application, field, value)
 
     db.commit()

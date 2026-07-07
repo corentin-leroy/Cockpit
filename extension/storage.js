@@ -7,6 +7,10 @@
 // ce qui permet à ces deux contextes de partager le même token.
 
 const TOKEN_KEY = "cockpit_token";
+// Dernier tableau choisi dans l'extension (équivalent de boards/lastBoard.js côté
+// front, même clé « cockpit_last_board »). chrome.storage préserve les types JSON :
+// on y stocke/relit un NOMBRE, pas une chaîne comme localStorage côté front.
+const LAST_BOARD_KEY = "cockpit_last_board";
 
 /** Lit le token stocké, ou null s'il n'y en a pas. */
 export async function getToken() {
@@ -22,4 +26,15 @@ export async function setToken(token) {
 /** Efface le token (déconnexion, ou purge sur 401). */
 export async function clearToken() {
   await chrome.storage.local.remove(TOKEN_KEY);
+}
+
+/** Lit l'id du dernier tableau choisi, ou null. */
+export async function getLastBoardId() {
+  const result = await chrome.storage.local.get(LAST_BOARD_KEY);
+  return result[LAST_BOARD_KEY] ?? null;
+}
+
+/** Mémorise le tableau choisi pour le pré-sélectionner au prochain ajout. */
+export async function setLastBoardId(id) {
+  await chrome.storage.local.set({ [LAST_BOARD_KEY]: id });
 }

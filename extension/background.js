@@ -10,7 +10,7 @@
 // Pourquoi passer par le service worker plutôt que la page ? L'injection et le
 // POST se font depuis le contexte de l'extension → pas soumis à la CSP du site.
 
-import { createApplication } from "./api.js";
+import { getBoards, createApplication } from "./api.js";
 
 // --- La fonction injectée dans la page ---
 // ATTENTION : cette fonction est sérialisée puis exécutée DANS la page.
@@ -111,6 +111,20 @@ async function handleExtractOffer() {
 }
 
 /**
+ * Récupère les tableaux de l'utilisateur pour alimenter le choix dans la popup.
+ * Renvoie { ok: true, boards } ou { ok: false, status, error } ; status permet à
+ * la popup de distinguer le 401 (→ reconnexion).
+ */
+async function handleGetBoards() {
+  try {
+    const boards = await getBoards();
+    return { ok: true, boards };
+  } catch (err) {
+    return { ok: false, status: err.status, error: err.message };
+  }
+}
+
+/**
  * Poste au cockpit les données VALIDÉES par l'utilisateur (celles du formulaire,
  * pas l'extraction brute). Renvoie un résultat structuré ; err.status permet à
  * la popup de distinguer le 401 (→ reconnexion).
@@ -129,6 +143,10 @@ async function handleCreateApplication(offer) {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "EXTRACT_OFFER") {
     handleExtractOffer().then(sendResponse);
+    return true;
+  }
+  if (message?.type === "GET_BOARDS") {
+    handleGetBoards().then(sendResponse);
     return true;
   }
   if (message?.type === "ADD_OFFER") {
