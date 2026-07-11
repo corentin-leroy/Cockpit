@@ -9,6 +9,19 @@ import { useState } from 'react'
 
 import { styles } from './ui.js'
 
+// Longueur max du nom côté UX : garde la sidebar et le titre lisibles. Le backend
+// borne plus largement (max_length=100) comme garde-fou de cohérence des données.
+const NAME_MAX_LENGTH = 25
+
+const labelRowStyle = {
+  display: 'flex',
+  alignItems: 'baseline',
+  justifyContent: 'space-between',
+  gap: 8,
+}
+
+const counterStyle = { fontSize: 12, opacity: 0.6 }
+
 const actionsStyle = {
   display: 'flex',
   justifyContent: 'flex-end',
@@ -84,12 +97,18 @@ export default function BoardForm({
       )}
 
       <div style={styles.field}>
-        <label style={styles.label} htmlFor="board-name">
-          Nom du tableau *
-        </label>
+        <div style={labelRowStyle}>
+          <label style={styles.label} htmlFor="board-name">
+            Nom du tableau *
+          </label>
+          <span style={counterStyle} aria-hidden="true">
+            {name.length}/{NAME_MAX_LENGTH}
+          </span>
+        </div>
         <input
           id="board-name"
           type="text"
+          maxLength={NAME_MAX_LENGTH}
           style={styles.input}
           value={name}
           onChange={(event) => setName(event.target.value)}

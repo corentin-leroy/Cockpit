@@ -36,6 +36,21 @@ const headerRowStyle = {
   marginBottom: 16,
 }
 
+// Titre du board : minWidth:0 permet à ce flex-item de rétrécir (sinon il pousse
+// le bouton) ; ellipsis coupe proprement un nom trop long.
+// lineHeight:1.2 (unitless) : indispensable car le <h1> hérite sinon d'une
+// line-height fixe ~26px (issue de `font:18px/145%` sur :root), trop courte pour
+// la police de 56px → combinée à overflow:hidden, elle rognait le haut/bas des
+// lettres. Une valeur sans unité se recalcule sur la taille réelle de la police.
+const titleStyle = {
+  margin: 0,
+  minWidth: 0,
+  lineHeight: 1.2,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+}
+
 const addButtonStyle = {
   padding: '8px 14px',
   borderRadius: 8,
@@ -44,6 +59,9 @@ const addButtonStyle = {
   color: 'var(--text-h)',
   font: 'inherit',
   cursor: 'pointer',
+  // Ne se comprime pas et garde son libellé sur une ligne face à un titre long.
+  flexShrink: 0,
+  whiteSpace: 'nowrap',
 }
 
 const boardStyle = {
@@ -153,11 +171,17 @@ export default function BoardPage() {
     setModal(null)
   }
 
-  // Fin d'un glisser-déposer. La carte porte l'id de la candidature ; la colonne
-  // cible porte la clé du statut. On change le statut via PATCH, en optimiste.
+  // Fin d'un glisser-déposer. La carte (source) porte l'id de la candidature.
+  // Deux familles de cibles partagent le MÊME contexte de drag & drop :
+  //  - une COLONNE du kanban → change le statut (KanbanColumn, id = clé de statut,
+  //    sans data.type) ;
+  //  - un TABLEAU de la sidebar → déplace la candidature (BoardRow, data.type
+  //    « board » + boardId).
+  // On distingue les deux par `target.data.type` : le seul discriminant explicite,
+  // posé uniquement par les tableaux ; toute cible sans ce marqueur est une colonne.
   function handleDragEnd(event) {
     const { operation, canceled } = event
-    // Drag annulé (Échap) ou relâché hors d'une colonne : rien à faire.
+    // Drag annulé (Échap) ou relâché hors d'une cible valide : rien à faire.
     if (canceled) return
 
     const source = operation.source
@@ -165,17 +189,24 @@ export default function BoardPage() {
     if (!source || !target) return
 
     const applicationId = source.id // id de la candidature (nombre)
+
+    if (target.data?.type === 'board') {
+      moveApplicationToBoard(applicationId, target.data.boardId)
+      return
+    }
+
+    // Cible « colonne » : changement de statut (comportement existant, inchangé).
     const newStatus = target.id // clé du statut de la colonne cible (chaîne)
 
     // Statut d'origine mémorisé sur la carte (data.status), qui sert à la fois à
     // détecter un dépôt sans changement et de valeur de rollback en cas d'échec.
     const previousStatus = source.data?.status
 
-    // Étape 6 : reposée dans sa colonne d'origine → aucun PATCH.
+    // Reposée dans sa colonne d'origine → aucun PATCH.
     if (previousStatus === newStatus) return
 
-    // Étape 4 : mise à jour optimiste immédiate (la carte change de colonne avant
-    // la réponse de l'API), via une mise à jour fonctionnelle ciblée sur la carte.
+    // Mise à jour optimiste immédiate (la carte change de colonne avant la réponse
+    // de l'API), via une mise à jour fonctionnelle ciblée sur la carte.
     setActionError('')
     setApplications((prev) =>
       prev.map((item) =>
@@ -183,10 +214,10 @@ export default function BoardPage() {
       ),
     )
 
-    // Étape 5 : PATCH en arrière-plan ; rollback ciblé si l'appel échoue. On ne
-    // restaure QUE le statut de cette carte (à previousStatus) plutôt qu'un
-    // snapshot complet du tableau : la mise à jour fonctionnelle se compose ainsi
-    // proprement avec d'éventuelles autres modifications survenues entre-temps.
+    // PATCH en arrière-plan ; rollback ciblé si l'appel échoue. On ne restaure QUE
+    // le statut de cette carte (à previousStatus) plutôt qu'un snapshot complet du
+    // tableau : la mise à jour fonctionnelle se compose ainsi proprement avec
+    // d'éventuelles autres modifications survenues entre-temps.
     updateApplication(applicationId, { status: newStatus }).catch((err) => {
       setApplications((prev) =>
         prev.map((item) =>
@@ -196,6 +227,43 @@ export default function BoardPage() {
       setActionError(
         err.message ||
           'Le changement de statut a échoué. La carte a été replacée.',
+      )
+    })
+  }
+
+  // Déplacement d'une candidature vers un AUTRE tableau, via le même chemin que la
+  // modale d'édition (updateApplication avec board_id). Réutilisée par le drag vers
+  // la sidebar.
+  function moveApplicationToBoard(applicationId, targetBoardId) {
+    // Lâchée sur le tableau courant : la candidature y est déjà (le droppable du
+    // tableau courant est `disabled`, mais on reste défensif). Aucun PATCH.
+    if (targetBoardId === currentBoardId) return
+
+    // Mémorise la carte ET sa position pour un rollback fidèle en cas d'échec :
+    // contrairement au changement de statut (une seule propriété à restaurer), un
+    // déplacement RETIRE la carte de la vue courante et doit pouvoir la réinsérer.
+    const index = applications.findIndex((item) => item.id === applicationId)
+    if (index === -1) return
+    const moved = applications[index]
+
+    // Optimiste : la carte quitte le tableau courant → elle disparaît de la vue
+    // (on n'affiche que les candidatures du tableau courant). Les compteurs de
+    // colonnes se recalculent seuls (byStatus dérivé de `applications`).
+    setActionError('')
+    setApplications((prev) => prev.filter((item) => item.id !== applicationId))
+
+    updateApplication(applicationId, { board_id: targetBoardId }).catch((err) => {
+      // Rollback : on réinsère la carte à sa position d'origine (si elle n'y est
+      // pas déjà revenue entre-temps).
+      setApplications((prev) => {
+        if (prev.some((item) => item.id === applicationId)) return prev
+        const next = [...prev]
+        next.splice(Math.min(index, next.length), 0, moved)
+        return next
+      })
+      setActionError(
+        err.message ||
+          'Le déplacement vers le tableau a échoué. La carte a été restaurée.',
       )
     })
   }
@@ -310,6 +378,12 @@ export default function BoardPage() {
       )}
 
       {!boardsLoading && !boardsError && (
+        // DragDropProvider englobe la sidebar ET le kanban : les cartes draggables
+        // et les tableaux droppables doivent partager le même contexte de drag &
+        // drop pour qu'une carte puisse être déposée sur un tableau. (Il était
+        // auparavant limité au kanban ; il remonte ici sans changer le drag entre
+        // colonnes, qui reste géré par le même onDragEnd.)
+        <DragDropProvider onDragEnd={handleDragEnd}>
         <div style={layoutStyle}>
           <Sidebar
             boards={boards}
@@ -323,7 +397,9 @@ export default function BoardPage() {
 
           <main style={mainStyle}>
             <div style={headerRowStyle}>
-              <h1 style={{ margin: 0 }}>{currentBoard?.name ?? 'Tableau'}</h1>
+              <h1 style={titleStyle} title={currentBoard?.name ?? undefined}>
+                {currentBoard?.name ?? 'Tableau'}
+              </h1>
               <button
                 type="button"
                 style={addButtonStyle}
@@ -354,24 +430,23 @@ export default function BoardPage() {
             )}
 
             {!loading && !error && applications.length > 0 && (
-              <DragDropProvider onDragEnd={handleDragEnd}>
-                <div style={boardStyle}>
-                  {APPLICATION_STATUSES.map((status) => (
-                    <KanbanColumn
-                      key={status.key}
-                      statusKey={status.key}
-                      label={status.label}
-                      applications={byStatus[status.key]}
-                      onEditApplication={(application) =>
-                        setModal({ mode: 'edit', application })
-                      }
-                    />
-                  ))}
-                </div>
-              </DragDropProvider>
+              <div style={boardStyle}>
+                {APPLICATION_STATUSES.map((status) => (
+                  <KanbanColumn
+                    key={status.key}
+                    statusKey={status.key}
+                    label={status.label}
+                    applications={byStatus[status.key]}
+                    onEditApplication={(application) =>
+                      setModal({ mode: 'edit', application })
+                    }
+                  />
+                ))}
+              </div>
             )}
           </main>
         </div>
+        </DragDropProvider>
       )}
 
       {modal?.mode === 'create' && (

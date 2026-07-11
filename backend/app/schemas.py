@@ -56,13 +56,16 @@ class BoardCreate(BaseModel):
     """Payload pour créer un tableau. Seul le nom est fourni ; le propriétaire
     (user_id) est renseigné côté serveur depuis le current_user."""
 
-    name: str = Field(min_length=1, max_length=255)
+    # max_length=100 : garde-fou de cohérence des données. Le front limite à 25
+    # pour l'UX (sidebar/titre lisibles) ; le backend borne plus largement pour
+    # empêcher un nom délirant stocké en contournant le front.
+    name: str = Field(min_length=1, max_length=100)
 
 
 class BoardUpdate(BaseModel):
     """Payload pour renommer un tableau. Le nom est le seul champ modifiable."""
 
-    name: str = Field(min_length=1, max_length=255)
+    name: str = Field(min_length=1, max_length=100)
 
 
 class BoardRead(BaseModel):
