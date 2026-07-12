@@ -11,49 +11,7 @@
 
 import { useState } from 'react'
 
-import { styles } from './ui.js'
-
-const textareaStyle = { ...styles.input, minHeight: 80, resize: 'vertical' }
-
-const actionsStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 8,
-  marginTop: 8,
-}
-
-const rightActionsStyle = { display: 'flex', gap: 8, marginLeft: 'auto' }
-
-const primaryButtonStyle = {
-  padding: '10px 14px',
-  borderRadius: 8,
-  border: '1px solid var(--accent-border)',
-  background: 'var(--accent-bg)',
-  color: 'var(--text-h)',
-  font: 'inherit',
-  cursor: 'pointer',
-}
-
-const secondaryButtonStyle = {
-  padding: '10px 14px',
-  borderRadius: 8,
-  border: '1px solid var(--border)',
-  background: 'transparent',
-  color: 'inherit',
-  font: 'inherit',
-  cursor: 'pointer',
-}
-
-const dangerButtonStyle = {
-  padding: '10px 14px',
-  borderRadius: 8,
-  border: '1px solid rgba(221, 51, 51, 0.5)',
-  background: 'transparent',
-  color: '#d33',
-  font: 'inherit',
-  cursor: 'pointer',
-}
+import Alert, { FieldError } from './Alert.jsx'
 
 /**
  * @param {Object}   props
@@ -141,93 +99,85 @@ export default function ApplicationForm({
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      {formError && (
-        <div role="alert" style={styles.formError}>
-          {formError}
-        </div>
-      )}
+      {formError && <Alert className="stack-gap">{formError}</Alert>}
 
-      <div style={styles.field}>
-        <label style={styles.label} htmlFor="app-title">
+      <div className="field">
+        <label className="field__label" htmlFor="app-title">
           Intitulé du poste *
         </label>
         <input
           id="app-title"
           type="text"
-          style={styles.input}
+          className="input"
           value={values.title}
           onChange={update('title')}
           aria-invalid={Boolean(fieldErrors.title)}
         />
-        {fieldErrors.title && (
-          <span style={styles.fieldError}>{fieldErrors.title}</span>
-        )}
+        {fieldErrors.title && <FieldError>{fieldErrors.title}</FieldError>}
       </div>
 
-      <div style={styles.field}>
-        <label style={styles.label} htmlFor="app-company">
+      <div className="field">
+        <label className="field__label" htmlFor="app-company">
           Entreprise *
         </label>
         <input
           id="app-company"
           type="text"
-          style={styles.input}
+          className="input"
           value={values.company}
           onChange={update('company')}
           aria-invalid={Boolean(fieldErrors.company)}
         />
-        {fieldErrors.company && (
-          <span style={styles.fieldError}>{fieldErrors.company}</span>
-        )}
+        {fieldErrors.company && <FieldError>{fieldErrors.company}</FieldError>}
       </div>
 
-      <div style={styles.field}>
-        <label style={styles.label} htmlFor="app-location">
+      <div className="field">
+        <label className="field__label" htmlFor="app-location">
           Lieu
         </label>
         <input
           id="app-location"
           type="text"
-          style={styles.input}
+          className="input"
           value={values.location}
           onChange={update('location')}
         />
       </div>
 
-      <div style={styles.field}>
-        <label style={styles.label} htmlFor="app-url">
+      <div className="field">
+        <label className="field__label" htmlFor="app-url">
           Lien vers l'offre
         </label>
         <input
           id="app-url"
           type="url"
           placeholder="https://…"
-          style={styles.input}
+          className="input"
           value={values.url}
           onChange={update('url')}
         />
       </div>
 
-      <div style={styles.field}>
-        <label style={styles.label} htmlFor="app-notes">
+      <div className="field">
+        <label className="field__label" htmlFor="app-notes">
           Notes
         </label>
         <textarea
           id="app-notes"
-          style={textareaStyle}
+          className="input textarea"
           value={values.notes}
           onChange={update('notes')}
         />
       </div>
 
       {showBoardSelect && (
-        <div style={styles.field}>
-          <label style={styles.label} htmlFor="app-board">
+        <div className="field">
+          <label className="field__label" htmlFor="app-board">
             Tableau
           </label>
           <select
             id="app-board"
-            style={styles.input}
+            className="input"
             value={values.board_id ?? ''}
             // La valeur d'un <select> est une chaîne : on reconvertit en nombre
             // pour rester cohérent avec les ids côté API.
@@ -247,11 +197,11 @@ export default function ApplicationForm({
         </div>
       )}
 
-      <div style={actionsStyle}>
+      <div className="form-actions">
         {onDelete && (
           <button
             type="button"
-            style={{ ...dangerButtonStyle, ...(busy ? styles.buttonDisabled : {}) }}
+            className="btn btn--danger"
             onClick={onDelete}
             disabled={busy}
           >
@@ -259,20 +209,16 @@ export default function ApplicationForm({
           </button>
         )}
 
-        <div style={rightActionsStyle}>
+        <div className="form-actions__right">
           <button
             type="button"
-            style={{ ...secondaryButtonStyle, ...(busy ? styles.buttonDisabled : {}) }}
+            className="btn btn--secondary"
             onClick={onCancel}
             disabled={busy}
           >
             Annuler
           </button>
-          <button
-            type="submit"
-            style={{ ...primaryButtonStyle, ...(busy ? styles.buttonDisabled : {}) }}
-            disabled={busy}
-          >
+          <button type="submit" className="btn btn--primary" disabled={busy}>
             {submitting ? 'Enregistrement…' : submitLabel}
           </button>
         </div>

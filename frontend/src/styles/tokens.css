@@ -1,0 +1,186 @@
+/* Design tokens : source unique de vérité de l'apparence.
+ *
+ * AUCUNE couleur ne doit être écrite en dur ailleurs (ni en CSS, ni en style
+ * inline dans un composant) : tout passe par ces variables.
+ *
+ * Organisation en deux niveaux :
+ *  1. Tokens NEUTRES (espacements, rayons, ombres, transitions, typo) : communs
+ *     aux deux thèmes, définis une seule fois sur :root.
+ *  2. Tokens de COULEUR, sémantiques (--color-bg, --color-text, --color-accent…)
+ *     et non littéraux (jamais « --teal-500 ») : chaque thème leur donne ses
+ *     propres valeurs, les composants n'en connaissent que le rôle.
+ *
+ * Sélection du thème : attribut data-theme sur <html>.
+ *   - data-theme="light" / data-theme="dark" → choix explicite de l'utilisateur.
+ *   - Sans attribut (avant l'hydratation de React) → :root porte le thème clair
+ *     et le bloc @media prefers-color-scheme bascule en sombre, afin que la
+ *     préférence système s'applique dès la première frame (pas de flash).
+ *
+ * Ambiance : gris TIÈDES (teintés vers l'ocre, jamais bleutés/cliniques) et
+ * accent teal. Tous les couples texte/fond ci-dessous ont été vérifiés au
+ * ratio WCAG AA (>= 4.5:1) dans les deux thèmes.
+ */
+
+:root {
+  /* --- Espacements (échelle de 4px) --- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* --- Rayons : arrondis doux et homogènes --- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+
+  /* --- Transitions : douces, jamais tape-à-l'œil --- */
+  --transition-fast: 120ms ease;
+  --transition-base: 180ms ease;
+
+  /* --- Typographie --- */
+  --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 22px;
+  --text-2xl: 30px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Thème CLAIR (défaut)                                                */
+/* ------------------------------------------------------------------ */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* Fonds : blanc cassé tiède → surfaces légèrement contrastées */
+  --color-bg: #faf9f7; /* fond d'application */
+  --color-surface: #ffffff; /* cartes, modales, navbar */
+  --color-surface-2: #f2f0ec; /* colonnes du kanban, zones creuses */
+  --color-surface-3: #e9e6e1; /* survol, éléments enfoncés */
+
+  /* Bordures */
+  --color-border: #e2ded8;
+  --color-border-strong: #cfcac3;
+
+  /* Texte : gris foncé chaud, jamais noir pur */
+  --color-text: #2e2a26; /* 13.5:1 sur le fond */
+  --color-text-secondary: #625b54; /* 6.3:1 */
+  --color-text-muted: #6b645c; /* 5.5:1 — reste AA même sur --color-surface-3 */
+
+  /* Accent teal */
+  --color-accent: #0f766e; /* aplat (boutons principaux) */
+  --color-accent-hover: #0c5f58;
+  --color-accent-contrast: #ffffff; /* texte SUR l'aplat — 5.5:1 */
+  --color-accent-soft: #e4f1ef; /* teinte de fond (élément actif, badge) */
+  --color-accent-soft-hover: #d3e8e5;
+  --color-accent-border: #9bcfc9;
+  --color-accent-text: #0b6259; /* texte teal sur fond clair — 6.9:1 */
+
+  /* État d'erreur : rouge TIÉDI (orangé), jamais opposé à un vert seul */
+  --color-danger-text: #a32a1e; /* 6.9:1 */
+  --color-danger-soft: #fbece9;
+  --color-danger-border: #e5b5ae;
+
+  /* État de succès */
+  --color-success-text: #1a6b4f; /* 6.4:1 */
+  --color-success-soft: #e6f2ec;
+  --color-success-border: #a9cfbe;
+
+  /* Ombres : très diffuses, à peine perceptibles (ambiance Notion) */
+  --shadow-sm: 0 1px 2px rgb(46 42 38 / 6%);
+  --shadow-md: 0 2px 6px rgb(46 42 38 / 8%);
+  --shadow-lg: 0 12px 32px rgb(46 42 38 / 14%);
+  --color-overlay: rgb(46 42 38 / 40%); /* fond des modales */
+}
+
+/* ------------------------------------------------------------------ */
+/* Thème SOMBRE                                                        */
+/* ------------------------------------------------------------------ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Fonds : gris-bleu profond et tiède (ni noir pur, ni gris froid) */
+  --color-bg: #1b1d23;
+  --color-surface: #23252d;
+  --color-surface-2: #1f2128;
+  --color-surface-3: #2c2f38;
+
+  --color-border: #343843;
+  --color-border-strong: #454a57;
+
+  /* Texte : gris clair chaud */
+  --color-text: #eae6e1; /* 13.6:1 sur le fond */
+  --color-text-secondary: #b3ada5; /* 7.6:1 */
+  --color-text-muted: #9e978f; /* 5.8:1 — reste AA même sur --color-surface-3 */
+
+  /* Même accent teal, éclairci pour rester lisible sur fond sombre */
+  --color-accent: #4bc0b4;
+  --color-accent-hover: #63cec3;
+  --color-accent-contrast: #10201e; /* texte SUR l'aplat — 7.6:1 */
+  --color-accent-soft: #1f3a37;
+  --color-accent-soft-hover: #274844;
+  --color-accent-border: #3a6863;
+  --color-accent-text: #5fd0c3; /* 9.1:1 */
+
+  --color-danger-text: #f2a69c; /* 8.6:1 */
+  --color-danger-soft: #38251f;
+  --color-danger-border: #6b3b33;
+
+  --color-success-text: #7cd3a9; /* 8.6:1 */
+  --color-success-soft: #1e332a;
+  --color-success-border: #3a5c4a;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-md: 0 2px 8px rgb(0 0 0 / 35%);
+  --shadow-lg: 0 12px 32px rgb(0 0 0 / 50%);
+  --color-overlay: rgb(10 11 14 / 60%);
+}
+
+/* Préférence système, tant que l'utilisateur n'a rien choisi (pas d'attribut
+ * data-theme sur <html>) : le sombre s'applique dès le premier rendu. Dupliqué
+ * volontairement du bloc ci-dessus — CSS ne sait pas « hériter » un jeu de
+ * variables d'un autre sélecteur. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+
+    --color-bg: #1b1d23;
+    --color-surface: #23252d;
+    --color-surface-2: #1f2128;
+    --color-surface-3: #2c2f38;
+
+    --color-border: #343843;
+    --color-border-strong: #454a57;
+
+    --color-text: #eae6e1;
+    --color-text-secondary: #b3ada5;
+    --color-text-muted: #9e978f;
+
+    --color-accent: #4bc0b4;
+    --color-accent-hover: #63cec3;
+    --color-accent-contrast: #10201e;
+    --color-accent-soft: #1f3a37;
+    --color-accent-soft-hover: #274844;
+    --color-accent-border: #3a6863;
+    --color-accent-text: #5fd0c3;
+
+    --color-danger-text: #f2a69c;
+    --color-danger-soft: #38251f;
+    --color-danger-border: #6b3b33;
+
+    --color-success-text: #7cd3a9;
+    --color-success-soft: #1e332a;
+    --color-success-border: #3a5c4a;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+    --shadow-md: 0 2px 8px rgb(0 0 0 / 35%);
+    --shadow-lg: 0 12px 32px rgb(0 0 0 / 50%);
+    --color-overlay: rgb(10 11 14 / 60%);
+  }
+}

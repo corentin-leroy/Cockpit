@@ -79,8 +79,9 @@ Frontend (depuis frontend/) :
 5. Multi-tableaux (Boards)
    - [fait] Backend : modèle Board, CRUD, ownership en chaîne, board par défaut,
      dernier tableau non supprimable, cascade
-   - [à faire] Front : sélection/gestion des tableaux, board_id à la création
-6. Déploiement
+   - [fait] Front : sélection/gestion des tableaux, board_id à la création
+6. Faire le design du site 
+7. Déploiement
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
 - Agrégation API officielles (La Bonne Alternance, France Travail) → V1.5

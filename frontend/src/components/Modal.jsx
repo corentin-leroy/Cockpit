@@ -8,50 +8,6 @@
 
 import { useEffect, useRef } from 'react'
 
-const overlayStyle = {
-  position: 'fixed',
-  inset: 0,
-  background: 'rgba(0, 0, 0, 0.5)',
-  display: 'flex',
-  alignItems: 'flex-start',
-  justifyContent: 'center',
-  padding: 24,
-  overflowY: 'auto', // si la modale est plus haute que l'écran
-  zIndex: 1000,
-}
-
-const dialogStyle = {
-  width: '100%',
-  maxWidth: 480,
-  marginTop: 48,
-  background: 'var(--bg)',
-  border: '1px solid var(--border)',
-  borderRadius: 12,
-  boxShadow: 'var(--shadow)',
-  padding: 24,
-  textAlign: 'left',
-}
-
-const headerStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: 16,
-}
-
-const titleStyle = { margin: 0, fontSize: 18, color: 'var(--text-h)' }
-
-const closeButtonStyle = {
-  border: 'none',
-  background: 'transparent',
-  color: 'inherit',
-  font: 'inherit',
-  fontSize: 22,
-  lineHeight: 1,
-  cursor: 'pointer',
-  padding: 4,
-}
-
 export default function Modal({ title, onClose, children }) {
   const dialogRef = useRef(null)
 
@@ -88,7 +44,7 @@ export default function Modal({ title, onClose, children }) {
 
   return (
     <div
-      style={overlayStyle}
+      className="modal-overlay"
       // onMouseDown plutôt que onClick : évite une fermeture accidentelle si un
       // glissé de sélection démarré dans la modale se termine sur le fond.
       onMouseDown={(event) => {
@@ -101,19 +57,19 @@ export default function Modal({ title, onClose, children }) {
         aria-modal="true"
         aria-labelledby="modal-title"
         tabIndex={-1}
-        style={dialogStyle}
+        className="modal"
       >
-        <header style={headerStyle}>
-          <h2 id="modal-title" style={titleStyle}>
+        <header className="modal__header">
+          <h2 id="modal-title" className="modal__title">
             {title}
           </h2>
           <button
             type="button"
             aria-label="Fermer"
-            style={closeButtonStyle}
+            className="btn btn--ghost btn--icon modal__close"
             onClick={onClose}
           >
-            ×
+            <span aria-hidden="true">×</span>
           </button>
         </header>
 

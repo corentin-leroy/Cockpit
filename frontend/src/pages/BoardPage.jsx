@@ -16,69 +16,10 @@ import Navbar from '../components/Navbar.jsx'
 import Sidebar from '../components/Sidebar.jsx'
 import KanbanColumn from '../components/KanbanColumn.jsx'
 import Modal from '../components/Modal.jsx'
+import Alert from '../components/Alert.jsx'
 import ApplicationForm from '../components/ApplicationForm.jsx'
 import BoardForm from '../components/BoardForm.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
-
-const layoutStyle = {
-  display: 'flex',
-  alignItems: 'stretch',
-  minHeight: 'calc(100dvh - 57px)', // hauteur restante sous la Navbar
-}
-
-const mainStyle = { flex: 1, minWidth: 0, padding: 24, textAlign: 'left' }
-
-const headerRowStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 16,
-  marginBottom: 16,
-}
-
-// Titre du board : minWidth:0 permet à ce flex-item de rétrécir (sinon il pousse
-// le bouton) ; ellipsis coupe proprement un nom trop long.
-// lineHeight:1.2 (unitless) : indispensable car le <h1> hérite sinon d'une
-// line-height fixe ~26px (issue de `font:18px/145%` sur :root), trop courte pour
-// la police de 56px → combinée à overflow:hidden, elle rognait le haut/bas des
-// lettres. Une valeur sans unité se recalcule sur la taille réelle de la police.
-const titleStyle = {
-  margin: 0,
-  minWidth: 0,
-  lineHeight: 1.2,
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-}
-
-const addButtonStyle = {
-  padding: '8px 14px',
-  borderRadius: 8,
-  border: '1px solid var(--accent-border)',
-  background: 'var(--accent-bg)',
-  color: 'var(--text-h)',
-  font: 'inherit',
-  cursor: 'pointer',
-  // Ne se comprime pas et garde son libellé sur une ligne face à un titre long.
-  flexShrink: 0,
-  whiteSpace: 'nowrap',
-}
-
-const boardStyle = {
-  display: 'flex',
-  gap: 16,
-  alignItems: 'flex-start',
-  overflowX: 'auto', // 6 colonnes : défilement horizontal si l'écran est étroit
-  paddingBottom: 8,
-}
-
-const messageStyle = { opacity: 0.8 }
-const errorStyle = {
-  color: '#d33',
-  padding: '8px 12px',
-  borderRadius: 8,
-  background: 'rgba(221, 51, 51, 0.08)',
-}
 
 export default function BoardPage() {
   // Tableau courant (source de vérité partagée) : pilote quelles candidatures
@@ -364,16 +305,14 @@ export default function BoardPage() {
       <Navbar />
 
       {boardsLoading && (
-        <main style={mainStyle}>
-          <p style={messageStyle}>Chargement des tableaux…</p>
+        <main className="board-main">
+          <p className="text-muted">Chargement des tableaux…</p>
         </main>
       )}
 
       {!boardsLoading && boardsError && (
-        <main style={mainStyle}>
-          <p role="alert" style={errorStyle}>
-            {boardsError}
-          </p>
+        <main className="board-main">
+          <Alert>{boardsError}</Alert>
         </main>
       )}
 
@@ -384,7 +323,7 @@ export default function BoardPage() {
         // auparavant limité au kanban ; il remonte ici sans changer le drag entre
         // colonnes, qui reste géré par le même onDragEnd.)
         <DragDropProvider onDragEnd={handleDragEnd}>
-        <div style={layoutStyle}>
+        <div className="board-layout">
           <Sidebar
             boards={boards}
             currentBoardId={currentBoardId}
@@ -395,42 +334,39 @@ export default function BoardPage() {
             deletingBoardId={deletingBoardId}
           />
 
-          <main style={mainStyle}>
-            <div style={headerRowStyle}>
-              <h1 style={titleStyle} title={currentBoard?.name ?? undefined}>
+          <main className="board-main">
+            <div className="board-header">
+              <h1
+                className="board-header__title"
+                title={currentBoard?.name ?? undefined}
+              >
                 {currentBoard?.name ?? 'Tableau'}
               </h1>
               <button
                 type="button"
-                style={addButtonStyle}
+                className="btn btn--primary"
                 onClick={() => setModal({ mode: 'create' })}
               >
                 Ajouter une candidature
               </button>
             </div>
 
-            {actionError && (
-              <p role="alert" style={{ ...errorStyle, marginBottom: 16 }}>
-                {actionError}
-              </p>
+            {actionError && <Alert className="stack-gap">{actionError}</Alert>}
+
+            {loading && (
+              <p className="text-muted">Chargement des candidatures…</p>
             )}
 
-            {loading && <p style={messageStyle}>Chargement des candidatures…</p>}
-
-            {!loading && error && (
-              <p role="alert" style={errorStyle}>
-                {error}
-              </p>
-            )}
+            {!loading && error && <Alert>{error}</Alert>}
 
             {!loading && !error && applications.length === 0 && (
-              <p style={messageStyle}>
+              <p className="text-muted">
                 Ce tableau n’a pas encore de candidature.
               </p>
             )}
 
             {!loading && !error && applications.length > 0 && (
-              <div style={boardStyle}>
+              <div className="kanban">
                 {APPLICATION_STATUSES.map((status) => (
                   <KanbanColumn
                     key={status.key}

@@ -2,49 +2,14 @@
 // qu'elle contient, et les cartes correspondantes. Zone droppable (@dnd-kit/react)
 // identifiée par la clé technique du statut : y déposer une carte la fait changer
 // de statut.
+//
+// Le statut est identifié par son LIBELLÉ (« Repérée », « Refusée »…) : les
+// colonnes partagent toutes la même couleur, aucune information n'est portée par
+// la teinte seule.
 
 import { useDroppable } from '@dnd-kit/react'
 
 import ApplicationCard from './ApplicationCard.jsx'
-
-const columnStyle = {
-  flex: '0 0 240px',
-  display: 'flex',
-  flexDirection: 'column',
-  background: 'var(--social-bg)',
-  border: '1px solid var(--border)',
-  borderRadius: 10,
-  padding: 12,
-  transition: 'border-color 120ms, background 120ms',
-}
-
-// Surbrillance de la colonne survolée pendant un drag (étape 7).
-const dropTargetStyle = {
-  borderColor: 'var(--accent-border)',
-  background: 'var(--accent-bg)',
-}
-
-const headerStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: 12,
-  color: 'var(--text-h)',
-  fontWeight: 500,
-}
-
-const countStyle = {
-  fontSize: 13,
-  fontWeight: 400,
-  background: 'var(--accent-bg)',
-  border: '1px solid var(--accent-border)',
-  borderRadius: 999,
-  padding: '1px 8px',
-}
-
-const listStyle = { display: 'flex', flexDirection: 'column', gap: 8 }
-
-const emptyColumnStyle = { fontSize: 13, opacity: 0.6, padding: '4px 0' }
 
 export default function KanbanColumn({
   statusKey,
@@ -59,16 +24,16 @@ export default function KanbanColumn({
   return (
     <section
       ref={ref}
-      style={{ ...columnStyle, ...(isDropTarget ? dropTargetStyle : {}) }}
+      className={`kanban-column${isDropTarget ? ' kanban-column--drop-target' : ''}`}
     >
-      <header style={headerStyle}>
-        <span>{label}</span>
-        <span style={countStyle}>{applications.length}</span>
+      <header className="kanban-column__header">
+        <span className="kanban-column__label">{label}</span>
+        <span className="kanban-column__count">{applications.length}</span>
       </header>
 
-      <div style={listStyle}>
+      <div className="kanban-column__list">
         {applications.length === 0 ? (
-          <p style={emptyColumnStyle}>—</p>
+          <p className="kanban-column__empty">—</p>
         ) : (
           applications.map((application) => (
             <ApplicationCard

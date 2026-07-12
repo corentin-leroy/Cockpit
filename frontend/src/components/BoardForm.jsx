@@ -7,47 +7,11 @@
 
 import { useState } from 'react'
 
-import { styles } from './ui.js'
+import Alert, { FieldError } from './Alert.jsx'
 
 // Longueur max du nom côté UX : garde la sidebar et le titre lisibles. Le backend
 // borne plus largement (max_length=100) comme garde-fou de cohérence des données.
 const NAME_MAX_LENGTH = 25
-
-const labelRowStyle = {
-  display: 'flex',
-  alignItems: 'baseline',
-  justifyContent: 'space-between',
-  gap: 8,
-}
-
-const counterStyle = { fontSize: 12, opacity: 0.6 }
-
-const actionsStyle = {
-  display: 'flex',
-  justifyContent: 'flex-end',
-  gap: 8,
-  marginTop: 8,
-}
-
-const primaryButtonStyle = {
-  padding: '10px 14px',
-  borderRadius: 8,
-  border: '1px solid var(--accent-border)',
-  background: 'var(--accent-bg)',
-  color: 'var(--text-h)',
-  font: 'inherit',
-  cursor: 'pointer',
-}
-
-const secondaryButtonStyle = {
-  padding: '10px 14px',
-  borderRadius: 8,
-  border: '1px solid var(--border)',
-  background: 'transparent',
-  color: 'inherit',
-  font: 'inherit',
-  cursor: 'pointer',
-}
 
 /**
  * @param {Object}   props
@@ -90,18 +54,14 @@ export default function BoardForm({
 
   return (
     <form onSubmit={handleSubmit} noValidate>
-      {formError && (
-        <div role="alert" style={styles.formError}>
-          {formError}
-        </div>
-      )}
+      {formError && <Alert className="stack-gap">{formError}</Alert>}
 
-      <div style={styles.field}>
-        <div style={labelRowStyle}>
-          <label style={styles.label} htmlFor="board-name">
+      <div className="field">
+        <div className="field__label-row">
+          <label className="field__label" htmlFor="board-name">
             Nom du tableau *
           </label>
-          <span style={counterStyle} aria-hidden="true">
+          <span className="field__counter" aria-hidden="true">
             {name.length}/{NAME_MAX_LENGTH}
           </span>
         </div>
@@ -109,28 +69,24 @@ export default function BoardForm({
           id="board-name"
           type="text"
           maxLength={NAME_MAX_LENGTH}
-          style={styles.input}
+          className="input"
           value={name}
           onChange={(event) => setName(event.target.value)}
           aria-invalid={Boolean(fieldError)}
         />
-        {fieldError && <span style={styles.fieldError}>{fieldError}</span>}
+        {fieldError && <FieldError>{fieldError}</FieldError>}
       </div>
 
-      <div style={actionsStyle}>
+      <div className="form-actions">
         <button
           type="button"
-          style={{ ...secondaryButtonStyle, ...(submitting ? styles.buttonDisabled : {}) }}
+          className="btn btn--secondary"
           onClick={onCancel}
           disabled={submitting}
         >
           Annuler
         </button>
-        <button
-          type="submit"
-          style={{ ...primaryButtonStyle, ...(submitting ? styles.buttonDisabled : {}) }}
-          disabled={submitting}
-        >
+        <button type="submit" className="btn btn--primary" disabled={submitting}>
           {submitting ? 'Enregistrement…' : submitLabel}
         </button>
       </div>

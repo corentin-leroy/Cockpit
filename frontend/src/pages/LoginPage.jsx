@@ -5,7 +5,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth.js'
-import { styles } from '../components/ui.js'
+import Alert from '../components/Alert.jsx'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -43,32 +43,32 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <h2 style={styles.title}>Connexion</h2>
+    <div className="auth-page">
+      <div className="auth-card">
+        <h1 className="auth-card__title">Connexion</h1>
 
-        {formError && <div style={styles.formError}>{formError}</div>}
+        {formError && <Alert className="stack-gap">{formError}</Alert>}
 
         <form onSubmit={handleSubmit} noValidate>
-          <div style={styles.field}>
-            <label style={styles.label} htmlFor="email">Email</label>
+          <div className="field">
+            <label className="field__label" htmlFor="email">Email</label>
             <input
               id="email"
               type="email"
               autoComplete="email"
-              style={styles.input}
+              className="input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
-          <div style={styles.field}>
-            <label style={styles.label} htmlFor="password">Mot de passe</label>
+          <div className="field">
+            <label className="field__label" htmlFor="password">Mot de passe</label>
             <input
               id="password"
               type="password"
               autoComplete="current-password"
-              style={styles.input}
+              className="input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -77,13 +77,13 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            style={{ ...styles.button, ...(loading ? styles.buttonDisabled : {}) }}
+            className="btn btn--primary btn--block"
           >
             {loading ? 'Connexion…' : 'Se connecter'}
           </button>
         </form>
 
-        <p style={styles.footer}>
+        <p className="auth-card__footer">
           Pas encore de compte ? <Link to="/register">Créer un compte</Link>
         </p>
       </div>

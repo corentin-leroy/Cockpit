@@ -1,27 +1,10 @@
-// Barre de navigation minimale des pages protégées. Pour l'instant : le titre
-// de l'app et un bouton de déconnexion.
+// Barre de navigation minimale des pages protégées : le titre de l'app, la
+// bascule de thème et un bouton de déconnexion.
 
 import { useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth.js'
-
-const navStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '12px 24px',
-  borderBottom: '1px solid var(--border)',
-}
-
-const buttonStyle = {
-  padding: '6px 12px',
-  borderRadius: 8,
-  border: '1px solid var(--border)',
-  background: 'transparent',
-  color: 'inherit',
-  font: 'inherit',
-  cursor: 'pointer',
-}
+import ThemeToggle from './ThemeToggle.jsx'
 
 export default function Navbar() {
   const { logout } = useAuth()
@@ -33,11 +16,19 @@ export default function Navbar() {
   }
 
   return (
-    <nav style={navStyle}>
-      <strong style={{ color: 'var(--text-h)' }}>Alternance Cockpit</strong>
-      <button type="button" style={buttonStyle} onClick={handleLogout}>
-        Déconnexion
-      </button>
+    <nav className="navbar">
+      <strong className="navbar__brand">Alternance Cockpit</strong>
+
+      <div className="navbar__actions">
+        <ThemeToggle />
+        <button
+          type="button"
+          className="btn btn--secondary btn--sm"
+          onClick={handleLogout}
+        >
+          Déconnexion
+        </button>
+      </div>
     </nav>
   )
 }

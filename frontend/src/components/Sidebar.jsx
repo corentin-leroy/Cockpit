@@ -9,106 +9,10 @@
 //
 // Présentationnel côté données (liste, tableau courant, mutations viennent de
 // BoardsProvider via props) ; seule l'intégration drag & drop est locale.
+// L'apparence vit dans styles/components.css (.sidebar, .board-row…).
 
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/react'
-
-// Largeur DURE : width + minWidth + maxWidth identiques neutralisent le
-// min-width:auto (basé sur le contenu) qui, avec un simple flex-basis, laissait un
-// nom long élargir la sidebar. box-sizing:border-box → padding/bordure inclus dans
-// les 220px. flexShrink:0 pour ne pas se comprimer face au kanban.
-const asideStyle = {
-  width: 220,
-  minWidth: 220,
-  maxWidth: 220,
-  flexShrink: 0,
-  boxSizing: 'border-box',
-  borderRight: '1px solid var(--border)',
-  padding: 16,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 4,
-}
-
-const headingStyle = {
-  margin: '0 0 8px',
-  fontSize: 12,
-  textTransform: 'uppercase',
-  letterSpacing: 0.5,
-  opacity: 0.6,
-}
-
-// Ligne d'un tableau : le bouton de sélection (nom) + les actions au survol.
-// minWidth:0 : autorise la ligne à rétrécir sous son contenu, condition nécessaire
-// pour que la troncature du nom (bouton enfant) opère réellement.
-const rowStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 2,
-  minWidth: 0,
-  borderRadius: 8,
-  border: '1px solid transparent',
-  transition: 'border-color 120ms, background 120ms',
-}
-
-const activeRowStyle = {
-  background: 'var(--accent-bg)',
-  border: '1px solid var(--accent-border)',
-}
-
-// Surbrillance quand une carte glissée survole ce tableau (miroir du feedback des
-// colonnes du kanban, cf. KanbanColumn).
-const dropTargetRowStyle = {
-  borderColor: 'var(--accent-border)',
-  background: 'var(--accent-bg)',
-}
-
-const nameButtonStyle = {
-  flex: 1,
-  minWidth: 0,
-  textAlign: 'left',
-  padding: '8px 10px',
-  borderRadius: 8,
-  border: 'none',
-  background: 'transparent',
-  color: 'inherit',
-  font: 'inherit',
-  cursor: 'pointer',
-  // Tronque un nom trop long au lieu de casser la mise en page.
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  whiteSpace: 'nowrap',
-}
-
-const activeNameStyle = { color: 'var(--text-h)' }
-
-const iconButtonStyle = {
-  flex: '0 0 auto',
-  padding: '4px 6px',
-  borderRadius: 6,
-  border: 'none',
-  background: 'transparent',
-  color: 'inherit',
-  font: 'inherit',
-  fontSize: 13,
-  lineHeight: 1,
-  cursor: 'pointer',
-  opacity: 0.7,
-}
-
-const newBoardButtonStyle = {
-  marginTop: 8,
-  width: '100%',
-  textAlign: 'left',
-  padding: '8px 10px',
-  borderRadius: 8,
-  border: '1px dashed var(--border)',
-  background: 'transparent',
-  color: 'inherit',
-  font: 'inherit',
-  cursor: 'pointer',
-  opacity: 0.85,
-}
 
 // Une ligne de tableau. Extraite en composant pour pouvoir appeler le hook
 // useDroppable (interdit dans un callback .map) : chaque tableau devient une cible
@@ -129,21 +33,25 @@ function BoardRow({ board, active, canDelete, deleting, onSelect, onRename, onDe
   // Actions visibles au survol, et en permanence sur le tableau courant.
   const showActions = hovered || active
 
+  const className = [
+    'board-row',
+    active ? 'board-row--active' : '',
+    isDropTarget ? 'board-row--drop-target' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
     <div
       ref={ref}
-      style={{
-        ...rowStyle,
-        ...(active ? activeRowStyle : {}),
-        ...(isDropTarget ? dropTargetRowStyle : {}),
-      }}
+      className={className}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
       <button
         type="button"
         aria-current={active ? 'true' : undefined}
-        style={{ ...nameButtonStyle, ...(active ? activeNameStyle : {}) }}
+        className="board-row__name"
         onClick={() => onSelect(board.id)}
         title={board.name}
       >
@@ -156,24 +64,21 @@ function BoardRow({ board, active, canDelete, deleting, onSelect, onRename, onDe
             type="button"
             aria-label={`Renommer le tableau ${board.name}`}
             title="Renommer"
-            style={iconButtonStyle}
+            className="btn btn--ghost btn--icon"
             onClick={() => onRename(board)}
           >
-            ✎
+            <span aria-hidden="true">✎</span>
           </button>
           {canDelete && (
             <button
               type="button"
               aria-label={`Supprimer le tableau ${board.name}`}
               title="Supprimer"
-              style={{
-                ...iconButtonStyle,
-                ...(deleting ? { opacity: 0.4, cursor: 'not-allowed' } : {}),
-              }}
+              className="btn btn--ghost btn--icon"
               onClick={() => onDelete(board)}
               disabled={deleting}
             >
-              🗑
+              <span aria-hidden="true">🗑</span>
             </button>
           )}
         </>
@@ -196,8 +101,8 @@ export default function Sidebar({
   const canDelete = boards.length > 1
 
   return (
-    <aside style={asideStyle}>
-      <h2 style={headingStyle}>Tableaux</h2>
+    <aside className="sidebar">
+      <h2 className="sidebar__title">Tableaux</h2>
 
       {boards.map((board) => (
         <BoardRow
@@ -212,7 +117,11 @@ export default function Sidebar({
         />
       ))}
 
-      <button type="button" style={newBoardButtonStyle} onClick={onCreate}>
+      <button
+        type="button"
+        className="btn btn--dashed btn--block"
+        onClick={onCreate}
+      >
         + Nouveau tableau
       </button>
     </aside>

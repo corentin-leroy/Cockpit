@@ -7,7 +7,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { register as apiRegister } from '../api/auth.js'
 import { useAuth } from '../auth/useAuth.js'
-import { styles } from '../components/ui.js'
+import Alert, { FieldError } from '../components/Alert.jsx'
 
 export default function RegisterPage() {
   const navigate = useNavigate()
@@ -66,53 +66,53 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <h2 style={styles.title}>Créer un compte</h2>
+    <div className="auth-page">
+      <div className="auth-card">
+        <h1 className="auth-card__title">Créer un compte</h1>
 
-        {formError && <div style={styles.formError}>{formError}</div>}
+        {formError && <Alert className="stack-gap">{formError}</Alert>}
 
         <form onSubmit={handleSubmit} noValidate>
-          <div style={styles.field}>
-            <label style={styles.label} htmlFor="email">Email</label>
+          <div className="field">
+            <label className="field__label" htmlFor="email">Email</label>
             <input
               id="email"
               type="email"
               autoComplete="email"
-              style={styles.input}
+              className="input"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              aria-invalid={Boolean(fieldErrors.email)}
             />
-            {fieldErrors.email && (
-              <span style={styles.fieldError}>{fieldErrors.email}</span>
-            )}
+            {fieldErrors.email && <FieldError>{fieldErrors.email}</FieldError>}
           </div>
 
-          <div style={styles.field}>
-            <label style={styles.label} htmlFor="password">Mot de passe</label>
+          <div className="field">
+            <label className="field__label" htmlFor="password">Mot de passe</label>
             <input
               id="password"
               type="password"
               autoComplete="new-password"
-              style={styles.input}
+              className="input"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              aria-invalid={Boolean(fieldErrors.password)}
             />
             {fieldErrors.password && (
-              <span style={styles.fieldError}>{fieldErrors.password}</span>
+              <FieldError>{fieldErrors.password}</FieldError>
             )}
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            style={{ ...styles.button, ...(loading ? styles.buttonDisabled : {}) }}
+            className="btn btn--primary btn--block"
           >
             {loading ? 'Création…' : 'Créer mon compte'}
           </button>
         </form>
 
-        <p style={styles.footer}>
+        <p className="auth-card__footer">
           Déjà un compte ? <Link to="/login">Se connecter</Link>
         </p>
       </div>
