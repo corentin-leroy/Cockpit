@@ -1,4 +1,4 @@
-# Alternance Cockpit
+# Cockpit
 
 SaaS de suivi de candidatures d'alternance : CRM kanban (cœur du produit) +
 extension navigateur pour l'ajout d'offres depuis n'importe quel site.

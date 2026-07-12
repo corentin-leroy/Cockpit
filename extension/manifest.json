@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "Alternance Cockpit",
+  "name": "Cockpit",
   "version": "0.1.0",
-  "description": "Ajoute l'offre d'emploi affichée à ton cockpit en un clic.",
+  "description": "Suivez vos candidatures dans un kanban et capturez une offre depuis n'importe quel site d'annonces en un clic.",
 
   "action": {
-    "default_title": "Alternance Cockpit",
+    "default_title": "Cockpit",
     "default_popup": "popup.html"
   },
 

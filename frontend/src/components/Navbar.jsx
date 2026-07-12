@@ -17,7 +17,7 @@ export default function Navbar() {
 
   return (
     <nav className="navbar">
-      <strong className="navbar__brand">Alternance Cockpit</strong>
+      <strong className="navbar__brand">Cockpit</strong>
 
       <div className="navbar__actions">
         <ThemeToggle />

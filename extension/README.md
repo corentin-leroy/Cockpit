@@ -1,4 +1,4 @@
-# Extension Alternance Cockpit
+# Extension Cockpit
 
 ## Installation en mode développeur (Chrome / Edge / Brave)
 

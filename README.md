@@ -1,4 +1,4 @@
-# Alternance Cockpit
+# Cockpit
 
 Le cockpit de la recherche d'alternance : suivi de candidatures (kanban),
 agrégation d'offres via API officielles, ajout en un clic depuis n'importe

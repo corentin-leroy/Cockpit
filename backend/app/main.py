@@ -1,4 +1,4 @@
-"""Point d'entrée de l'API Alternance Cockpit.
+"""Point d'entrée de l'API Cockpit.
 
 Lance le serveur avec :  py -m uvicorn app.main:app --reload
 """
@@ -15,7 +15,7 @@ from app.routers import applications, auth, boards
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Alternance Cockpit",
+    title="Cockpit",
     description="Le cockpit de ta recherche d'alternance : suivi de candidatures, "
     "agrégation d'offres et bookmarklet.",
     version="0.1.0",
