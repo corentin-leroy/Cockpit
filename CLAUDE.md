@@ -15,7 +15,10 @@ en V1.5. AUCUN scraping serveur, AUCUN stockage de credentials de sites tiers.
 Backend (depuis backend/, venv activé) :
 - Installer : `.venv\Scripts\python.exe -m pip install -r requirements.txt`
 - Lancer l'API : `py -m uvicorn app.main:app --reload`
-- Tests : `py -m pytest` (à mettre en place)
+- Tests : `py -m pytest` (depuis backend/) — suite ciblée sécurité (auth,
+  ownership). Base SQLite EN MÉMOIRE isolée, recréée à chaque test ; ne touche
+  jamais cockpit.db et n'envoie aucun email (Brevo forcé en mode DEV dans
+  tests/conftest.py). Voir « Tests backend » plus bas.
 Frontend (depuis frontend/) :
 - Installer : `npm install`
 - Lancer : `npm run dev` (http://localhost:5173)
@@ -43,6 +46,25 @@ Frontend (depuis frontend/) :
   ?status_filter=.
 - Le statut d'une candidature n'est PAS modifiable à la création (démarre
   toujours en "saved"/Repérée) ; il évolue via PATCH (drag & drop côté front).
+
+# Tests backend (backend/tests/, `py -m pytest`)
+- Portée VOLONTAIREMENT ciblée : la matrice sécurité déjà validée manuellement
+  (auth + ownership), pas une couverture exhaustive. On teste les points où une
+  régression serait silencieuse et coûteuse (fuite du mot de passe, perte de
+  l'anti-énumération, cloisonnement par user).
+- Isolation de la base : `tests/conftest.py` pose les variables d'environnement
+  AVANT d'importer l'app (l'import de app.main appelle load_dotenv, qui n'écrase
+  pas une variable déjà définie). On force ainsi (a) DATABASE_URL=sqlite://
+  jetable pour que le create_all à l'import ne touche pas cockpit.db, (b)
+  BREVO_API_KEY/SENDER vides → mode DEV, aucun email réel, (c) un JWT_SECRET_KEY
+  de test. La vraie base de test est un SQLite EN MÉMOIRE dédié (StaticPool, pour
+  qu'une seule base soit partagée entre connexions), injecté en surchargeant la
+  dépendance get_db. Schéma recréé puis détruit à CHAQUE test (fixture `client`) :
+  tests indépendants, exécutables seuls et dans n'importe quel ordre.
+- Fixtures réutilisables (conftest) : `client` (TestClient sur base vierge),
+  `db_session` (assertions directes sur le stockage), et les factories
+  `make_user` (inscrit + connecte, renvoie token/headers/board par défaut),
+  `make_board`, `make_application`.
 
 # Emails, reset de mot de passe et vérification
 - `app/email.py` est la SEULE frontière avec Brevo (API transactionnelle). Le
