@@ -33,6 +33,9 @@ class UserRead(BaseModel):
 
     id: int
     email: EmailStr
+    # Exposé pour que le front puisse inviter à confirmer l'adresse (bandeau).
+    # La vérification n'est PAS bloquante : le compte est utilisable sans.
+    is_verified: bool
     created_at: datetime
 
 
@@ -50,6 +53,37 @@ class Token(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Demande d'un lien de réinitialisation. Seul l'email est fourni."""
+
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    """Consommation du lien de réinitialisation.
+
+    Le mot de passe est validé exactement comme à l'inscription (min 8) : la
+    politique de mot de passe ne doit pas être contournable par ce chemin."""
+
+    token: str = Field(min_length=1)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+class VerifyEmailRequest(BaseModel):
+    """Consommation du lien de vérification d'adresse email."""
+
+    token: str = Field(min_length=1)
+
+
+class MessageResponse(BaseModel):
+    """Réponse générique à une action sans contenu à renvoyer.
+
+    Utilisée notamment par /auth/forgot-password, dont le message est
+    volontairement identique que le compte existe ou non."""
+
+    message: str
 
 
 class BoardCreate(BaseModel):

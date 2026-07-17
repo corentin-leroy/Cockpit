@@ -1,7 +1,7 @@
 # Cockpit
 
-SaaS de suivi de candidatures d'alternance : CRM kanban (cœur du produit) +
-extension navigateur pour l'ajout d'offres depuis n'importe quel site.
+SaaS de suivi de candidatures, tous types de contrats : CRM kanban (cœur du
+produit) + extension navigateur pour l'ajout d'offres depuis n'importe quel site.
 Agrégation via API officielles (La Bonne Alternance, France Travail) reportée
 en V1.5. AUCUN scraping serveur, AUCUN stockage de credentials de sites tiers.
 
@@ -44,13 +44,58 @@ Frontend (depuis frontend/) :
 - Le statut d'une candidature n'est PAS modifiable à la création (démarre
   toujours en "saved"/Repérée) ; il évolue via PATCH (drag & drop côté front).
 
+# Emails, reset de mot de passe et vérification
+- `app/email.py` est la SEULE frontière avec Brevo (API transactionnelle). Le
+  reste du code n'appelle que `send_password_reset_email` /
+  `send_verification_email`. Mode DEV : sans BREVO_API_KEY (ou sans
+  BREVO_SENDER_EMAIL), rien n'est envoyé et le lien est logué dans la console.
+- Les liens envoyés par email sont des `SecurityToken` : UNE table pour les deux
+  usages, discriminés par `purpose` (password_reset | email_verification).
+  Stockage du SHA-256 du token (jamais du clair) ; `secrets.token_urlsafe(32)` à
+  la génération ; expiration 60 min (reset) / 24 h (vérification) ; usage unique
+  via `consumed_at`. La vérification filtre TOUJOURS sur `purpose` : un lien de
+  vérification ne doit jamais pouvoir réinitialiser un mot de passe.
+- Vérification d'email NON BLOQUANTE (décision produit) : un compte non vérifié
+  se connecte et utilise l'app normalement. `User.is_verified` est exposé dans
+  UserRead pour que le front affiche un bandeau d'invitation.
+- Un reset de mot de passe réussi passe `is_verified` à True : cliquer sur un
+  lien reçu à cette adresse prouve qu'on y a accès, soit exactement ce que
+  démontre la vérification d'email.
+- Endpoints : POST /auth/forgot-password (public), /auth/reset-password (public,
+  token), /auth/verify-email (public, token), /auth/resend-verification
+  (authentifié). GET /auth/me (authentifié) renvoie l'utilisateur courant
+  (UserRead) : le JWT ne portant que l'id, c'est le SEUL canal qui dit au front
+  si l'adresse est vérifiée — et il reste à jour, contrairement à un état qui
+  serait figé dans le token à la connexion.
+- Anti-énumération : /auth/forgot-password renvoie TOUJOURS le même message, que
+  le compte existe ou non — y compris quand le plafond d'envois est atteint (pas
+  de 429, qui trahirait l'existence du compte). Même principe que le 401
+  générique du login.
+- Rate limiting des emails sortants : 3 par heure et par (utilisateur, usage),
+  compté sur `security_tokens.created_at` — pas de compteur dédié, pas de Redis,
+  et le plafond survit à un redémarrage. /auth/resend-verification, lui, est
+  authentifié : il peut répondre explicitement 429.
+
+# Variables d'environnement (backend/.env, cf. .env.example)
+- DATABASE_URL, JWT_SECRET_KEY (déjà en place)
+- FRONTEND_URL : base des liens emails (défaut http://localhost:5173)
+- BREVO_API_KEY, BREVO_SENDER_EMAIL (adresse validée dans Brevo),
+  BREVO_SENDER_NAME (optionnel) — absentes = mode DEV, aucun envoi.
+
 # Architecture frontend
 - `api/` centralise les appels backend. TOUS passent par `apiFetch`
   (api/client.js), qui ajoute le Bearer et purge le token sur 401.
   Jamais de `fetch` direct dans un composant.
 - Seul `auth/token.js` accède à localStorage (clé cockpit_token).
-- Contexte d'auth (auth/) : état isAuthenticated, login/logout.
-- Routes protégées (ProtectedRoute) et routes invité (GuestRoute).
+- Contexte d'auth (auth/) : état isAuthenticated, login/logout, plus `user`
+  (chargé via GET /auth/me dès qu'un token existe, rechargeable par refreshUser).
+  `user` peut être null même connecté (chargement, ou /auth/me en échec) : son
+  absence ne bloque JAMAIS l'app, elle masque seulement le bandeau de vérification.
+- Routes protégées (ProtectedRoute) et routes invité (GuestRoute). Les pages
+  atteintes depuis un lien email (/forgot-password, /reset-password,
+  /verify-email) n'ont AUCUNE garde : le token de l'URL fait autorité, pas la
+  session — un connecté qui clique son lien de vérification ne doit pas être
+  redirigé.
 - `constants/applicationStatuses.js` = source unique des 6 statuts
   (clé technique + libellé français + ordre des colonnes).
 
@@ -81,7 +126,12 @@ Frontend (depuis frontend/) :
      dernier tableau non supprimable, cascade
    - [fait] Front : sélection/gestion des tableaux, board_id à la création
 6. Faire le design du site 
-7. Déploiement
+7. Mot de passe oublié + vérification d'email (Brevo)
+   - [fait] Backend : app/email.py, SecurityToken, 4 endpoints, rate limiting
+   - [fait] Front : écrans /forgot-password, /reset-password, /verify-email
+     (routes PUBLIQUES, sans garde) + bandeau "confirmez votre adresse"
+     (is_verified via GET /auth/me) avec renvoi de l'email
+8. Déploiement
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
 - Agrégation API officielles (La Bonne Alternance, France Travail) → V1.5

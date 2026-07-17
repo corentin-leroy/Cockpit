@@ -63,7 +63,12 @@ export default function LoginPage() {
           </div>
 
           <div className="field">
-            <label className="field__label" htmlFor="password">Mot de passe</label>
+            <div className="field__label-row">
+              <label className="field__label" htmlFor="password">Mot de passe</label>
+              <Link className="field__link" to="/forgot-password">
+                Mot de passe oublié ?
+              </Link>
+            </div>
             <input
               id="password"
               type="password"

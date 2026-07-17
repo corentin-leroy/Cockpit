@@ -628,3 +628,69 @@
   color: var(--color-text-secondary);
   text-align: center;
 }
+
+/* Phrase d'explication en tête de carte (mot de passe oublié). */
+.auth-card__intro {
+  margin-bottom: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Précision secondaire sous un message d'état (« pensez à vos spams »). */
+.auth-card__hint {
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* Lien discret aligné avec le libellé d'un champ (« Mot de passe oublié ? »). */
+.field__link {
+  font-size: var(--text-sm);
+  color: var(--color-accent-text);
+}
+
+/* ================================================================== */
+/* Bandeau de vérification d'email                                    */
+/* ================================================================== */
+
+/* Rappel NON BLOQUANT sous la navbar : ton neutre (surface, pas d'alerte rouge),
+ * pictogramme ✉ + texte + action. Il informe, il n'avertit pas — le compte est
+ * pleinement utilisable sans vérification. */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  background: var(--color-accent-soft);
+  border-bottom: 1px solid var(--color-accent-border);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base);
+}
+
+.banner__icon {
+  flex: 0 0 auto;
+  color: var(--color-accent-text);
+}
+
+/* Le texte occupe la place restante ; le bouton est repoussé à droite. */
+.banner__text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Retour de l'envoi, à la suite du texte du bandeau. Le sens ne repose pas sur
+ * la couleur seule : chaque variante porte son pictogramme (✓ / ⚠). */
+.banner__feedback {
+  margin-left: var(--space-2);
+}
+
+.banner__feedback--success {
+  color: var(--color-success-text);
+}
+
+.banner__feedback--error {
+  color: var(--color-danger-text);
+}

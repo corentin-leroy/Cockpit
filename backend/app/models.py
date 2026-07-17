@@ -11,7 +11,7 @@ Hiérarchie : User → Boards → Applications.
 import enum
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -26,6 +26,15 @@ class ApplicationStatus(str, enum.Enum):
     INTERVIEW = "interview"  # Entretien
     REJECTED = "rejected"    # Refusée
     ACCEPTED = "accepted"    # Acceptée 🎉
+
+
+class TokenPurpose(str, enum.Enum):
+    """Usage d'un SecurityToken. Le filtrer à la vérification interdit qu'un
+    token émis pour un usage serve à l'autre (un lien de vérification d'email ne
+    doit jamais pouvoir changer un mot de passe)."""
+
+    PASSWORD_RESET = "password_reset"
+    EMAIL_VERIFICATION = "email_verification"
 
 
 class User(Base):
@@ -43,6 +52,13 @@ class User(Base):
     # On ne stocke JAMAIS le mot de passe en clair, seulement son empreinte bcrypt.
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
 
+    # Adresse email confirmée via le lien envoyé à l'inscription. NON BLOQUANT :
+    # un compte non vérifié peut se connecter et utiliser l'app normalement (le
+    # front se sert de ce champ pour afficher un bandeau d'invitation).
+    is_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -52,6 +68,57 @@ class User(Base):
     boards: Mapped[list["Board"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    # Supprimer un utilisateur invalide de fait ses liens en attente.
+    security_tokens: Mapped[list["SecurityToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class SecurityToken(Base):
+    """Token à usage unique envoyé par email (reset de mot de passe, vérification).
+
+    UNE seule table pour les deux usages, discriminés par `purpose` : les deux
+    tokens ont exactement la même forme (aléatoire, haché, daté, consommable) et
+    le même cycle de vie. Deux tables auraient dupliqué le schéma, la logique de
+    vérification et le futur nettoyage des tokens expirés, sans rien apporter :
+    la seule chose qui les distingue est la durée de validité et l'action
+    déclenchée, décidées à l'appel. Le cloisonnement est assuré par `purpose`,
+    obligatoirement filtré à la vérification.
+
+    Le token en clair n'est JAMAIS stocké : seul son SHA-256 l'est. Un vol de la
+    base ne permet donc pas de rejouer un lien. SHA-256 et non bcrypt : bcrypt
+    protège des secrets à faible entropie (mots de passe humains, brute-forçables
+    hors ligne). Ici le secret fait 256 bits d'aléa cryptographique — inattaquable
+    par force brute — donc un hash rapide suffit, et évite de payer un coût bcrypt
+    à chaque clic sur un lien.
+    """
+
+    __tablename__ = "security_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+
+    # SHA-256 en hexadécimal = 64 caractères. unique : deux tokens ne peuvent pas
+    # collisionner ; index : la vérification est un lookup par ce hash.
+    token_hash: Mapped[str] = mapped_column(
+        String(64), unique=True, index=True, nullable=False
+    )
+    purpose: Mapped[TokenPurpose] = mapped_column(Enum(TokenPurpose), nullable=False)
+
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), index=True, nullable=False
+    )
+
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    # NULL tant que le token n'a pas servi. Renseigné à la consommation : un
+    # token ne vaut que pour un seul usage, même avant son expiration.
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # Sert aussi de compteur au rate limiting (nombre de demandes récentes).
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    user: Mapped["User"] = relationship(back_populates="security_tokens")
 
 
 class Board(Base):

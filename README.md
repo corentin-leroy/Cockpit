@@ -1,8 +1,9 @@
 # Cockpit
 
-Le cockpit de la recherche d'alternance : suivi de candidatures (kanban),
-agrégation d'offres via API officielles, ajout en un clic depuis n'importe
-quel site d'annonces.
+**Le poste de pilotage de votre recherche d'emploi.**
+
+Suivi de candidatures (kanban), tous types de contrats, agrégation d'offres via
+API officielles, ajout en un clic depuis n'importe quel site d'annonces.
 
 ## Démarrage rapide (Windows/PowerShell)
 
@@ -12,6 +13,11 @@ py -m venv .venv
 .venv\Scripts\Activate.ps1
 py -m pip install -r requirements.txt
 py -m uvicorn app.main:app --reload
+```
+
+```powershell
+cd frontend
+npm run dev
 ```
 
 API disponible sur http://127.0.0.1:8000 — documentation interactive

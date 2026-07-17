@@ -16,8 +16,8 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Cockpit",
-    description="Le cockpit de ta recherche d'alternance : suivi de candidatures, "
-    "agrégation d'offres et bookmarklet.",
+    description="Le poste de pilotage de votre recherche d'emploi : suivi de "
+    "candidatures, agrégation d'offres et extension navigateur.",
     version="0.1.0",
 )
 

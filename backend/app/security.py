@@ -4,7 +4,9 @@ Isolé dans son propre module pour que le jour où l'on change d'algorithme
 (ou de bibliothèque), un seul fichier soit touché.
 """
 
+import hashlib
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt  # PyJWT
@@ -18,6 +20,12 @@ _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # --- Configuration JWT ---
 JWT_ALGORITHM = "HS256"  # signature symétrique : un seul secret partagé
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+# --- Durées de vie des tokens envoyés par email ---
+# Reset : court, c'est un secret qui donne accès au compte.
+PASSWORD_RESET_EXPIRE_MINUTES = 60
+# Vérification : long, l'utilisateur peut confirmer plus tard (non bloquant).
+EMAIL_VERIFICATION_EXPIRE_HOURS = 24
 
 
 def hash_password(plain_password: str) -> str:
@@ -35,6 +43,38 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # vrai verify_password contre ce hash plutôt que de court-circuiter bcrypt, ce
 # qui empêche d'énumérer les comptes existants par mesure du temps de réponse.
 DUMMY_PASSWORD_HASH = hash_password("timing-attack-mitigation-placeholder")
+
+
+def generate_url_token() -> str:
+    """Génère un token à usage unique, transmissible dans une URL.
+
+    32 octets d'aléa cryptographique (soit 256 bits), encodés en base64 URL-safe.
+    C'est le secret envoyé par email ; il n'est jamais stocké tel quel (voir
+    `hash_token`).
+    """
+    return secrets.token_urlsafe(32)
+
+
+def hash_token(token: str) -> str:
+    """Empreinte SHA-256 (hexadécimale) d'un token, telle que stockée en base.
+
+    Hash RAPIDE, volontairement : contrairement à un mot de passe, un token de
+    256 bits d'aléa n'est pas brute-forçable, donc le coût d'un bcrypt serait
+    payé pour rien à chaque vérification de lien. Le hash sert ici à ce qu'une
+    fuite de la base ne livre aucun lien réutilisable.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def utcnow() -> datetime:
+    """Heure UTC courante, SANS fuseau attaché.
+
+    Les colonnes DateTime de SQLite ne conservent pas le fuseau : une valeur
+    écrite avec tzinfo revient naïve à la lecture. On manipule donc partout des
+    datetimes naïfs exprimés en UTC, pour que les comparaisons (expiration) ne
+    mélangent jamais aware et naive — ce qui lèverait un TypeError.
+    """
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _get_secret_key() -> str:

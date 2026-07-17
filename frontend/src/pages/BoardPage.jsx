@@ -13,6 +13,7 @@ import {
 } from '../api/applications.js'
 import { useBoards } from '../boards/useBoards.js'
 import Navbar from '../components/Navbar.jsx'
+import VerificationBanner from '../components/VerificationBanner.jsx'
 import Sidebar from '../components/Sidebar.jsx'
 import KanbanColumn from '../components/KanbanColumn.jsx'
 import Modal from '../components/Modal.jsx'
@@ -303,6 +304,9 @@ export default function BoardPage() {
   return (
     <>
       <Navbar />
+      {/* Ne rend rien si l'adresse est déjà vérifiée (ou si `user` n'est pas
+          encore chargé) : aucun décalage de mise en page dans le cas courant. */}
+      <VerificationBanner />
 
       {boardsLoading && (
         <main className="board-main">

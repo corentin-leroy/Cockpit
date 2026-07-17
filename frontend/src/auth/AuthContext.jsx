@@ -4,9 +4,9 @@
 // Ce fichier ne connaît ni le stockage (il passe par le module token) ni le
 // transport HTTP (il passe par api/auth). Il ne gère que l'ÉTAT React.
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-import { login as apiLogin } from '../api/auth.js'
+import { getMe, login as apiLogin } from '../api/auth.js'
 import { onSessionExpired } from './authEvents.js'
 import { AuthContext } from './context.js'
 import { getToken, removeToken, setToken, TOKEN_KEY } from './token.js'
@@ -17,17 +17,60 @@ export function AuthProvider({ children }) {
   // Initializer paresseux (fonction) pour ne lire le stockage qu'une seule fois.
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getToken()))
 
+  // Utilisateur courant (id, email, is_verified…), ou null tant qu'on ne l'a pas
+  // (pas connecté, chargement en cours, ou récupération en échec).
+  //
+  // Pourquoi un appel réseau plutôt que de lire le JWT ? Le token ne porte que
+  // l'id (claim `sub`) et il vit 60 min : un `is_verified` qui y serait figé
+  // resterait faux pendant une heure après la confirmation de l'adresse. GET
+  // /auth/me donne l'état RÉEL du compte, et le backend reste la seule source
+  // de vérité (un token, même déchiffrable côté client, ne se fait pas confiance).
+  const [user, setUser] = useState(null)
+
+  // Chaîne de promesses (et non async/await) pour que les setState arrivent dans
+  // des callbacks, jamais dans le corps synchrone de l'effet appelant.
+  const loadUser = useCallback(() => {
+    getMe()
+      .then(setUser)
+      .catch(() => {
+        // Échec NON BLOQUANT, volontairement : un 401 aurait déjà été traité par
+        // apiFetch (qui purge le token et émet sessionExpired), donc on est ici
+        // face à un incident réseau/serveur. On laisse `user` à null : l'app
+        // fonctionne, seul le bandeau de vérification ne s'affiche pas. Casser la
+        // session pour un /auth/me raté serait pire que le symptôme.
+        setUser(null)
+      })
+  }, [])
+
+  // Chargement de l'utilisateur courant dès qu'une session existe : au montage si
+  // un token est déjà en stockage (rechargement de page), et après une connexion
+  // (login fait passer isAuthenticated à true). La remise à null, elle, se fait
+  // dans les callbacks qui ferment la session (voir plus bas) plutôt qu'ici : un
+  // setState synchrone dans un effet provoquerait un rendu en cascade.
+  useEffect(() => {
+    if (isAuthenticated) loadUser()
+  }, [isAuthenticated, loadUser])
+
   // Synchronisation MÊME ONGLET : apiFetch émet cet événement quand il purge le
   // token sur un 401. On bascule alors l'état, ce qui fait réagir les routes
   // protégées (redirection vers /login).
-  useEffect(() => onSessionExpired(() => setIsAuthenticated(false)), [])
+  useEffect(
+    () =>
+      onSessionExpired(() => {
+        setIsAuthenticated(false)
+        setUser(null)
+      }),
+    [],
+  )
 
   // Synchronisation ENTRE ONGLETS : l'événement `storage` se déclenche dans les
-  // AUTRES onglets quand le token change ici (login/logout). On aligne l'état.
+  // AUTRES onglets quand le token change ici (login/logout). On aligne l'état ;
+  // une déconnexion ailleurs doit aussi purger l'utilisateur de cet onglet.
   useEffect(() => {
     function handleStorage(event) {
       if (event.key === TOKEN_KEY) {
         setIsAuthenticated(Boolean(event.newValue))
+        if (!event.newValue) setUser(null)
       }
     }
     window.addEventListener('storage', handleStorage)
@@ -37,16 +80,24 @@ export function AuthProvider({ children }) {
   async function login(email, password) {
     const data = await apiLogin(email, password)
     setToken(data.access_token)
-    setIsAuthenticated(true)
+    setIsAuthenticated(true) // déclenche l'effet ci-dessus → chargement de `user`
     return data
   }
 
   function logout() {
     removeToken()
     setIsAuthenticated(false)
+    setUser(null)
   }
 
-  const value = { isAuthenticated, login, logout }
+  // Recharge l'utilisateur courant depuis l'API. Appelée après une action qui
+  // change son état côté serveur (confirmation d'adresse) pour que l'UI suive
+  // sans rechargement de page.
+  const refreshUser = useCallback(() => {
+    if (getToken()) loadUser()
+  }, [loadUser])
+
+  const value = { isAuthenticated, user, login, logout, refreshUser }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
