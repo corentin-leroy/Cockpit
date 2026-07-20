@@ -6,11 +6,12 @@ ses propres candidatures.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.limits import MAX_APPLICATIONS_PER_USER
 from app.models import Application, ApplicationStatus, Board, User
 from app.routers.boards import get_owned_board
 from app.schemas import ApplicationCreate, ApplicationRead, ApplicationUpdate
@@ -83,9 +84,27 @@ def create_application(
     Le tableau cible (payload.board_id) doit appartenir au current_user : sinon
     404 (via get_owned_board). L'ownership n'est donc jamais pris dans le payload
     à l'aveugle — il est vérifié par la possession du board.
+
+    Plafonné à MAX_APPLICATIONS_PER_USER, limite GLOBALE (tous tableaux confondus,
+    comptée via la chaîne d'ownership) : au-delà, 409 et rien n'est créé.
     """
     # Vérifie que le tableau cible appartient bien à l'utilisateur (sinon 404).
     get_owned_board(payload.board_id, current_user, db)
+
+    # Total des candidatures de l'utilisateur, TOUS tableaux confondus : on joint
+    # le board et on filtre sur board.user_id (même chaîne d'ownership que partout
+    # ailleurs). La limite est globale, pas par tableau.
+    application_count = db.scalar(
+        select(func.count())
+        .select_from(Application)
+        .join(Board, Application.board_id == Board.id)
+        .where(Board.user_id == current_user.id)
+    )
+    if application_count >= MAX_APPLICATIONS_PER_USER:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Limite de {MAX_APPLICATIONS_PER_USER} candidatures atteinte.",
+        )
 
     application = Application(**payload.model_dump())
     db.add(application)

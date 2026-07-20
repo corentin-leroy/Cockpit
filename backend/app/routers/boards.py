@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.limits import MAX_BOARDS_PER_USER
 from app.models import Board, User
 from app.schemas import BoardCreate, BoardRead, BoardUpdate
 
@@ -55,7 +56,18 @@ def create_board(
     """Crée un tableau pour l'utilisateur courant.
 
     Le propriétaire vient du token, jamais du payload.
-    """
+
+    Plafonné à MAX_BOARDS_PER_USER : au-delà, 409 et rien n'est créé. Le contrôle
+    est côté serveur (le front ne fait pas autorité)."""
+    board_count = db.scalar(
+        select(func.count()).select_from(Board).where(Board.user_id == current_user.id)
+    )
+    if board_count >= MAX_BOARDS_PER_USER:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Limite de {MAX_BOARDS_PER_USER} tableaux atteinte.",
+        )
+
     board = Board(name=payload.name, user_id=current_user.id)
     db.add(board)
     db.commit()
