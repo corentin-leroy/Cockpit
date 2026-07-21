@@ -1,0 +1,15 @@
+# Dépendances de DÉVELOPPEMENT : tout ce qu'il faut en local, tests compris.
+# C'est ce fichier qu'on installe sur sa machine ; la production, elle, n'installe
+# que requirements.txt (pytest et httpx n'ont rien à faire dans l'image déployée).
+#
+# Versions figées (==) pour la même raison qu'en production : que la suite de
+# tests se comporte pareil sur toutes les machines et à toutes les dates. Un
+# pytest qui change de version majeure peut modifier la collecte ou les
+# fixtures, et faire échouer des tests sans qu'une ligne de code ait bougé.
+
+-r requirements.txt
+
+# --- Tests ---
+pytest==9.1.1
+# httpx : requis par le TestClient de Starlette/FastAPI (client HTTP in-process).
+httpx==0.28.1

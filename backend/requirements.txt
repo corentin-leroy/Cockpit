@@ -1,21 +1,51 @@
-fastapi>=0.115
-uvicorn[standard]>=0.32
-sqlalchemy>=2.0
-pydantic[email]>=2.9
-python-dotenv>=1.0
-passlib[bcrypt]>=1.7.4
-bcrypt<4.1
-pyjwt>=2.9
+# Dépendances de PRODUCTION uniquement — c'est ce fichier que Railway installe.
+# Les dépendances de test sont dans requirements-dev.txt (qui inclut celui-ci).
+#
+# VERSIONS FIGÉES (==) VOLONTAIREMENT — figées le 2026-07-21.
+# Ce sont les versions réellement installées et testées (suite pytest au vert).
+# Objectif : un rebuild Railway dans six mois installe EXACTEMENT la même chose
+# qu'aujourd'hui. Avec des minimums (>=), un rebuild sans le moindre commit
+# pouvait tirer une version majeure incompatible et casser le déploiement.
+#
+# Contrepartie : plus aucun correctif de sécurité n'arrive tout seul. Ces
+# versions sont à relever À LA MAIN de temps en temps (cf. CLAUDE.md, section
+# « Versions des dépendances »).
+#
+# Les extras entre crochets sont indispensables et ne figurent PAS dans la
+# sortie de `pip freeze` : ne jamais remplacer ce fichier par un copier-coller
+# de `pip freeze`, les extras seraient perdus (détail sur chacun ci-dessous).
+
+# --- API ---
+fastapi==0.136.3
+# uvicorn : serveur ASGI, utilisé en dev ET en production (cf. railway.json).
+# [standard] apporte uvloop/httptools (performances) et le support des
+# websockets ; volontairement conservé en production.
+uvicorn[standard]==0.49.0
+# [email] tire email-validator, sans quoi le type EmailStr des schémas Pydantic
+# lève une erreur à l'import : l'app ne démarrerait pas.
+pydantic[email]==2.13.4
 
 # --- Base de données ---
+sqlalchemy==2.0.50
 # Driver PostgreSQL (production ; SQLite est intégré à Python, rien à installer).
 # psycopg v3 et non psycopg2 : c'est le driver maintenu, supporté nativement par
 # SQLAlchemy 2.0 via le dialecte `postgresql+psycopg`. L'extra [binary] fournit
 # des roues précompilées — aucune compilation C, ni libpq à installer sur la
-# machine (utile sous Windows en dev comme dans une image de déploiement).
-psycopg[binary]>=3.2
+# machine (utile sous Windows en dev comme dans l'image de déploiement).
+psycopg[binary]==3.3.4
 
-# --- Tests ---
-# httpx : requis par le TestClient de Starlette/FastAPI (client HTTP in-process).
-pytest>=8.0
-httpx>=0.27
+# --- Sécurité ---
+# [bcrypt] tire le backend de hachage utilisé par le CryptContext (security.py).
+passlib[bcrypt]==1.7.4
+# bcrypt reste en 4.0.x : passlib 1.7.4 lit `bcrypt.__about__.__version__`,
+# attribut SUPPRIMÉ en bcrypt 4.1. Au-delà, la détection de version de passlib
+# casse. C'est la raison de l'ancienne borne `bcrypt<4.1`, désormais exprimée
+# par un pin exact — à ne pas relever sans vérifier ce point précis.
+bcrypt==4.0.1
+pyjwt==2.13.0
+
+# --- Configuration ---
+# Lit le fichier .env en développement. En production, Railway injecte les
+# variables directement dans l'environnement : load_dotenv() ne trouve alors
+# aucun fichier et n'écrase rien, ce qui est le comportement voulu.
+python-dotenv==1.2.2
