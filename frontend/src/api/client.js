@@ -7,8 +7,15 @@
 import { emitSessionExpired } from '../auth/authEvents.js'
 import { getToken, removeToken } from '../auth/token.js'
 
-export const API_BASE_URL =
+// Le « / » final est retiré : les endpoints commencent tous par « / » et sont
+// concaténés directement (`${API_BASE_URL}${endpoint}`). Une valeur saisie
+// « https://api.exemple.app/ » produirait sinon « https://api.exemple.app//auth/login »,
+// donc des 404 partout — et uniquement en production, là où la variable est
+// renseignée à la main. Même précaution que côté backend sur FRONTEND_URL et
+// CORS_ORIGINS.
+export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
+).replace(/\/+$/, '')
 
 /**
  * Erreur d'API exploitable : expose le code HTTP (`status`) pour permettre à
