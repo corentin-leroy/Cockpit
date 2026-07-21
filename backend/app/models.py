@@ -9,12 +9,21 @@ Hiérarchie : User → Boards → Applications.
 """
 
 import enum
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.security import utcnow
+
+# Les colonnes DateTime sont NAIVES et exprimées en UTC, partout (cf. utcnow()).
+# On alimente donc les valeurs par défaut avec utcnow() et jamais avec un
+# datetime.now(timezone.utc) « aware » : SQLite laisse tomber le fuseau en
+# silence, mais PostgreSQL, lui, convertit une valeur aware vers le fuseau de la
+# session avant de la stocker dans un TIMESTAMP WITHOUT TIME ZONE. Le même code
+# écrirait alors des heures décalées selon le moteur — et le rate limiting des
+# emails, qui compare created_at à utcnow(), s'en trouverait faussé.
 
 
 class ApplicationStatus(str, enum.Enum):
@@ -60,7 +69,7 @@ class User(Base):
     )
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=utcnow, nullable=False
     )
 
     # Un utilisateur possède plusieurs tableaux. Supprimer un utilisateur
@@ -115,7 +124,7 @@ class SecurityToken(Base):
 
     # Sert aussi de compteur au rate limiting (nombre de demandes récentes).
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=utcnow, nullable=False
     )
 
     user: Mapped["User"] = relationship(back_populates="security_tokens")
@@ -141,12 +150,12 @@ class Board(Base):
     )
 
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=utcnow, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=utcnow,
+        onupdate=utcnow,
         nullable=False,
     )
 
@@ -189,12 +198,12 @@ class Application(Base):
 
     # --- Métadonnées ---
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime, default=utcnow, nullable=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=utcnow,
+        onupdate=utcnow,
         nullable=False,
     )
 

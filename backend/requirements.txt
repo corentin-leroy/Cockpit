@@ -7,6 +7,14 @@ passlib[bcrypt]>=1.7.4
 bcrypt<4.1
 pyjwt>=2.9
 
+# --- Base de données ---
+# Driver PostgreSQL (production ; SQLite est intégré à Python, rien à installer).
+# psycopg v3 et non psycopg2 : c'est le driver maintenu, supporté nativement par
+# SQLAlchemy 2.0 via le dialecte `postgresql+psycopg`. L'extra [binary] fournit
+# des roues précompilées — aucune compilation C, ni libpq à installer sur la
+# machine (utile sous Windows en dev comme dans une image de déploiement).
+psycopg[binary]>=3.2
+
 # --- Tests ---
 # httpx : requis par le TestClient de Starlette/FastAPI (client HTTP in-process).
 pytest>=8.0
