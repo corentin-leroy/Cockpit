@@ -20,6 +20,7 @@ from app.dependencies import get_current_user
 from app.email import send_password_reset_email, send_verification_email
 from app.models import Board, SecurityToken, TokenPurpose, User
 from app.schemas import (
+    DeleteAccountRequest,
     ForgotPasswordRequest,
     MessageResponse,
     ResetPasswordRequest,
@@ -211,6 +212,44 @@ def read_current_user(current_user: User = Depends(get_current_user)):
     serait figé dans le token à la connexion.
     """
     return current_user
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_current_user(
+    payload: DeleteAccountRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Supprime définitivement le compte de l'utilisateur courant (droit à l'effacement).
+
+    Emportent le compte, par cascade déclarée dans le schéma : ses tableaux, les
+    candidatures de ces tableaux, et ses jetons de sécurité en attente. Il ne
+    subsiste aucune donnée personnelle après cet appel — c'est un effacement, pas
+    une désactivation.
+
+    DOUBLE contrôle, volontaire : le JWT prouve la session, le mot de passe prouve
+    l'identité. Un token volé ne doit pas suffire à détruire un compte, parce que
+    l'action est irréversible et sans recours (contrairement à la modification
+    d'une candidature). C'est la même exigence de ré-authentification que celle
+    des opérations sensibles ailleurs dans l'industrie.
+
+    Le 403 en cas de mauvais mot de passe ne révèle rien : l'appelant est DÉJÀ
+    authentifié comme cet utilisateur (il a un token valide), donc l'existence du
+    compte n'est pas une information qu'on lui apprend. On ne renvoie pas 401,
+    qui signifierait « session invalide » et ferait purger le token côté front
+    alors que la session, elle, est parfaitement valide.
+    """
+    if not verify_password(payload.password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Mot de passe incorrect.",
+        )
+
+    # La cascade fait le reste : boards → applications, et security_tokens.
+    # Les relations portent passive_deletes=True, donc SQLAlchemy émet UN seul
+    # DELETE sur users et laisse la base propager (cf. models.py).
+    db.delete(current_user)
+    db.commit()
 
 
 @router.post("/forgot-password", response_model=MessageResponse)

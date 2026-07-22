@@ -77,6 +77,22 @@ class VerifyEmailRequest(BaseModel):
     token: str = Field(min_length=1)
 
 
+class DeleteAccountRequest(BaseModel):
+    """Confirmation de suppression de compte : le mot de passe courant.
+
+    Le JWT ne suffit délibérément pas. Un token peut fuiter (poste laissé
+    déverrouillé, historique, sauvegarde de navigateur) et vit 60 minutes ; il
+    autorise des actions réversibles, pas la destruction définitive de toutes les
+    données du compte. Redemander le mot de passe exige un secret que le porteur
+    d'un token volé n'a pas — c'est une ré-authentification, pas une case à
+    cocher.
+
+    Pas de contrainte de longueur, comme pour UserLogin : on compare à un hash
+    existant, on ne rejoue pas la politique d'inscription."""
+
+    password: str
+
+
 class MessageResponse(BaseModel):
     """Réponse générique à une action sans contenu à renvoyer.
 

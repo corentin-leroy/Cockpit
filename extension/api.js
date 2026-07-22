@@ -8,9 +8,17 @@
 
 import { getToken, clearToken } from "./storage.js";
 
-// Même base que host_permissions du manifest. En dur pour la V1 (backend local) ;
-// une page d'options configurable est notée dans les pistes d'amélioration.
-export const API_BASE_URL = "http://127.0.0.1:8000";
+// API de PRODUCTION. Cette valeur doit rester STRICTEMENT alignée sur l'entrée
+// host_permissions du manifest : c'est cette permission d'hôte qui exempte la
+// popup et le service worker du contrôle CORS. Les deux désynchronisées, les
+// appels retombent sous le régime CORS ordinaire (préflight compris) et
+// échouent, sans que le code ne signale quoi que ce soit d'anormal.
+//
+// Pour développer contre un backend local, modifier CES DEUX valeurs sans les
+// committer (procédure dans README.md). Volontairement PAS de page d'options :
+// une URL d'API configurable par l'utilisateur permettrait de diriger le token
+// d'authentification vers un serveur arbitraire.
+export const API_BASE_URL = "https://cockpit-production-6afb.up.railway.app";
 
 /** Erreur d'API porteuse du code HTTP, pour que l'appelant détecte un 401. */
 export class ApiError extends Error {

@@ -6,6 +6,24 @@ Hiérarchie : User → Boards → Applications.
 - Une candidature référence son tableau (board_id) et NON plus l'utilisateur
   directement : l'ownership se déduit en chaîne (application → board → user),
   ce qui évite toute redondance (un seul endroit porte le lien au propriétaire).
+
+Cascade de suppression, déclarée à DEUX niveaux complémentaires :
+
+1. Dans le SCHÉMA — `ondelete="CASCADE"` sur chaque clé étrangère. C'est la base
+   de données qui garantit alors qu'aucune ligne ne survit à son parent, quel que
+   soit le chemin emprunté : ORM, script de maintenance, psql, migration. Sans
+   cette déclaration, toute suppression passant à côté de l'ORM échouait en
+   PostgreSQL sur une violation de contrainte (le défaut d'une clé étrangère est
+   NO ACTION, qui REFUSE de supprimer un parent encore référencé).
+
+2. Dans l'ORM — `cascade="all, delete-orphan"` sur les relations parentes. Il
+   reste nécessaire : il porte la sémantique ORPHELIN (retirer un enfant de la
+   collection de son parent le supprime), que la base ne connaît pas.
+
+`passive_deletes=True` articule les deux : il dit à SQLAlchemy de NE PAS charger
+les enfants pour les supprimer un par un lors d'un `db.delete(parent)`, et de
+laisser la base appliquer sa cascade. Voir la note dans database.py sur le PRAGMA
+que cela impose sous SQLite.
 """
 
 import enum
@@ -75,11 +93,11 @@ class User(Base):
     # Un utilisateur possède plusieurs tableaux. Supprimer un utilisateur
     # supprime ses tableaux (et, par cascade en chaîne, leurs candidatures).
     boards: Mapped[list["Board"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
     # Supprimer un utilisateur invalide de fait ses liens en attente.
     security_tokens: Mapped[list["SecurityToken"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
 
 
@@ -114,7 +132,7 @@ class SecurityToken(Base):
     purpose: Mapped[TokenPurpose] = mapped_column(Enum(TokenPurpose), nullable=False)
 
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"), index=True, nullable=False
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
     )
 
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
@@ -146,7 +164,7 @@ class Board(Base):
     # Propriétaire du tableau. C'est LE lien vers l'utilisateur : l'ownership
     # d'une candidature se déduit via son board (board.user_id).
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id"), index=True, nullable=False
+        ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
     )
 
     created_at: Mapped[datetime] = mapped_column(
@@ -163,7 +181,7 @@ class Board(Base):
     # Supprimer un tableau supprime ses candidatures (cascade — voir la règle du
     # dernier tableau non supprimable côté router).
     applications: Mapped[list["Application"]] = relationship(
-        back_populates="board", cascade="all, delete-orphan"
+        back_populates="board", cascade="all, delete-orphan", passive_deletes=True
     )
 
 
@@ -193,7 +211,7 @@ class Application(Base):
     # Une candidature appartient à un tableau (obligatoire). Le propriétaire n'est
     # PLUS stocké ici : on le retrouve via board.user_id (chaîne d'ownership).
     board_id: Mapped[int] = mapped_column(
-        ForeignKey("boards.id"), index=True, nullable=False
+        ForeignKey("boards.id", ondelete="CASCADE"), index=True, nullable=False
     )
 
     # --- Métadonnées ---

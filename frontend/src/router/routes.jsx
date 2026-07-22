@@ -3,6 +3,7 @@ import { Routes, Route } from 'react-router-dom'
 import GuestRoute from '../components/GuestRoute.jsx'
 import ProtectedRoute from '../components/ProtectedRoute.jsx'
 import { BoardsProvider } from '../boards/BoardsProvider.jsx'
+import AccountPage from '../pages/AccountPage.jsx'
 import BoardPage from '../pages/BoardPage.jsx'
 import ForgotPasswordPage from '../pages/ForgotPasswordPage.jsx'
 import LoginPage from '../pages/LoginPage.jsx'
@@ -31,6 +32,16 @@ export default function AppRoutes() {
             <BoardsProvider>
               <BoardPage />
             </BoardsProvider>
+          </ProtectedRoute>
+        }
+      />
+      {/* Page de compte : protégée, mais SANS BoardsProvider — elle ne lit
+          aucun tableau, et le provider déclencherait un GET /boards inutile. */}
+      <Route
+        path="/account"
+        element={
+          <ProtectedRoute>
+            <AccountPage />
           </ProtectedRoute>
         }
       />

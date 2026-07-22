@@ -11,8 +11,10 @@ la normalisation de l'URL et les options de connexion propres à chaque moteur.
 """
 
 import os
+import sqlite3
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 
@@ -65,6 +67,37 @@ _engine_kwargs: dict = {} if IS_SQLITE else {"pool_pre_ping": True}
 engine = create_engine(DATABASE_URL, connect_args=_connect_args, **_engine_kwargs)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+@event.listens_for(Engine, "connect")
+def _enable_sqlite_foreign_keys(dbapi_connection, connection_record) -> None:
+    """Active la vérification des clés étrangères sur chaque connexion SQLITE.
+
+    SQLite embarque le support des clés étrangères mais le laisse DÉSACTIVÉ par
+    défaut, pour compatibilité historique — et le réglage est propre à chaque
+    connexion, jamais persisté dans le fichier. Sans ce PRAGMA, une contrainte
+    `ON DELETE CASCADE` déclarée dans le schéma est purement décorative : SQLite
+    l'accepte, la stocke… et ne l'applique pas.
+
+    Ce n'était sans conséquence que tant que la cascade vivait uniquement dans
+    SQLAlchemy. Depuis que les relations parentes portent `passive_deletes=True`,
+    l'ORM n'émet plus les DELETE des enfants et DÉLÈGUE à la base : sans ce
+    PRAGMA, supprimer un utilisateur laisserait en silence ses tableaux, ses
+    candidatures et ses jetons orphelins, avec des `user_id` pointant dans le
+    vide. La production (PostgreSQL, qui applique toujours ses contraintes) irait
+    bien, les tests passeraient à côté du bug : exactement le genre d'écart entre
+    moteurs que ce module a pour rôle d'absorber.
+
+    L'écouteur est posé sur la CLASSE Engine, pas sur l'instance `engine`
+    ci-dessus : le moteur de test (tests/conftest.py) en crée un second, qui doit
+    bénéficier du même réglage sans avoir à le savoir. Le test isinstance limite
+    l'exécution aux connexions SQLite — PostgreSQL applique nativement ses clés
+    étrangères et ne connaît pas cette instruction.
+    """
+    if isinstance(dbapi_connection, sqlite3.Connection):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 class Base(DeclarativeBase):

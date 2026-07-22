@@ -41,13 +41,45 @@ Frontend (depuis frontend/) :
   Accès à la ressource d'autrui → 404 (pas 403), pour ne pas confirmer un id.
 - À l'inscription, un board par défaut "Mes candidatures" est créé : un user a
   TOUJOURS au moins un tableau. Corollaire : la suppression du DERNIER tableau
-  d'un user est refusée (409). Supprimer un board supprime ses candidatures
-  (cascade ORM all, delete-orphan).
+  d'un user est refusée (409). Supprimer un board supprime ses candidatures.
 - Créer une candidature exige un board_id ; le serveur vérifie qu'il appartient
   au current_user (sinon 404). GET /applications filtre par ?board_id= et/ou
   ?status_filter=.
 - Le statut d'une candidature n'est PAS modifiable à la création (démarre
   toujours en "saved"/Repérée) ; il évolue via PATCH (drag & drop côté front).
+
+# Cascade de suppression (schéma + ORM)
+- Déclarée à DEUX niveaux, complémentaires et non redondants :
+  - SCHÉMA : `ondelete="CASCADE"` sur chaque ForeignKey (board.user_id →
+    users.id, application.board_id → boards.id, security_token.user_id →
+    users.id). C'est la BASE qui garantit qu'aucune ligne ne survit à son parent,
+    quel que soit le chemin : ORM, script de maintenance, psql, migration. Sans
+    cela, toute suppression contournant l'ORM échouait en PostgreSQL sur une
+    violation de contrainte (le défaut d'une FK est NO ACTION, qui REFUSE de
+    supprimer un parent encore référencé).
+  - ORM : `cascade="all, delete-orphan"` sur les relations parentes. Toujours
+    nécessaire — il porte la sémantique ORPHELIN (retirer un enfant de la
+    collection de son parent le supprime), que la base ne connaît pas.
+- `passive_deletes=True` sur ces mêmes relations articule les deux : SQLAlchemy
+  ne charge plus les enfants pour les supprimer un par un, il émet UN SEUL DELETE
+  sur le parent et laisse la base propager. Supprimer un user passait de
+  1 SELECT par board + 1 DELETE par ligne à un unique `DELETE FROM users`.
+  Comportement observable inchangé (test de non-régression dans
+  test_account_deletion.py).
+- SQLite n'applique PAS les clés étrangères par défaut, et le réglage est propre
+  à CHAQUE CONNEXION. `app/database.py` pose donc un écouteur `connect` qui
+  exécute `PRAGMA foreign_keys=ON` sur toute connexion SQLite. Sans lui, la
+  cascade serait purement décorative en dev et dans les tests : supprimer un user
+  laisserait des orphelins EN SILENCE, alors que la prod (PostgreSQL) irait bien.
+  L'écouteur est posé sur la CLASSE `Engine`, pas sur l'instance : le moteur de
+  test créé par tests/conftest.py en bénéficie sans le savoir.
+- ⚠ CHANGEMENT DE SCHÉMA : `create_all()` ne MODIFIE JAMAIS une table existante.
+  Ces contraintes ONLY apparaissent sur des tables CRÉÉES après ce changement.
+  Sur une base déjà en place (dev : backend/cockpit.db ; prod : PostgreSQL
+  Railway), les tables gardent leurs anciennes FK sans cascade, et rien ne le
+  signale. En dev, supprimer cockpit.db suffit (elle est recréée au démarrage).
+  En prod, il faut recréer les tables — ou, mieux, passer à Alembic : c'est
+  exactement la première modification de schéma qui justifie de l'installer.
 
 # Limites de quantité (garde-fous anti-abus)
 - Toutes les constantes sont dans `app/limits.py` (source unique, importée par
@@ -82,7 +114,12 @@ Frontend (depuis frontend/) :
   On teste les points où une régression serait silencieuse et coûteuse (fuite du
   mot de passe, perte de l'anti-énumération, cloisonnement par user, plafonds).
 - Fichiers : `test_auth.py`, `test_boards_ownership.py`,
-  `test_applications_ownership.py`, `test_limits.py`.
+  `test_applications_ownership.py`, `test_limits.py`,
+  `test_account_deletion.py`.
+- `test_account_deletion.py` couvre DELETE /auth/me (mot de passe exigé, refus en
+  403, cloisonnement vis-à-vis des autres comptes) ET la cascade elle-même : ses
+  assertions portent sur l'ÉTAT STOCKÉ, seul moyen de détecter des orphelins —
+  une cascade non appliquée ne produit aucune erreur d'API.
 - Dans `test_limits.py`, les candidatures de remplissage sont insérées DIRECTEMENT
   en base (300 POST seraient lents et n'apporteraient rien) : c'est l'état stocké
   qui détermine la limite, et c'est bien lui qu'on met en place.
@@ -123,6 +160,26 @@ Frontend (depuis frontend/) :
   (UserRead) : le JWT ne portant que l'id, c'est le SEUL canal qui dit au front
   si l'adresse est vérifiée — et il reste à jour, contrairement à un état qui
   serait figé dans le token à la connexion.
+
+# Suppression de compte (droit à l'effacement, RGPD)
+- DELETE /auth/me (authentifié) supprime définitivement le compte courant et,
+  par cascade, ses tableaux, leurs candidatures et ses jetons de sécurité. C'est
+  un EFFACEMENT, pas une désactivation : aucune donnée personnelle ne subsiste.
+- Le corps de la requête porte le MOT DE PASSE courant, vérifié avant toute
+  suppression. Le JWT ne suffit délibérément pas : il prouve la session, pas
+  l'identité. Un token peut fuiter et vit 60 min ; il autorise des actions
+  réversibles, jamais la destruction définitive du compte. C'est une
+  ré-authentification, pas une case à cocher.
+- Mot de passe faux → 403, et non 401. L'appelant est DÉJÀ authentifié comme cet
+  utilisateur : on ne lui apprend rien sur l'existence du compte (pas de sujet
+  d'énumération ici). Un 401 signifierait « session invalide » et ferait purger
+  le token côté front alors que la session est parfaitement valide.
+- Front : page /account (protégée, atteignable depuis la navbar), avec une zone
+  de suppression nettement séparée et une modale de confirmation exigeant le mot
+  de passe. Ni window.confirm ni window.alert : une boîte native ne peut pas
+  porter de champ de saisie, ignore les tokens et le thème, et son bouton « OK »
+  ne nomme pas l'action. Après succès : purge du token local puis redirection
+  vers /login (replace).
 - Anti-énumération : /auth/forgot-password renvoie TOUJOURS le même message, que
   le compte existe ou non — y compris quand le plafond d'envois est atteint (pas
   de 429, qui trahirait l'existence du compte). Même principe que le 401

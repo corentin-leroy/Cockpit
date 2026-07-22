@@ -32,6 +32,23 @@ export function getMe() {
 }
 
 /**
+ * Supprime définitivement le compte courant. DELETE /auth/me → 204 sans corps.
+ *
+ * Le mot de passe accompagne le token : le backend exige les deux (un token
+ * volé ne doit pas suffire à détruire un compte). 403 si le mot de passe est
+ * faux — et NON 401, qui ferait purger le token alors que la session est valide.
+ *
+ * Emporte par cascade tableaux, candidatures et jetons : action irréversible,
+ * à n'appeler que derrière une confirmation explicite.
+ */
+export function deleteAccount(password) {
+  return apiFetch('/auth/me', {
+    method: 'DELETE',
+    body: JSON.stringify({ password }),
+  })
+}
+
+/**
  * Demande un lien de réinitialisation. POST /auth/forgot-password.
  * Public. Répond TOUJOURS le même message, que le compte existe ou non :
  * l'appelant ne doit rien déduire de la réponse.

@@ -1,12 +1,25 @@
 {
   "manifest_version": 3,
   "name": "Cockpit",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Suivez vos candidatures dans un kanban et capturez une offre depuis n'importe quel site d'annonces en un clic.",
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
 
   "action": {
     "default_title": "Cockpit",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
 
   "background": {
@@ -21,6 +34,6 @@
   ],
 
   "host_permissions": [
-    "http://127.0.0.1:8000/*"
+    "https://cockpit-production-6afb.up.railway.app/*"
   ]
 }
