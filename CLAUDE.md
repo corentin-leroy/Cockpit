@@ -6,14 +6,16 @@ Agrégation via API officielles (La Bonne Alternance, France Travail) reportée
 en V1.5. AUCUN scraping serveur, AUCUN stockage de credentials de sites tiers.
 
 # Stack
-- Backend : FastAPI + SQLAlchemy 2.0 + SQLite (PostgreSQL prévu en prod)
+- Backend : FastAPI + SQLAlchemy 2.0 + SQLite (dev/tests) ou PostgreSQL (prod)
 - Frontend : React 19 + Vite + React Router 7 (dossier frontend/)
 - Extension : Chrome Manifest V3 (dossier extension/)
 - Environnement : Windows/PowerShell, Python invoqué avec `py`
 
 # Commandes
 Backend (depuis backend/, venv activé) :
-- Installer : `.venv\Scripts\python.exe -m pip install -r requirements.txt`
+- Installer : `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`
+  (requirements-dev.txt inclut requirements.txt + pytest/httpx ; la PRODUCTION
+  n'installe que requirements.txt)
 - Lancer l'API : `py -m uvicorn app.main:app --reload`
 - Tests : `py -m pytest` (depuis backend/) — suite ciblée sécurité (auth,
   ownership). Base SQLite EN MÉMOIRE isolée, recréée à chaque test ; ne touche
@@ -47,11 +49,43 @@ Frontend (depuis frontend/) :
 - Le statut d'une candidature n'est PAS modifiable à la création (démarre
   toujours en "saved"/Repérée) ; il évolue via PATCH (drag & drop côté front).
 
+# Limites de quantité (garde-fous anti-abus)
+- Toutes les constantes sont dans `app/limits.py` (source unique, importée par
+  les routers et par main.py) :
+  - MAX_BOARDS_PER_USER = 10
+  - MAX_APPLICATIONS_PER_USER = 300
+  - MAX_REQUEST_BODY_BYTES = 1 Mo
+- Vérifiées CÔTÉ SERVEUR à la création, jamais côté front : le front peut les
+  afficher pour l'UX mais ne fait pas autorité (extension, curl… restent
+  plafonnés). Dépassement → 409, et RIEN n'est créé.
+- La limite de candidatures est GLOBALE par utilisateur, tous tableaux confondus
+  (comptée via la chaîne d'ownership : jointure application → board, filtre sur
+  board.user_id). Ce n'est PAS une limite par tableau : l'utilisateur répartit
+  ses 300 candidatures librement. Répartir sur plusieurs tableaux ne permet donc
+  pas d'en créer davantage.
+- Le DÉPLACEMENT d'une candidature (PATCH board_id) ne fait AUCUN contrôle de
+  limite, et c'est volontaire : déplacer ne change pas le total de l'utilisateur,
+  donc la limite globale ne peut pas être contournée ainsi. Seule la création
+  compte. Le PATCH garde évidemment son contrôle d'ownership sur le board cible.
+- Taille des corps de requête : middleware ASGI `BodySizeLimitMiddleware`
+  (main.py), qui refuse en 413 sur la foi de l'en-tête Content-Length, avant que
+  l'endpoint ne bufferise le corps. Défense en profondeur applicative (utile en
+  dev, sans proxy) ; en production le garde-fou AUTORITAIRE reste le reverse
+  proxy (nginx `client_max_body_size`), seul capable de couper un client qui ment
+  sur Content-Length ou l'omet (chunked). On n'implémente pas de comptage à la
+  volée côté ASGI : renvoyer un 413 au milieu d'un flux déjà pris en charge par
+  l'app provoque un double envoi de réponse.
+
 # Tests backend (backend/tests/, `py -m pytest`)
 - Portée VOLONTAIREMENT ciblée : la matrice sécurité déjà validée manuellement
-  (auth + ownership), pas une couverture exhaustive. On teste les points où une
-  régression serait silencieuse et coûteuse (fuite du mot de passe, perte de
-  l'anti-énumération, cloisonnement par user).
+  (auth + ownership) et les garde-fous anti-abus, pas une couverture exhaustive.
+  On teste les points où une régression serait silencieuse et coûteuse (fuite du
+  mot de passe, perte de l'anti-énumération, cloisonnement par user, plafonds).
+- Fichiers : `test_auth.py`, `test_boards_ownership.py`,
+  `test_applications_ownership.py`, `test_limits.py`.
+- Dans `test_limits.py`, les candidatures de remplissage sont insérées DIRECTEMENT
+  en base (300 POST seraient lents et n'apporteraient rien) : c'est l'état stocké
+  qui détermine la limite, et c'est bien lui qu'on met en place.
 - Isolation de la base : `tests/conftest.py` pose les variables d'environnement
   AVANT d'importer l'app (l'import de app.main appelle load_dotenv, qui n'écrase
   pas une variable déjà définie). On force ainsi (a) DATABASE_URL=sqlite://
@@ -98,11 +132,107 @@ Frontend (depuis frontend/) :
   et le plafond survit à un redémarrage. /auth/resend-verification, lui, est
   authentifié : il peut répondre explicitement 429.
 
+# Base de données : SQLite (dev) et PostgreSQL (prod)
+- Le MÊME code tourne sur les deux : seule DATABASE_URL change. Tout ce qui
+  dépend du moteur est concentré dans `app/database.py`, nulle part ailleurs.
+  - dev/tests : `sqlite:///./cockpit.db` (défaut si la variable est absente)
+  - prod : `postgresql+psycopg://user:mdp@hote:5432/base`
+- Driver PostgreSQL : psycopg v3 (`psycopg[binary]`), pas psycopg2. C'est le
+  driver maintenu, supporté nativement par SQLAlchemy 2.0 via le dialecte
+  `postgresql+psycopg`. L'extra [binary] évite toute compilation C.
+- `normalize_database_url()` réécrit l'URL au démarrage :
+  - `postgres://` (fourni tel quel par Railway, Heroku, Render…) est un alias
+    que SQLAlchemy REFUSE depuis la 1.4 → réécrit en `postgresql+psycopg://`.
+  - `postgresql://` nu est aussi réécrit, sinon SQLAlchemy chercherait psycopg2,
+    qui n'est pas installé.
+  - Une URL déjà explicite n'est jamais touchée.
+- Options de connexion branchées sur le moteur : `check_same_thread=False` est
+  une option du module sqlite3 et ferait ÉCHOUER psycopg → SQLite uniquement.
+  `pool_pre_ping=True` ne sert qu'en PostgreSQL (les hébergeurs managés coupent
+  les connexions inactives ; sans ping, la première requête après une période
+  creuse échoue sur une connexion morte).
+- Convention datetime : toutes les colonnes DateTime sont NAIVES en UTC, via le
+  helper `utcnow()` (security.py) — y compris les `default`/`onupdate` des
+  modèles. Ne JAMAIS y mettre un `datetime.now(timezone.utc)` « aware » : SQLite
+  laisse tomber le fuseau en silence, PostgreSQL le convertit vers le fuseau de
+  la session avant stockage. Le même code écrirait des heures différentes selon
+  le moteur, et fausserait le rate limiting des emails (comparaison sur
+  created_at).
+- Les tests restent sur SQLite en mémoire (cf. conftest.py) : rapides, isolés,
+  aucune dépendance à un PostgreSQL local.
+- `Base.metadata.create_all()` (main.py) crée les tables manquantes mais ne
+  MIGRE rien : il ignore les tables déjà présentes dont le schéma a changé.
+  Suffisant pour un premier déploiement, à remplacer par Alembic dès la
+  première modification de schéma en prod.
+
 # Variables d'environnement (backend/.env, cf. .env.example)
-- DATABASE_URL, JWT_SECRET_KEY (déjà en place)
+- DATABASE_URL (SQLite ou PostgreSQL, cf. section ci-dessus)
+- JWT_SECRET_KEY : obligatoire en dev ET en prod (clé DIFFÉRENTE en prod).
+  Absente, l'app démarre mais toute connexion échoue (RuntimeError explicite).
+- CORS_ORIGINS : origines autorisées, séparées par des virgules, SANS slash
+  final. Défaut http://localhost:5173.
 - FRONTEND_URL : base des liens emails (défaut http://localhost:5173)
 - BREVO_API_KEY, BREVO_SENDER_EMAIL (adresse validée dans Brevo),
   BREVO_SENDER_NAME (optionnel) — absentes = mode DEV, aucun envoi.
+- OBLIGATOIRES en production : DATABASE_URL, JWT_SECRET_KEY, CORS_ORIGINS,
+  FRONTEND_URL, BREVO_API_KEY, BREVO_SENDER_EMAIL. Les défauts des trois
+  variables d'URL pointent sur localhost : oubliées, l'app démarre SANS erreur
+  mais le front est bloqué par CORS et les liens emails sont inutilisables.
+
+# Versions des dépendances (figées volontairement)
+- requirements.txt et requirements-dev.txt épinglent des versions EXACTES (`==`),
+  pas des minimums (`>=`). Figées le 2026-07-21 à partir des versions réellement
+  installées et testées. Objectif : STABILITÉ DE DÉPLOIEMENT — un rebuild Railway
+  dans six mois installe exactement la même chose qu'aujourd'hui. Avec des `>=`,
+  un rebuild sans le moindre commit pouvait tirer une version majeure
+  incompatible (FastAPI 1.0, SQLAlchemy 2.1…) et casser la prod sans prévenir.
+- CONTREPARTIE ASSUMÉE : plus aucun correctif de sécurité n'arrive tout seul.
+  Ces versions doivent être relevées À LA MAIN de temps en temps (tous les 2-3
+  mois, ou dès qu'une CVE touche une de ces briques). Ce n'est pas optionnel :
+  un pin oublié pendant deux ans est un risque de sécurité, pas une garantie.
+- Procédure de mise à jour :
+  1. `.venv\Scripts\python.exe -m pip install --upgrade <paquet>`
+  2. `py -m pytest` — la suite doit rester au vert
+  3. reporter la nouvelle version dans le fichier concerné, et mettre à jour la
+     date « figées le … » en tête de requirements.txt
+  4. déployer et vérifier /health avant de considérer la mise à jour faite
+- Points de vigilance sur deux pins :
+  - `bcrypt==4.0.1` : passlib 1.7.4 lit `bcrypt.__about__.__version__`, attribut
+    SUPPRIMÉ en bcrypt 4.1. Ne pas relever bcrypt sans vérifier ce point (c'est
+    l'ancienne borne `bcrypt<4.1`, désormais exprimée par un pin exact).
+  - Les extras (`uvicorn[standard]`, `pydantic[email]`, `psycopg[binary]`,
+    `passlib[bcrypt]`) n'apparaissent PAS dans `pip freeze`. Ne JAMAIS écraser
+    requirements.txt avec un copier-coller de `pip freeze` : les extras seraient
+    perdus et le déploiement casserait (pydantic sans email-validator ne démarre
+    pas, psycopg sans [binary] tente une compilation C).
+- Seules les dépendances DIRECTES sont épinglées ; les dépendances transitives
+  (starlette, pydantic-core, anyio…) restent résolues par pip. C'est délibéré :
+  un `pip freeze` complet fait sous Windows n'est PAS portable vers le conteneur
+  Linux (il omet uvloop, que uvicorn[standard] installe uniquement hors Windows,
+  et inclut colorama). Un verrou transitif complet devrait être généré pour la
+  plateforme cible (pip-compile/uv avec `--python-platform linux`, ou depuis le
+  conteneur) — à faire si une dépendance transitive casse un jour un build.
+
+# Déploiement (Railway)
+- Le backend vit dans `backend/`, pas à la racine : le service Railway doit
+  avoir son **Root Directory réglé sur `backend`**, sinon ni requirements.txt ni
+  railway.json ne sont trouvés. C'est le réglage qu'on oublie en premier.
+- `backend/railway.json` porte la config de déploiement (préféré au Procfile :
+  il exprime aussi le healthcheck et la politique de redémarrage) :
+  - startCommand : `uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}`.
+    Sans `--reload` (dev uniquement : il surveille les fichiers et redémarre).
+    `0.0.0.0` et non 127.0.0.1, sinon le conteneur n'accepte aucune connexion
+    venue de l'extérieur. `$PORT` est injecté par Railway et doit être respecté.
+  - healthcheckPath `/health` : Railway attend que l'app réponde avant de
+    basculer le trafic — pas de fenêtre d'erreurs au redémarrage.
+- `backend/.python-version` épingle Python 3.13 (version de dev). Si le log de
+  build montre une autre version, le repli est `runtime.txt` ou la variable
+  NIXPACKS_PYTHON_VERSION.
+- La base PostgreSQL est un service Railway séparé ; référencer
+  `DATABASE_URL=${{Postgres.DATABASE_URL}}` plutôt que copier l'URL en dur.
+- `Base.metadata.create_all()` crée les tables au premier démarrage, mais ne
+  MIGRE rien (cf. section base de données) : Alembic dès le premier changement
+  de schéma en prod.
 
 # Architecture frontend
 - `api/` centralise les appels backend. TOUS passent par `apiFetch`
@@ -120,14 +250,37 @@ Frontend (depuis frontend/) :
   redirigé.
 - `constants/applicationStatuses.js` = source unique des 6 statuts
   (clé technique + libellé français + ordre des colonnes).
+- URL du backend : `VITE_API_BASE_URL` (cf. frontend/.env.example), lue dans
+  api/client.js avec repli `http://127.0.0.1:8000`. Le « / » final est retiré,
+  les endpoints étant concaténés directement.
+
+# Variables Vite : injectées au BUILD, pas au runtime
+- Différence FONDAMENTALE avec le backend, qui lit `os.getenv` au démarrage et
+  qu'il suffit donc de redémarrer : Vite ne lit pas d'environnement dans le
+  navigateur (il n'y en a pas). `npm run build` REMPLACE textuellement chaque
+  `import.meta.env.VITE_X` par sa valeur littérale dans le bundle. Le JS livré
+  contient l'URL en dur ; il n'existe plus aucune variable à l'exécution.
+- Conséquences pour le déploiement :
+  - `VITE_API_BASE_URL` doit être définie AU MOMENT DU BUILD (variable du
+    service front sur Railway, pas du service backend).
+  - Changer l'URL de l'API impose de REBUILDER et redéployer le front.
+    Redémarrer le conteneur ne change rien : le bundle est déjà figé.
+  - Une variable ajoutée après coup dans le dashboard n'a AUCUN effet tant
+    qu'aucun build n'a été relancé — symptôme classique : le front déployé
+    continue d'appeler 127.0.0.1:8000 et échoue chez tous les utilisateurs.
+  - Tout ce qui est préfixé VITE_ est PUBLIC (lisible dans le bundle) : jamais
+    de secret. Les secrets restent côté backend.
 
 # Règles
 - Toujours valider les entrées API avec des modèles Pydantic.
 - Jamais de secrets en dur : tout passe par les variables d'environnement
   (.env backend, VITE_ pour le front).
 - Installer les dépendances Python UNIQUEMENT via
-  `.venv\Scripts\python.exe -m pip install -r requirements.txt`
+  `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`
   (chemin explicite, ne jamais utiliser `py` ni `pip` nus pour installer).
+  Une dépendance nécessaire EN PRODUCTION va dans requirements.txt ; une
+  dépendance de test uniquement va dans requirements-dev.txt. Toute nouvelle
+  dépendance s'ajoute avec une version EXACTE (==), cf. section ci-dessous.
 - Style backend : type hints partout, docstrings en français, code en anglais.
 - Commits en anglais, format conventional commits (feat:, fix:, docs:...).
 - Ne pas ajouter de dépendance sans la justifier dans le message de commit.

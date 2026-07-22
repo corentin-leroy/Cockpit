@@ -1,8 +1,24 @@
 __pycache__/
 *.pyc
+
+# Environnements virtuels Python. Le module venv écrit déjà un .gitignore à
+# l'intérieur du dossier qu'il crée, mais on ne s'en remet pas à ce fichier :
+# il disparaîtrait avec un venv créé autrement, et l'ajout serait massif.
+.venv/
+venv/
+
+# Secrets : aucun .env ne doit être committé, quel que soit son suffixe
+# (.env.local, .env.production…). Seul le modèle sans valeurs reste suivi.
 .env
+.env.*
+!.env.example
+
+# Bases SQLite locales (backend/cockpit.db) : données de dev, jamais en production.
 *.db
+*.sqlite3
+
 node_modules/
 dist/
 .vscode/
+.pytest_cache/
 .claude/settings.local.json
