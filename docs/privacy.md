@@ -1,3 +1,7 @@
+---
+title: Politique de confidentialité — Cockpit
+---
+
 # Politique de confidentialité — Cockpit
 
 *Dernière mise à jour : 23 juillet 2026*
