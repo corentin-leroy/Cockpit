@@ -128,7 +128,7 @@ associées).
 
 ```powershell
 cd backend
-py -m pytest
+.venv\Scripts\python.exe -m pytest
 ```
 
 Les tests s'exécutent sur une base SQLite en mémoire, recréée à chaque test :
@@ -139,7 +139,7 @@ ils ne touchent jamais la base de développement et n'envoient aucun email.
 Prérequis : Python 3.13, Node 20+.
 
 ```powershell
-git clone https://github.com/<utilisateur>/cockpit.git
+git clone https://github.com/corentin-leroy/cockpit.git
 cd cockpit
 ```
 
@@ -152,7 +152,7 @@ py -m venv .venv
 .venv\Scripts\Activate.ps1
 .venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 copy .env.example .env   # renseigner au minimum JWT_SECRET_KEY
-py -m uvicorn app.main:app --reload
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
 **Frontend** — sur http://localhost:5173 :
@@ -188,3 +188,9 @@ extension/   Extension Chrome Manifest V3
   production.**
 - L'agrégation d'offres via les API officielles (La Bonne Alternance, France
   Travail) est prévue après la V1.
+
+## Confidentialité
+
+Cockpit traite des données personnelles (adresse email, candidatures suivies).
+Le détail des données collectées et de leur usage figure dans la
+[politique de confidentialité](https://corentin-leroy.github.io/Cockpit/privacy).
