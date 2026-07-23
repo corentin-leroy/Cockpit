@@ -27,6 +27,22 @@ export function AuthProvider({ children }) {
   // de vérité (un token, même déchiffrable côté client, ne se fait pas confiance).
   const [user, setUser] = useState(null)
 
+  // Une session a-t-elle été invalidée par le serveur (par opposition à une
+  // déconnexion volontaire) ? Sert uniquement à expliquer à l'utilisateur
+  // pourquoi il se retrouve sur /login.
+  //
+  // L'état vit ICI et non dans LoginPage parce que l'événement arrive AVANT que
+  // cette page n'existe : l'expiration est détectée pendant l'utilisation de
+  // l'app, la redirection monte LoginPage ensuite. Il faut donc un état qui
+  // survive à ce changement de page, et le contexte d'auth est déjà exactement
+  // cela — il est déjà abonné au bus, et LoginPage le consomme déjà pour login().
+  // Aucun module ni contexte supplémentaire n'est nécessaire.
+  //
+  // EN MÉMOIRE, jamais en stockage : un rechargement de page doit repartir
+  // vierge. Persister ce drapeau ferait réapparaître « votre session a expiré »
+  // au chargement suivant, longtemps après l'événement.
+  const [sessionExpired, setSessionExpired] = useState(false)
+
   // Chaîne de promesses (et non async/await) pour que les setState arrivent dans
   // des callbacks, jamais dans le corps synchrone de l'effet appelant.
   const loadUser = useCallback(() => {
@@ -59,6 +75,10 @@ export function AuthProvider({ children }) {
       onSessionExpired(() => {
         setIsAuthenticated(false)
         setUser(null)
+        // apiFetch n'émet cet événement que pour un 401 SUR UNE REQUÊTE PORTANT
+        // UN JETON : arriver ici signifie donc bien qu'une session existait et
+        // qu'elle a été refusée, jamais qu'une connexion a échoué.
+        setSessionExpired(true)
       }),
     [],
   )
@@ -81,13 +101,20 @@ export function AuthProvider({ children }) {
     const data = await apiLogin(email, password)
     setToken(data.access_token)
     setIsAuthenticated(true) // déclenche l'effet ci-dessus → chargement de `user`
+    setSessionExpired(false) // la session précédente n'a plus à être expliquée
     return data
   }
 
+  // Déconnexion VOLONTAIRE : elle ne passe pas par apiFetch et n'émet donc aucun
+  // événement d'expiration. C'est ce qui fait qu'un utilisateur qui clique
+  // « Déconnexion » ne voit pas « votre session a expiré » — il sait pourquoi il
+  // est sur /login. La remise à false couvre le cas d'une déconnexion manuelle
+  // faisant suite à une expiration non encore affichée.
   function logout() {
     removeToken()
     setIsAuthenticated(false)
     setUser(null)
+    setSessionExpired(false)
   }
 
   // Recharge l'utilisateur courant depuis l'API. Appelée après une action qui
@@ -97,7 +124,20 @@ export function AuthProvider({ children }) {
     if (getToken()) loadUser()
   }, [loadUser])
 
-  const value = { isAuthenticated, user, login, logout, refreshUser }
+  // Acquitte le signal d'expiration : appelé par LoginPage dès qu'elle l'a
+  // recopié pour affichage. Le drapeau est ainsi consommé UNE fois — revenir sur
+  // /login plus tard (ou recharger) ne le ressort pas.
+  const clearSessionExpired = useCallback(() => setSessionExpired(false), [])
+
+  const value = {
+    isAuthenticated,
+    user,
+    sessionExpired,
+    clearSessionExpired,
+    login,
+    logout,
+    refreshUser,
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

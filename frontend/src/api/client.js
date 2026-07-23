@@ -38,8 +38,9 @@ export class ApiError extends Error {
  * - ajoute Authorization: Bearer <token> si un token est présent ;
  * - parse la réponse JSON (gère le 204 sans corps) ;
  * - en cas de statut >= 400, lève une ApiError porteuse du code HTTP ;
- * - sur 401, purge le token (invalide ou expiré) — la redirection vers /login
- *   sera gérée plus tard par les routes protégées.
+ * - sur 401 ET SEULEMENT si un token avait été envoyé, purge le token et signale
+ *   l'expiration de session (voir le commentaire détaillé plus bas) — la
+ *   redirection vers /login est ensuite assurée par les routes protégées.
  *
  * @param {string} endpoint  chemin commençant par '/', ex. '/auth/login'
  * @param {RequestInit} options  options fetch (method, body...)
@@ -61,7 +62,25 @@ export async function apiFetch(endpoint, options = {}) {
     response.status === 204 ? null : await response.json().catch(() => null)
 
   if (!response.ok) {
-    if (response.status === 401) {
+    // Un 401 ne signifie « session expirée » que si l'on avait RÉELLEMENT une
+    // session à présenter. La condition est donc `token &&` : on a envoyé un
+    // jeton, le serveur l'a refusé. Sans jeton, un 401 est la réponse normale
+    // d'un endpoint public à de mauvais identifiants (POST /auth/login) : il n'y
+    // a aucune session à purger, et signaler une expiration afficherait « votre
+    // session a expiré » à quelqu'un qui vient simplement de se tromper de mot
+    // de passe.
+    //
+    // Ce critère a été préféré à une liste d'endpoints publics à exclure (du
+    // type « ne pas émettre pour /auth/* »), pour deux raisons. D'abord parce
+    // qu'il serait FAUX : /auth/me et /auth/resend-verification sont
+    // authentifiés, et un 401 y est une vraie expiration — l'exclusion par
+    // préfixe casserait la détection sur /auth/me, précisément l'appel que
+    // AuthContext émet au montage. Ensuite parce qu'une liste se maintient :
+    // tout endpoint public ajouté plus tard devrait y être pensé, et l'oubli ne
+    // se verrait qu'en production. La présence d'un jeton, elle, décrit
+    // exactement la condition qu'on veut tester, et reste juste sans
+    // maintenance.
+    if (response.status === 401 && token) {
       // Token invalide ou expiré : on le purge pour ne pas le renvoyer en boucle,
       // puis on notifie le contexte d'auth pour qu'il bascule isAuthenticated à
       // false (sinon l'UI resterait « connectée » jusqu'au rechargement).

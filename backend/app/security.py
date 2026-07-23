@@ -19,7 +19,49 @@ _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # --- Configuration JWT ---
 JWT_ALGORITHM = "HS256"  # signature symétrique : un seul secret partagé
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+
+def _positive_int_env(name: str, default: int) -> int:
+    """Lit une variable d'environnement entière et strictement positive.
+
+    Échoue BRUYAMMENT sur une valeur invalide, au lieu de retomber en silence sur
+    le défaut : une coquille (« 12h », « 720 minutes », une valeur négative) doit
+    interrompre le démarrage, pas produire une durée de session différente de
+    celle qu'on croit avoir configurée. Sur Railway, l'erreur apparaît
+    immédiatement dans les logs de déploiement et le healthcheck échoue — bien
+    préférable à une expiration silencieusement fausse en production.
+    """
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+
+    try:
+        value = int(raw)
+    except ValueError:
+        raise RuntimeError(
+            f"{name} doit être un nombre entier de minutes (reçu : {raw!r})."
+        ) from None
+
+    if value <= 0:
+        raise RuntimeError(f"{name} doit être strictement positif (reçu : {value}).")
+    return value
+
+
+# Durée de vie du jeton de session, en minutes. Défaut : 720 (12 heures), pour
+# couvrir une journée d'utilisation sans reconnexion.
+#
+# COMPROMIS ASSUMÉ : ces jetons sont SANS ÉTAT (rien n'est stocké côté serveur,
+# la signature suffit à les valider). Ils sont donc IRRÉVOCABLES — se déconnecter
+# efface le jeton du navigateur, mais une copie volée reste valable jusqu'à son
+# expiration. Cette durée est par conséquent la SEULE borne à l'exploitation d'un
+# jeton dérobé : la porter à 12 h multiplie par douze la fenêtre d'attaque. Voir
+# la note sur les refresh tokens dans CLAUDE.md avant de l'allonger davantage.
+#
+# Configurable pour pouvoir être resserrée sans redéploiement — typiquement en
+# réaction à un incident, où l'on veut réduire la fenêtre tout de suite. Une
+# valeur plus courte ne s'applique qu'aux jetons émis ENSUITE : ceux déjà en
+# circulation gardent l'expiration inscrite à leur émission.
+ACCESS_TOKEN_EXPIRE_MINUTES = _positive_int_env("ACCESS_TOKEN_EXPIRE_MINUTES", 720)
 
 # --- Durées de vie des tokens envoyés par email ---
 # Reset : court, c'est un secret qui donne accès au compte.

@@ -106,3 +106,118 @@ def test_login_failures_are_indistinguishable(client):
 
     assert wrong_password.status_code == unknown_email.status_code == 401
     assert wrong_password.json() == unknown_email.json()
+
+
+# --- Expiration du jeton de session ---------------------------------------
+#
+# La durée de vie est passée de 60 minutes à 12 heures (ACCESS_TOKEN_EXPIRE_MINUTES).
+# Les jetons étant SANS ÉTAT, donc irrévocables, cette expiration est la seule
+# borne à l'exploitation d'un jeton volé : c'est désormais le mécanisme de
+# sécurité le plus important de la chaîne d'authentification, et il n'était
+# couvert par aucun test. Une régression ici (validation de `exp` désactivée,
+# durée mal lue) serait totalement silencieuse — tout continuerait de fonctionner,
+# les jetons ne cesseraient simplement jamais d'être valables.
+
+
+def _forge_token(subject: str, *, minutes_offset: int) -> str:
+    """Forge un JWT valide signé, dont l'expiration est décalée de `minutes_offset`.
+
+    On signe avec la vraie clé et le vrai algorithme : seul `exp` est manipulé.
+    Le jeton est donc authentique à tout point de vue sauf sa date — c'est bien
+    l'expiration qu'on teste, et rien d'autre.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    import jwt
+
+    from app.security import JWT_ALGORITHM, _get_secret_key
+
+    expire = datetime.now(timezone.utc) + timedelta(minutes=minutes_offset)
+    return jwt.encode(
+        {"sub": subject, "exp": expire}, _get_secret_key(), algorithm=JWT_ALGORITHM
+    )
+
+
+def test_expired_token_is_rejected(client, make_user):
+    """Un jeton expiré est refusé en 401 sur un endpoint authentifié."""
+    user = make_user()
+
+    # Le compte est bien joignable avec son jeton courant : sans ce contrôle, un
+    # 401 dû à toute autre cause ferait passer le test pour la mauvaise raison.
+    assert client.get("/auth/me", headers=user.headers).status_code == 200
+
+    me = client.get("/auth/me", headers=user.headers).json()
+    expired = _forge_token(str(me["id"]), minutes_offset=-1)
+
+    response = client.get("/auth/me", headers={"Authorization": f"Bearer {expired}"})
+    assert response.status_code == 401
+
+
+def test_expired_token_is_rejected_on_data_endpoints(client, make_user):
+    """L'expiration vaut pour TOUTE la surface authentifiée, pas seulement /auth/me."""
+    user = make_user()
+    me = client.get("/auth/me", headers=user.headers).json()
+    expired_headers = {
+        "Authorization": f"Bearer {_forge_token(str(me['id']), minutes_offset=-1)}"
+    }
+
+    assert client.get("/boards", headers=expired_headers).status_code == 401
+    assert client.get("/applications", headers=expired_headers).status_code == 401
+    assert (
+        client.post(
+            "/boards", json={"name": "Test"}, headers=expired_headers
+        ).status_code
+        == 401
+    )
+
+
+def test_issued_token_expires_after_configured_delay(client, make_user):
+    """Le jeton émis au login porte bien l'expiration configurée.
+
+    Vérifie le CÂBLAGE de ACCESS_TOKEN_EXPIRE_MINUTES jusqu'au claim `exp` : une
+    variable lue mais jamais appliquée laisserait passer tous les autres tests.
+    """
+    from datetime import datetime, timezone
+
+    import jwt
+
+    from app.security import ACCESS_TOKEN_EXPIRE_MINUTES, JWT_ALGORITHM, _get_secret_key
+
+    user = make_user()
+    payload = jwt.decode(user.token, _get_secret_key(), algorithms=[JWT_ALGORITHM])
+
+    remaining_minutes = (
+        datetime.fromtimestamp(payload["exp"], tz=timezone.utc)
+        - datetime.now(timezone.utc)
+    ).total_seconds() / 60
+
+    # Tolérance d'une minute : le jeton a été émis quelques instants plus tôt.
+    assert abs(remaining_minutes - ACCESS_TOKEN_EXPIRE_MINUTES) < 1
+
+
+def test_token_signed_with_another_key_is_rejected(client, make_user):
+    """Un jeton non signé par le serveur est refusé, même non expiré.
+
+    Corollaire du caractère sans état : la signature est le SEUL rempart, il n'y
+    a aucune session stockée à confronter.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    import jwt
+
+    from app.security import JWT_ALGORITHM
+
+    user = make_user()
+    me = client.get("/auth/me", headers=user.headers).json()
+
+    forged = jwt.encode(
+        {
+            "sub": str(me["id"]),
+            "exp": datetime.now(timezone.utc) + timedelta(hours=12),
+        },
+        "une-autre-cle-que-celle-du-serveur",
+        algorithm=JWT_ALGORITHM,
+    )
+
+    response = client.get("/auth/me", headers={"Authorization": f"Bearer {forged}"})
+    assert response.status_code == 401

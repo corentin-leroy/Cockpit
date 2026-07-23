@@ -572,6 +572,16 @@
   color: var(--color-success-text);
 }
 
+/* Information neutre (session expirée) : surface creuse et texte secondaire,
+ * sans teinte d'alerte. Le pictogramme ℹ porte le sens indépendamment de la
+ * couleur, comme ⚠ et ✓ pour les deux autres variantes. --color-text-secondary
+ * est vérifié AA sur les surfaces des deux thèmes (cf. tokens.css). */
+.alert--info {
+  background: var(--color-surface-2);
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
 .alert__icon {
   flex: 0 0 auto;
   line-height: 1.5;

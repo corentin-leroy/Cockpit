@@ -6,11 +6,15 @@
 // un lecteur d'écran. Le couple erreur/succès n'est pas un simple rouge/vert :
 // les pictogrammes ⚠ et ✓ suffisent à les distinguer sans percevoir la teinte.
 
-const ICONS = { error: '⚠', success: '✓' }
+// La variante `info` porte une information NEUTRE : ni faute de l'utilisateur,
+// ni réussite d'une action. Son pictogramme ℹ et ses couleurs sobres la
+// distinguent de `error` (⚠, rouge tiède), qui dramatiserait un événement aussi
+// ordinaire qu'une session arrivée à son terme.
+const ICONS = { error: '⚠', success: '✓', info: 'ℹ' }
 
 /**
  * @param {Object}  props
- * @param {'error'|'success'} [props.variant='error']  nature du message.
+ * @param {'error'|'success'|'info'} [props.variant='error']  nature du message.
  * @param {string}  [props.className]  classes additionnelles (marges).
  * @param {React.ReactNode} props.children  le texte du message.
  */
