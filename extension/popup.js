@@ -167,7 +167,7 @@ async function loadBoards() {
     return false;
   }
 
-  showMessage(`❌ ${result?.error || "Impossible de charger les tableaux."}`, "error");
+  showMessage(`${result?.error || "Impossible de charger les tableaux."}`, "error");
   return false;
 }
 
@@ -261,12 +261,13 @@ offerFormEl.addEventListener("submit", async (event) => {
       succeeded = true;
       // Mémorise le tableau choisi pour le pré-sélectionner au prochain ajout.
       await setLastBoardId(selectedBoardId);
-      showMessage("✅ Offre ajoutée au cockpit !", "success");
+      showMessage("Offre ajoutée au cockpit !", "success");
       // Laisse le message de succès visible un court instant, puis referme la
-      // popup : ~900 ms est assez long pour lire le ✅ (perçu comme un accusé de
-      // réception) sans faire attendre, et assez court pour que l'ajout reste
-      // « en un geste ». On garde le bouton désactivé jusqu'à la fermeture pour
-      // éviter un double envoi accidentel pendant ce délai.
+      // popup : ~900 ms est assez long pour lire le message de confirmation
+      // (perçu comme un accusé de réception) sans faire attendre, et assez court
+      // pour que l'ajout reste « en un geste ». On garde le bouton désactivé
+      // jusqu'à la fermeture pour éviter un double envoi accidentel pendant ce
+      // délai.
       setTimeout(() => window.close(), 900);
       return;
     }
@@ -280,9 +281,9 @@ offerFormEl.addEventListener("submit", async (event) => {
       return;
     }
 
-    showMessage(`❌ ${result?.error || "Échec de l'ajout."}`, "error");
+    showMessage(`${result?.error || "Échec de l'ajout."}`, "error");
   } catch (err) {
-    showMessage(`❌ ${err.message}`, "error");
+    showMessage(`${err.message}`, "error");
   } finally {
     // En cas d'échec seulement : réactive selon la validité courante pour pouvoir
     // réessayer. En cas de succès, on laisse le bouton désactivé (popup en cours

@@ -5,19 +5,134 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Cockpit</title>
     <style>
+      /* =====================================================================
+       * Design tokens — COPIE de frontend/src/styles/tokens.css
+       *
+       * L'extension est un paquet indépendant : elle ne peut pas importer le
+       * fichier de tokens du front. Ces valeurs en sont donc une RECOPIE, et la
+       * duplication est assumée. ⚠ Tout changement de palette (accent, fonds,
+       * texte, bordures, états) doit être répercuté AUX DEUX endroits, sinon la
+       * popup se désynchronisera silencieusement de l'application web.
+       *
+       * Les noms sont SÉMANTIQUES et identiques au front (--color-accent,
+       * --color-surface…) : le style n'utilise jamais une couleur en dur, il ne
+       * connaît que le rôle. Couples texte/fond vérifiés WCAG AA (≥ 4.5:1) dans
+       * les deux thèmes (ratios repris du front).
+       *
+       * Adaptation par rapport au front : la popup n'a pas de bascule de thème
+       * manuelle (pas d'attribut data-theme). On se limite donc au thème clair
+       * par défaut sur :root, et à une media query prefers-color-scheme: dark qui
+       * redéfinit les mêmes variables — au lieu des trois sélecteurs du front
+       * (:root, [data-theme='light'], [data-theme='dark']).
+       * ===================================================================== */
       :root {
-        color-scheme: light dark;
+        /* --- Tokens neutres (communs aux deux thèmes) --- */
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 12px;
+        --space-4: 16px;
+
+        --radius-sm: 6px;
+        --radius-md: 10px;
+
+        --transition-fast: 120ms ease;
+
+        --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+        --text-xs: 12px;
+        --text-sm: 13px;
+        --text-md: 15px;
+        --text-lg: 17px;
+
+        /* --- Thème CLAIR (défaut) --- */
+        color-scheme: light;
+
+        --color-bg: #faf9f7;
+        --color-surface: #ffffff;
+        --color-surface-2: #f2f0ec;
+        --color-surface-3: #e9e6e1;
+
+        --color-border: #e2ded8;
+        --color-border-strong: #cfcac3;
+
+        --color-text: #2e2a26;
+        --color-text-secondary: #625b54;
+        --color-text-muted: #6b645c;
+
+        --color-accent: #0f766e;
+        --color-accent-hover: #0c5f58;
+        --color-accent-contrast: #ffffff;
+        --color-accent-soft: #e4f1ef;
+        --color-accent-border: #9bcfc9;
+        --color-accent-text: #0b6259;
+
+        --color-danger-text: #a32a1e;
+        --color-danger-soft: #fbece9;
+        --color-danger-border: #e5b5ae;
+
+        --color-success-text: #1a6b4f;
+        --color-success-soft: #e6f2ec;
+        --color-success-border: #a9cfbe;
       }
+
+      /* Thème SOMBRE selon la préférence système. Mêmes variables redéfinies —
+       * CSS ne sait pas « hériter » un jeu de variables, la recopie est donc
+       * nécessaire (identique au bloc @media du front). */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          color-scheme: dark;
+
+          --color-bg: #1b1d23;
+          --color-surface: #23252d;
+          --color-surface-2: #1f2128;
+          --color-surface-3: #2c2f38;
+
+          --color-border: #343843;
+          --color-border-strong: #454a57;
+
+          --color-text: #eae6e1;
+          --color-text-secondary: #b3ada5;
+          --color-text-muted: #9e978f;
+
+          --color-accent: #4bc0b4;
+          --color-accent-hover: #63cec3;
+          --color-accent-contrast: #10201e;
+          --color-accent-soft: #1f3a37;
+          --color-accent-border: #3a6863;
+          --color-accent-text: #5fd0c3;
+
+          --color-danger-text: #f2a69c;
+          --color-danger-soft: #38251f;
+          --color-danger-border: #6b3b33;
+
+          --color-success-text: #7cd3a9;
+          --color-success-soft: #1e332a;
+          --color-success-border: #3a5c4a;
+        }
+      }
+
+      /* =====================================================================
+       * Popup
+       * ===================================================================== */
       body {
+        /* Largeur contrainte : le padding est INTÉRIEUR (box-sizing hérité plus
+         * bas) et tous les éléments sont en box-sizing: border-box, donc rien ne
+         * déborde des 300px malgré les bordures et le padding. */
         width: 300px;
         margin: 0;
-        padding: 16px;
-        font: 14px system-ui, sans-serif;
+        padding: var(--space-4);
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        font-size: var(--text-md);
       }
+
       h1 {
-        margin: 0 0 12px;
-        font-size: 15px;
+        margin: 0 0 var(--space-3);
+        font-size: var(--text-lg);
+        font-weight: 600;
+        color: var(--color-text);
       }
+
       /* Masqués par défaut : popup.js révèle l'état pertinent après lecture du
          token, pour éviter un flash de l'écran de connexion si déjà connecté. */
       #loading,
@@ -28,72 +143,122 @@
       #board-field {
         display: none;
       }
+
+      label {
+        display: block;
+        margin-bottom: var(--space-1);
+        font-size: var(--text-sm);
+        font-weight: 500;
+        color: var(--color-text-secondary);
+      }
+
+      /* Champs de saisie et sélecteur : mêmes règles (repris de .input du front). */
+      input,
       select {
         width: 100%;
         box-sizing: border-box;
-        padding: 8px;
-        margin-bottom: 10px;
-        border: 1px solid #8884;
-        border-radius: 6px;
-        background: transparent;
-        color: inherit;
+        padding: var(--space-2);
+        margin-bottom: var(--space-3);
+        border: 1px solid var(--color-border-strong);
+        border-radius: var(--radius-md);
+        background: var(--color-surface);
+        color: var(--color-text);
         font: inherit;
       }
-      label {
-        display: block;
-        margin-bottom: 4px;
-        font-size: 13px;
+
+      /* Un nom de tableau plus long que le sélecteur est coupé proprement
+       * (ellipsis) au lieu de pousser la largeur ou de déborder des 300px. Le
+       * menu déroulant natif, lui, affiche le nom complet. */
+      select {
+        text-overflow: ellipsis;
       }
-      input {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 8px;
-        margin-bottom: 10px;
-        border: 1px solid #8884;
-        border-radius: 6px;
-        background: transparent;
-        color: inherit;
-        font: inherit;
+
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: var(--color-accent);
+        box-shadow: 0 0 0 3px var(--color-accent-soft);
       }
-      input:focus {
-        outline: 2px solid #2563eb;
-        outline-offset: 0;
-        border-color: transparent;
-      }
+
       button {
         width: 100%;
-        padding: 8px 12px;
-        margin-bottom: 8px;
-        border: 1px solid #8886;
-        border-radius: 6px;
-        background: #2563eb;
-        color: #fff;
+        box-sizing: border-box;
+        padding: var(--space-2) var(--space-3);
+        margin-bottom: var(--space-2);
+        border: 1px solid transparent;
+        border-radius: var(--radius-md);
+        background: var(--color-accent);
+        color: var(--color-accent-contrast);
         font: inherit;
+        font-weight: 500;
         cursor: pointer;
+        transition:
+          background-color var(--transition-fast),
+          border-color var(--transition-fast);
       }
+
+      button:hover:not(:disabled) {
+        background: var(--color-accent-hover);
+      }
+
       button:disabled {
         opacity: 0.6;
         cursor: not-allowed;
       }
+
+      /* Bouton secondaire (déconnexion) : discret, texte et bordure seulement. */
       button.secondary {
         background: transparent;
-        color: inherit;
+        border-color: var(--color-border-strong);
+        color: var(--color-text-secondary);
       }
+
+      button.secondary:hover:not(:disabled) {
+        background: var(--color-surface-3);
+      }
+
+      /* Anneau de focus clavier homogène (repris du front). */
+      :focus-visible {
+        outline: 2px solid var(--color-accent);
+        outline-offset: 2px;
+      }
+
       .hint {
-        margin: -4px 0 10px;
-        font-size: 12px;
-        opacity: 0.7;
+        margin: 0 0 var(--space-3);
+        font-size: var(--text-xs);
+        color: var(--color-text-muted);
       }
+
+      #loading,
+      #extract-status {
+        color: var(--color-text-muted);
+        font-size: var(--text-sm);
+      }
+
       #message {
-        margin: 8px 0 0;
+        margin: var(--space-2) 0 0;
         min-height: 18px;
-        font-size: 13px;
+        font-size: var(--text-sm);
       }
+
+      /* États : la COULEUR n'est jamais seule à porter le sens. Un pictogramme
+       * est ajouté devant chaque message (⚠ erreur, ✓ succès), garanti par le
+       * CSS quel que soit le texte fourni par popup.js — la plupart des messages
+       * n'en contiennent pas. (WCAG 1.4.1, principe suivi dans tout le projet.) */
       #message.error {
-        color: #d33;
+        color: var(--color-danger-text);
       }
+
+      #message.error::before {
+        content: '⚠ ';
+      }
+
       #message.success {
-        color: #2e7d32;
+        color: var(--color-success-text);
+      }
+
+      #message.success::before {
+        content: '✓ ';
       }
     </style>
   </head>
@@ -146,7 +311,7 @@
       <button id="logout-btn" type="button" class="secondary">Déconnexion</button>
     </div>
 
-    <p id="message"></p>
+    <p id="message" role="status" aria-atomic="true"></p>
 
     <script type="module" src="popup.js"></script>
   </body>
