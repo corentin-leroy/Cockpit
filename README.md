@@ -31,7 +31,9 @@ une extension navigateur qui enregistre une offre sans quitter la page.
 - Extension navigateur (Chrome) : capture d'une offre en un clic depuis
   n'importe quel site
 - Comptes utilisateurs : inscription, connexion, réinitialisation de mot de
-  passe et vérification d'adresse email
+  passe et vérification d'adresse email, gestion du compte (consultation de
+  l'adresse et du statut de vérification, suppression définitive du compte et de
+  toutes les données associées)
 - Thèmes clair et sombre
 
 ## Stack technique
@@ -90,6 +92,16 @@ corps de requête, sont plafonnés dans l'API. Le front peut les afficher pour
 l'UX, mais ne fait jamais autorité : l'extension, `curl` ou tout autre client
 restent soumis aux mêmes plafonds.
 
+**Droit à l'effacement : mot de passe exigé, cascade au niveau du schéma.**
+Supprimer son compte impose de ressaisir le mot de passe courant : un jeton de
+session, qui peut fuiter et n'autorise que des actions réversibles, ne doit pas
+suffire à détruire définitivement un compte. C'est une ré-authentification, pas
+une simple confirmation. La suppression emporte par cascade tableaux,
+candidatures et jetons de sécurité, et cette cascade est déclarée au niveau du
+schéma PostgreSQL (`ON DELETE CASCADE`), pas seulement dans l'ORM : toute
+suppression se comporte de la même façon, y compris en SQL direct ou lors d'une
+maintenance qui contourne l'application.
+
 ## Accessibilité
 
 - Interface construite sur des **design tokens**
@@ -110,8 +122,9 @@ visuelle sont identiques, seuls les tokens de couleur changent](docs/kanban-dark
 Suite `pytest` côté backend, ciblée sur les points où une régression serait
 silencieuse et coûteuse : authentification (fuite du mot de passe,
 anti-énumération), ownership (cloisonnement entre utilisateurs), règles métier
-(statut imposé à la création, dernier tableau non supprimable) et limites de
-quantité.
+(statut imposé à la création, dernier tableau non supprimable), limites de
+quantité, et suppression de compte (mot de passe exigé, cascade sur les données
+associées).
 
 ```powershell
 cd backend
