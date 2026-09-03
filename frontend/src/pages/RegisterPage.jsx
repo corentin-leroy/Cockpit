@@ -49,7 +49,7 @@ export default function RegisterPage() {
       // Inscription réussie : on enchaîne sur une connexion automatique pour
       // éviter à l'utilisateur de ressaisir ses identifiants juste après.
       await login(email, password)
-      navigate('/', { replace: true })
+      navigate('/app', { replace: true })
     } catch (err) {
       if (err.status === 409) {
         setFormError('Cet email est déjà utilisé.')

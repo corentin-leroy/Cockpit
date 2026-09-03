@@ -91,7 +91,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       await login(email, password)
-      navigate('/', { replace: true })
+      navigate('/app', { replace: true })
     } catch (err) {
       // 401 : le backend renvoie volontairement le même message que l'email
       // existe ou non. On reste tout aussi générique côté UI.

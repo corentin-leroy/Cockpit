@@ -78,7 +78,7 @@ export default function VerifyEmailPage() {
           <>
             <Alert variant="success">{message}</Alert>
             <p className="auth-card__footer">
-              <Link to="/">Retour à mes candidatures</Link>
+              <Link to="/app">Retour à mes candidatures</Link>
             </p>
           </>
         )}
@@ -109,7 +109,7 @@ export default function VerifyEmailPage() {
                 </button>
 
                 <p className="auth-card__footer">
-                  <Link to="/">Retour à mes candidatures</Link>
+                  <Link to="/app">Retour à mes candidatures</Link>
                 </p>
               </>
             ) : (

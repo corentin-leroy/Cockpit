@@ -1,6 +1,6 @@
 // Garde symétrique de ProtectedRoute : réserve son contenu aux visiteurs NON
-// authentifiés (écrans Login/Register). Un utilisateur déjà connecté qui tente
-// d'y accéder est renvoyé vers le kanban.
+// authentifiés (écrans Login/Register, et la landing publique sur "/"). Un
+// utilisateur déjà connecté qui tente d'y accéder est renvoyé vers le kanban.
 
 import { Navigate } from 'react-router-dom'
 
@@ -10,7 +10,7 @@ export default function GuestRoute({ children }) {
   const { isAuthenticated } = useAuth()
 
   if (isAuthenticated) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/app" replace />
   }
   return children
 }

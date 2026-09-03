@@ -890,3 +890,131 @@
     margin-bottom: var(--space-3);
   }
 }
+
+/* ================================================================== */
+/* Landing page publique ("/")                                        */
+/* ================================================================== */
+
+.landing-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.landing-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.landing-topbar__brand {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.landing-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-7) var(--space-5) var(--space-6);
+  text-align: center;
+}
+
+/* Le nom du produit reste l'unique h1 de la page ; sa taille visuelle est
+ * volontairement proche de la baseline pour ne pas écraser le message. */
+.landing-hero__title {
+  font-size: var(--text-2xl);
+}
+
+.landing-hero__tagline {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.landing-hero__subtitle {
+  max-width: 52ch;
+  color: var(--color-text-secondary);
+}
+
+.landing-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+
+.landing-features {
+  padding: var(--space-6) var(--space-5);
+}
+
+.landing-features__title {
+  margin-bottom: var(--space-5);
+  text-align: center;
+}
+
+.landing-features__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-4);
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.feature-card {
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.feature-card__icon {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+
+.feature-card__title {
+  margin-bottom: var(--space-2);
+}
+
+.feature-card__text {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.landing-footer {
+  margin-top: auto;
+  padding: var(--space-5);
+  text-align: center;
+  font-size: var(--text-sm);
+}
+
+.landing-footer a {
+  color: var(--color-text-muted);
+}
+
+.landing-footer a:hover {
+  color: var(--color-accent-hover);
+}
+
+@media (max-width: 480px) {
+  .landing-hero {
+    padding: var(--space-6) var(--space-4) var(--space-5);
+  }
+
+  .landing-hero__actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+}

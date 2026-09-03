@@ -23,7 +23,7 @@ export default function Navbar() {
       {/* La marque ramène au kanban : sur la page de compte, c'est le chemin de
           retour attendu. Un <Link> plutôt qu'un bouton — c'est une navigation,
           donc ouvrable dans un nouvel onglet et annonçable comme lien. */}
-      <Link to="/" className="navbar__brand">
+      <Link to="/app" className="navbar__brand">
         Cockpit
       </Link>
 
