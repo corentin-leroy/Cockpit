@@ -80,6 +80,31 @@ export default function LandingPage() {
         </div>
       </section>
 
+      <section className="landing-extension" aria-labelledby="landing-extension-title">
+        <div className="landing-extension__card">
+          <div className="landing-extension__body">
+            <h2 id="landing-extension-title" className="landing-extension__title">
+              Capturez les offres sans ressaisie
+            </h2>
+            <p className="landing-extension__text">
+              L’extension Chrome Cockpit ajoute l’offre affichée à votre
+              tableau en un clic, depuis n’importe quel site d’emploi.
+            </p>
+          </div>
+          <a
+            href="https://chromewebstore.google.com/detail/cockpit/cabhkfjohddpeigkoijhlidndfkgbpno"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn--primary landing-extension__cta"
+          >
+            <span className="landing-extension__icon" aria-hidden="true">
+              🧩
+            </span>
+            Installer l’extension Chrome de Cockpit
+          </a>
+        </div>
+      </section>
+
       <footer className="landing-footer">
         <a
           href="https://corentin-leroy.github.io/Cockpit/privacy"

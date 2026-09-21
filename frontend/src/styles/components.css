@@ -20,6 +20,9 @@
   line-height: 1.4;
   cursor: pointer;
   white-space: nowrap;
+  /* Certains .btn sont des <a>/<Link> stylés en bouton : l'affordance vient de
+   * la forme (fond, bordure), pas d'un soulignement de lien texte. */
+  text-decoration: none;
   transition:
     background-color var(--transition-fast),
     border-color var(--transition-fast),
@@ -43,6 +46,11 @@
 .btn--primary:hover:not(:disabled) {
   background: var(--color-accent-hover);
   border-color: var(--color-accent-hover);
+  /* Un .btn--primary rendu en <a> hériterait sinon de la couleur de survol
+   * globale des liens (`a:hover`, même valeur que le fond ci-dessus) : texte
+   * et fond deviendraient identiques. On refixe donc explicitement le texte
+   * à fort contraste, spécificité (.btn--primary:hover) > (a:hover). */
+  color: var(--color-accent-contrast);
 }
 
 /* Action secondaire : surface neutre, bordure discrète. */
@@ -55,6 +63,10 @@
 .btn--secondary:hover:not(:disabled) {
   background: var(--color-surface-3);
   border-color: var(--color-border-strong);
+  /* Même raison que .btn--primary:hover ci-dessus : évite que `a:hover`
+   * (spécificité plus faible mais seule règle à toucher `color` sinon)
+   * ne teinte le texte en accent au survol d'un .btn--secondary en lien. */
+  color: var(--color-text);
 }
 
 /* Action destructrice : rouge tiède, TOUJOURS accompagnée de son libellé texte
@@ -992,6 +1004,43 @@
   color: var(--color-text-secondary);
 }
 
+.landing-extension {
+  padding: 0 var(--space-5) var(--space-6);
+}
+
+.landing-extension__card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-5);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.landing-extension__title {
+  margin-bottom: var(--space-2);
+}
+
+.landing-extension__text {
+  max-width: 52ch;
+  color: var(--color-text-secondary);
+}
+
+.landing-extension__cta {
+  flex: 0 0 auto;
+}
+
+.landing-extension__icon {
+  font-size: var(--text-md);
+  line-height: 1;
+}
+
 .landing-footer {
   margin-top: auto;
   padding: var(--space-5);
@@ -1016,5 +1065,15 @@
     flex-direction: column;
     align-items: stretch;
     width: 100%;
+  }
+
+  .landing-extension__card {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .landing-extension__cta {
+    justify-content: center;
   }
 }
