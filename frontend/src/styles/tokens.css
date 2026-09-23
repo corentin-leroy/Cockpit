@@ -44,11 +44,11 @@
   /* --- Typographie --- */
   --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --text-xs: 12px;
-  --text-sm: 13px;
-  --text-md: 15px;
-  --text-lg: 17px;
-  --text-xl: 22px;
-  --text-2xl: 30px;
+  --text-sm: 14px;
+  --text-md: 16px;
+  --text-lg: 20px;
+  --text-xl: 28px;
+  --text-2xl: 30px; /* provisoire, en attente d'arbitrage (cf. réponse) */
 }
 
 /* ------------------------------------------------------------------ */

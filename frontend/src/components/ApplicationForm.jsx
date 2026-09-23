@@ -1,8 +1,9 @@
 // Formulaire d'une candidature, partagé par la création et l'édition.
 //
 // Champs : title (requis), company (requis), location, url, notes.
-// PAS de champ status : à la création le backend démarre en « saved » (Repérée),
-// et le changement de statut se fera via le drag & drop du kanban.
+// Champ status : ABSENT à la création (le backend impose toujours « saved »,
+// Repérée) ; visible seulement en édition, comme alternative au drag & drop
+// du kanban pour corriger un statut.
 //
 // Le formulaire possède son propre état (valeurs, erreurs de champ, état de
 // soumission), à l'image des écrans Login/Register. Il délègue l'appel réseau au
@@ -12,6 +13,7 @@
 import { useState } from 'react'
 
 import Alert, { FieldError } from './Alert.jsx'
+import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
 
 /**
  * @param {Object}   props
@@ -46,11 +48,15 @@ export default function ApplicationForm({
     url: initialValues?.url ?? '',
     notes: initialValues?.notes ?? '',
     board_id: initialBoardId ?? null,
+    status: initialValues?.status ?? null,
   }))
 
   // Complexité progressive : on ne propose de CHOISIR un tableau que si
   // l'utilisateur en a plusieurs. Avec un seul tableau, aucun choix à faire.
   const showBoardSelect = boards.length > 1
+  // Champ status réservé à l'édition (initialValues présent) : à la création,
+  // le backend impose toujours « saved », ce champ n'a donc pas lieu d'être.
+  const showStatusSelect = Boolean(initialValues)
   const [fieldErrors, setFieldErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -85,6 +91,11 @@ export default function ApplicationForm({
       location: values.location.trim() || null,
       url: values.url.trim() || null,
       notes: values.notes.trim() || null,
+    }
+    // status seulement en édition : jamais envoyé à la création (le backend
+    // n'a pas ce champ dans ApplicationCreate, et l'imposer resterait ambigu).
+    if (showStatusSelect) {
+      payload.status = values.status
     }
 
     setSubmitting(true)
@@ -191,6 +202,28 @@ export default function ApplicationForm({
             {boards.map((board) => (
               <option key={board.id} value={board.id}>
                 {board.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {showStatusSelect && (
+        <div className="field">
+          <label className="field__label" htmlFor="app-status">
+            Statut
+          </label>
+          <select
+            id="app-status"
+            className="input"
+            value={values.status ?? ''}
+            onChange={(event) =>
+              setValues((prev) => ({ ...prev, status: event.target.value }))
+            }
+          >
+            {APPLICATION_STATUSES.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
               </option>
             ))}
           </select>
