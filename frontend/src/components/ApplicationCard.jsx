@@ -1,7 +1,7 @@
 // Carte d'une candidature dans le kanban. Draggable (@dnd-kit/react) pour changer
 // de statut en la glissant vers une autre colonne. La carte entière ouvre la
-// modale d'édition au clic ; le lien vers l'offre (titre) et l'icône « éditer »
-// (visible au survol) coexistent avec ce clic global via stopPropagation.
+// modale d'édition au clic ou au clavier (Entrée/Espace) ; le lien vers l'offre
+// (titre) coexiste avec ce clic global via stopPropagation.
 
 import { useDraggable } from '@dnd-kit/react'
 
@@ -16,10 +16,9 @@ export default function ApplicationCard({ application, onEdit }) {
   })
 
   // Équivalent clavier du clic sur la carte (Entrée/Espace). `target !==
-  // currentTarget` ignore les touches pressées depuis le lien ou le bouton
-  // imbriqués : leur propre activation clavier native suffit déjà, sinon
-  // onEdit serait appelé deux fois (une fois par l'élément imbriqué, une fois
-  // par ce gestionnaire au moment où l'événement remonte).
+  // currentTarget` ignore les touches pressées depuis le lien imbriqué : son
+  // activation clavier native (Entrée) suffit déjà, sinon la modale s'ouvrirait
+  // en plus de la navigation quand l'événement remonte jusqu'ici.
   function handleKeyDown(event) {
     if (event.target !== event.currentTarget) return
     if (event.key !== 'Enter' && event.key !== ' ') return
@@ -59,23 +58,6 @@ export default function ApplicationCard({ application, onEdit }) {
       </h3>
       <p className="app-card__company">{company}</p>
       {location && <p className="app-card__location">{location}</p>}
-
-      {onEdit && (
-        // Icône seule, révélée au survol/focus via CSS (voir .app-card__edit) :
-        // aucune insertion/retrait du DOM, donc aucun saut de mise en page.
-        <button
-          type="button"
-          className="btn btn--ghost btn--icon app-card__edit"
-          aria-label="Éditer la candidature"
-          title="Éditer"
-          onClick={(event) => {
-            event.stopPropagation()
-            onEdit(application)
-          }}
-        >
-          <span aria-hidden="true">✎</span>
-        </button>
-      )}
     </article>
   )
 }

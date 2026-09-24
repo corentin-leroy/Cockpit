@@ -193,6 +193,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* DESIGN.md : « Titre de page : 28px » — le h1 nu hérite de --text-2xl (30px,
+   * réservé à la landing), d'où cette dérogation dédiée au titre du tableau. */
+  font-size: var(--text-xl);
 }
 
 /* ================================================================== */
@@ -309,6 +312,11 @@
 
 .kanban-column {
   flex: 0 0 280px;
+  /* min-width:0 : un élément flex a `min-width:auto` par défaut, soit la largeur
+   * de son plus long mot insécable. Sans cela, ce minimum l'emporte sur les
+   * 280px du flex-basis et un mot très long élargit la colonne. Avec 0, la
+   * largeur de la colonne est une contrainte, pas une suggestion. */
+  min-width: 0;
   display: flex;
   flex-direction: column;
   padding: var(--space-3);
@@ -320,10 +328,11 @@
     border-color var(--transition-fast);
 }
 
-/* Surbrillance de la colonne survolée pendant un drag. */
+/* Surbrillance de la colonne survolée pendant un drag. Neutre : le teal est
+ * réservé à l'action principale et au focus (DESIGN.md, « Couleur »). */
 .kanban-column--drop-target {
-  background: var(--color-accent-soft);
-  border-color: var(--color-accent);
+  background: var(--color-surface-3);
+  border-color: var(--color-border-strong);
 }
 
 .kanban-column__header {
@@ -375,10 +384,6 @@
 /* ================================================================== */
 
 .app-card {
-  /* position:relative : ancre .app-card__edit (position:absolute) sur CETTE
-   * carte plutôt que sur le prochain ancêtre positionné. Aucun effet visuel
-   * au repos — nécessaire uniquement pour le positionnement de l'icône. */
-  position: relative;
   padding: var(--space-2);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -388,13 +393,17 @@
    * un défilement, ce qui empêcherait le drag sur mobile. */
   touch-action: none;
   transition:
+    background-color var(--transition-fast),
     border-color var(--transition-fast),
     opacity var(--transition-fast);
 }
 
 /* Pas d'ombre : DESIGN.md la réserve aux éléments flottants (modale, menu).
- * Le survol se signale uniquement par un renforcement de la bordure. */
+ * Le survol change le fond ET renforce la bordure (DESIGN.md, « Cartes »).
+ * surface-3 = token « survol » ; ses contrastes texte sont vérifiés AA dans
+ * tokens.css. */
 .app-card:hover {
+  background: var(--color-surface-3);
   border-color: var(--color-border-strong);
 }
 
@@ -405,9 +414,22 @@
   cursor: grabbing;
 }
 
+/* Titre borné à 2 lignes : un intitulé d'offre très long ne doit pas faire
+ * exploser la hauteur de la carte (objectif : 10 cartes sans scroll).
+ * overflow-wrap:anywhere évite qu'un mot sans espace (URL, mot composé) déborde
+ * de la carte. Le titre complet reste lisible dans la modale d'édition.
+ * line-height 1.2 : interligne des titres selon DESIGN.md (base.css donne 1.25
+ * aux h1-h3, on ne l'aligne ici que pour le titre de carte). */
 .app-card__title {
   font-size: var(--text-sm);
   font-weight: 500;
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 /* Dérogation scopée à la règle globale `a` (base.css) : ailleurs dans
@@ -425,38 +447,21 @@
   color: inherit;
 }
 
-.app-card__company {
+/* Métadonnées (entreprise, lieu) : 12px, couleur secondaire pour les deux
+ * (DESIGN.md), sur deux champs distincts, chacun limité à UNE ligne puis
+ * ellipse. Contrairement au titre (2 lignes), une seule ligne suffit ici et
+ * garde la hauteur de carte minimale. Un mot unique très long est tronqué de
+ * même : `nowrap` empêche tout retour à la ligne, `min-width:0` sur la colonne
+ * (voir .kanban-column) empêche ce texte d'élargir la carte. */
+.app-card__company,
+.app-card__location {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   margin-top: var(--space-1);
   font-size: var(--text-xs);
   line-height: 1.4;
   color: var(--color-text-secondary);
-}
-
-.app-card__location {
-  margin-top: var(--space-1);
-  font-size: var(--text-xs);
-  line-height: 1.4;
-  color: var(--color-text-muted);
-}
-
-/* Icône « éditer » : position absolute → hors du flux, donc son apparition/
- * disparition (opacity seule) ne modifie jamais les dimensions de la carte
- * ni la position des éléments autour. Révélée au survol ET au focus-within
- * (la carte ou l'icône elle-même reçoit le focus clavier) : sans focus-within,
- * un utilisateur clavier verrait un bouton fonctionnel mais invisible. */
-.app-card__edit {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--transition-fast);
-}
-
-.app-card:hover .app-card__edit,
-.app-card:focus-within .app-card__edit {
-  opacity: 1;
-  pointer-events: auto;
 }
 
 /* ================================================================== */

@@ -48,7 +48,9 @@
   --text-md: 16px;
   --text-lg: 20px;
   --text-xl: 28px;
-  --text-2xl: 30px; /* provisoire, en attente d'arbitrage (cf. réponse) */
+  /* Exception documentée dans DESIGN.md : palier réservé au titre principal
+   * de la landing page, au-dessus du plafond de 28px de l'application. */
+  --text-2xl: 30px;
 }
 
 /* ------------------------------------------------------------------ */

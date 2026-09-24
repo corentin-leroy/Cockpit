@@ -13,6 +13,10 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 ## Typographie
 - Une seule famille, celle déjà en place. Pas de police décorative.
 - Échelle : 12 / 14 / 16 / 20 / 28px. Aucune valeur hors échelle.
+- Exception : la landing page dispose d'un palier supplémentaire à 30px pour son titre
+  principal. L'application (kanban, formulaires, modales) plafonne à 28px.
+- Les glyphes et icônes (croix de fermeture, pictogrammes) ne consomment pas de token
+  typographique : leur taille relève de l'icône, pas du texte.
 - Titre de carte : 14px, poids 500, couleur de texte principale.
 - Métadonnées (entreprise, lieu) : 12px, couleur de texte secondaire.
 - Titre de colonne : 12px, poids 600, majuscules, couleur secondaire.
@@ -24,40 +28,44 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - L'espace entre deux groupes est toujours supérieur à l'espace interne d'un groupe.
 
 ## Couleur
-- L'accent teal est réservé à une seule fonction : l'action principale de l'écran
-  (bouton « Ajouter une candidature ») et les états de focus.
+- L'accent teal est réservé à deux usages, et seulement ceux-là : l'action principale
+  de l'écran (bouton « Ajouter une candidature ») et l'anneau de focus.
 - Aucun texte de contenu en accent. Les titres de cartes sont en neutre.
 - Les colonnes n'ont pas de couleur propre. Le statut est porté par la position et le libellé.
 - Aucune information ne repose sur la couleur seule.
 - Contraste minimum WCAG AA : 4.5:1 pour le texte, 3:1 pour les bordures et icônes.
 
 ## Cartes
-- La carte entière est cliquable et ouvre le détail de la candidature.
-- Aucun bouton d'action affiché en permanence sur la carte.
-- Les actions (éditer, supprimer) apparaissent au survol, en haut à droite, en icônes.
-- Le survol n'est jamais le seul chemin vers une action : l'édition et la suppression
-  sont également accessibles depuis la vue détail.
-- Pas de soulignement sur les titres. La zone cliquable est signalée par le survol.
+- La carte entière est cliquable et ouvre la modale d'édition.
+- Aucune action n'est affichée sur la carte, ni en permanence ni au survol.
+  Éditer, supprimer et changer de statut se font depuis la modale.
+- Le survol modifie le fond et renforce la bordure. C'est le seul signal d'interactivité.
+- Le titre reste un lien vers l'offre, mais sans style de lien : couleur de texte
+  principale, pas de soulignement, `cursor: pointer`.
 - Bordure 1px, rayon 6px, pas d'ombre portée.
 
 ## Interaction et périmètre
 - Cible : desktop, pointeur. Le tactile est hors périmètre pour l'instant.
 - Le glisser-déposer entre colonnes est une interaction pointeur uniquement.
   Choix assumé, à documenter dans le README.
-- Une alternative existe pour changer de statut sans glisser-déposer :
-  le champ statut dans la vue détail.
+- Le survol n'est jamais le seul chemin vers une action : la carte est aussi
+  activable au clavier (Entrée ou Espace).
+- `cursor: grab` sur la carte, `cursor: pointer` sur le titre-lien.
 - L'anneau de focus est visible sur tous les éléments interactifs :
   `:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }`
 - Ne jamais écrire `outline: none` sans le remplacer immédiatement.
-- L'accent teal a donc deux usages, et seulement ceux-là :
-  l'action principale de l'écran, et le focus.
 
 ## Interdits
 - Pas de dégradé.
 - Pas d'ombre décorative. L'ombre sert uniquement aux éléments flottants (modale, menu).
 - Pas d'emoji dans l'interface.
-- Pas d'animation au-delà de 150ms, et uniquement sur opacité et couleur.
+- Pas d'animation au-delà de 180ms, et uniquement sur opacité, fond et couleur.
 - Pas de bordure quand un espace suffit à séparer.
+
+## Duplication à surveiller
+- Le bloc `<style>` de `extension/popup.html` duplique volontairement les tokens de
+  `tokens.css` (couleurs, espacements, rayons, typo). Toute modification de la palette
+  ou de l'échelle typographique doit y être répercutée dans la même passe.
 
 ## Vérification avant de considérer un écran terminé
 - Compter les valeurs d'espacement utilisées : toutes doivent être dans l'échelle.

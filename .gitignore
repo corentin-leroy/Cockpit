@@ -22,3 +22,4 @@ dist/
 .vscode/
 .pytest_cache/
 .claude/settings.local.json
+DESIGN.md
