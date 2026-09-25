@@ -72,7 +72,7 @@
 
   /* Texte : gris foncé chaud, jamais noir pur */
   --color-text: #2e2a26; /* 13.5:1 sur le fond */
-  --color-text-secondary: #4D4742; /* 6.3:1 */
+  --color-text-secondary: #625b54; /* 6.3:1 */
   --color-text-muted: #6b645c; /* 5.5:1 — reste AA même sur --color-surface-3 */
 
   /* Accent teal */
@@ -118,7 +118,7 @@
 
   /* Texte : gris clair chaud */
   --color-text: #eae6e1; /* 13.6:1 sur le fond */
-  --color-text-secondary: #C2BBB3; /* 7.6:1 */
+  --color-text-secondary: #b3ada5; /* 7.6:1 */
   --color-text-muted: #9e978f; /* 5.8:1 — reste AA même sur --color-surface-3 */
 
   /* Même accent teal, éclairci pour rester lisible sur fond sombre */
@@ -161,7 +161,7 @@
     --color-border-strong: #454a57;
 
     --color-text: #eae6e1;
-    --color-text-secondary: #C2BBB3;
+    --color-text-secondary: #b3ada5;
     --color-text-muted: #9e978f;
 
     --color-accent: #4bc0b4;
