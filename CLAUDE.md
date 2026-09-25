@@ -15,6 +15,9 @@ Backend (depuis backend/, venv activé) :
 - Installer : `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`
   (requirements-dev.txt inclut requirements.txt + pytest/httpx ; la PRODUCTION
   n'installe que requirements.txt)
+- Créer/mettre à jour la base : `.venv\Scripts\python.exe -m alembic upgrade head`
+  (l'API ne crée PLUS aucune table au démarrage : un cockpit.db neuf, ou en
+  retard sur le schéma, s'obtient par cette commande. Cf. « Migrations »).
 - Lancer l'API : `.venv\Scripts\python.exe -m uvicorn app.main:app --reload`
 - Tests : `.venv\Scripts\python.exe -m pytest` (depuis backend/) — suite ciblée
   sécurité (auth, ownership). Base SQLite EN MÉMOIRE isolée, recréée à chaque
@@ -84,13 +87,11 @@ Frontend (depuis frontend/) :
   laisserait des orphelins EN SILENCE, alors que la prod (PostgreSQL) irait bien.
   L'écouteur est posé sur la CLASSE `Engine`, pas sur l'instance : le moteur de
   test créé par tests/conftest.py en bénéficie sans le savoir.
-- ⚠ CHANGEMENT DE SCHÉMA : `create_all()` ne MODIFIE JAMAIS une table existante.
-  Ces contraintes ONLY apparaissent sur des tables CRÉÉES après ce changement.
-  Sur une base déjà en place (dev : backend/cockpit.db ; prod : PostgreSQL
-  Railway), les tables gardent leurs anciennes FK sans cascade, et rien ne le
-  signale. En dev, supprimer cockpit.db suffit (elle est recréée au démarrage).
-  En prod, il faut recréer les tables — ou, mieux, passer à Alembic : c'est
-  exactement la première modification de schéma qui justifie de l'installer.
+- ⚠ CHANGEMENT DE SCHÉMA : toute modification de models.py exige une migration
+  Alembic (cf. « Migrations »). Un changement de contrainte ou de colonne ne
+  s'applique JAMAIS tout seul à une table existante, et rien ne le signale.
+  Vérifié le 2026-09-25 : la prod PostgreSQL porte bien les `ON DELETE CASCADE`
+  ci-dessus (les 3 FK), au même titre que cockpit.db.
 
 # Limites de quantité (garde-fous anti-abus)
 - Toutes les constantes sont dans `app/limits.py` (source unique, importée par
@@ -126,7 +127,14 @@ Frontend (depuis frontend/) :
   mot de passe, perte de l'anti-énumération, cloisonnement par user, plafonds).
 - Fichiers : `test_auth.py`, `test_boards_ownership.py`,
   `test_applications_ownership.py`, `test_limits.py`,
-  `test_account_deletion.py`.
+  `test_account_deletion.py`, `test_migrations.py`.
+- `test_migrations.py` migre sa PROPRE base SQLite en mémoire (connexion injectée
+  via `config.attributes["connection"]`, cf. alembic/env.py) et vérifie : une
+  seule tête de migration ; `upgrade head` depuis le vide produit EXACTEMENT le
+  schéma des modèles (`alembic check`) ; `downgrade base` ne laisse aucune table.
+  C'est lui qui fait échouer la suite quand models.py change SANS migration.
+  Limite : SQLite uniquement, les types enum natifs de PostgreSQL n'y sont pas
+  exercés (à vérifier à la main avant déploiement).
 - `test_account_deletion.py` couvre DELETE /auth/me (mot de passe exigé, refus en
   403, cloisonnement vis-à-vis des autres comptes) ET la cascade elle-même : ses
   assertions portent sur l'ÉTAT STOCKÉ, seul moyen de détecter des orphelins —
@@ -137,7 +145,7 @@ Frontend (depuis frontend/) :
 - Isolation de la base : `tests/conftest.py` pose les variables d'environnement
   AVANT d'importer l'app (l'import de app.main appelle load_dotenv, qui n'écrase
   pas une variable déjà définie). On force ainsi (a) DATABASE_URL=sqlite://
-  jetable pour que le create_all à l'import ne touche pas cockpit.db, (b)
+  jetable, filet de sécurité pour qu'aucun test ne puisse viser cockpit.db, (b)
   BREVO_API_KEY/SENDER vides → mode DEV, aucun email réel, (c) un JWT_SECRET_KEY
   de test. La vraie base de test est un SQLite EN MÉMOIRE dédié (StaticPool, pour
   qu'une seule base soit partagée entre connexions), injecté en surchargeant la
@@ -260,10 +268,48 @@ Frontend (depuis frontend/) :
   created_at).
 - Les tests restent sur SQLite en mémoire (cf. conftest.py) : rapides, isolés,
   aucune dépendance à un PostgreSQL local.
-- `Base.metadata.create_all()` (main.py) crée les tables manquantes mais ne
-  MIGRE rien : il ignore les tables déjà présentes dont le schéma a changé.
-  Suffisant pour un premier déploiement, à remplacer par Alembic dès la
-  première modification de schéma en prod.
+
+# Migrations (Alembic)
+- Le schéma est géré par Alembic (`alembic==1.20.0`, backend/alembic/), en dev
+  comme en prod. `main.py` n'appelle PLUS `create_all()` : un `create_all`
+  ne modifie jamais une table existante, c'est ce qui l'a fait remplacer.
+  Les tests créent leur propre schéma (fixture `client`).
+- Commandes (depuis backend/, toujours via le venv) :
+  - `.venv\Scripts\python.exe -m alembic upgrade head` : applique les migrations
+    (crée une base neuve).
+  - `... -m alembic revision --autogenerate -m "description"` : génère une
+    migration d'après models.py. TOUJOURS la relire : l'autogénération ne voit
+    pas tout (renommage = drop + create, enums PostgreSQL, données).
+  - `... -m alembic check` : liste les écarts modèles/base (code de sortie ≠ 0).
+  - `... -m alembic current` / `history` : état et historique.
+- Changer models.py exige une migration DANS LE MÊME lot : test_migrations.py
+  échoue sinon.
+- `alembic/env.py` prend l'URL dans `app.database.DATABASE_URL` (jamais dans
+  alembic.ini, qui n'en contient aucune), donc normalisée comme celle de l'app.
+  Il charge le .env, puis DATABASE_URL posée dans le shell PRIME. Il affiche
+  `[alembic] cible : ...` à chaque commande : LIRE cette ligne avant d'écrire.
+- Viser la PROD depuis le poste : poser `$env:DATABASE_URL` (valeur de
+  `DATABASE_PUBLIC_URL` de Railway, l'URL interne n'est pas joignable) dans la
+  SESSION shell uniquement, jamais dans .env, puis la retirer
+  (`Remove-Item Env:DATABASE_URL`) ou fermer la fenêtre. Une session restée
+  configurée vise la prod à la commande suivante.
+- Historique : la révision 0001 (« baseline ») décrit le schéma tel que créé par
+  l'ancien create_all. Elle a été marquée appliquée en prod et sur cockpit.db
+  par `alembic stamp 0001` (2026-09-25), après comparaison en lecture seule
+  (0 écart, `ON DELETE CASCADE` présents, libellés d'enum identiques). Elle ne
+  s'exécute que pour bâtir une base neuve.
+- Enums : SQLAlchemy stocke les NOMS des membres (`APPLIED`), pas les valeurs
+  (`applied`) — à retenir pour toute requête SQL manuelle. Sous PostgreSQL ce
+  sont des types natifs (`applicationstatus`, `tokenpurpose`) : on n'y retire
+  pas une valeur (pas de `DROP VALUE`), il faut recréer le type, et l'opération
+  échoue s'il reste une ligne portant la valeur retirée.
+- Le `downgrade` de la baseline supprime explicitement les types enum
+  PostgreSQL ; ce code n'a jamais été exécuté sur PostgreSQL (les tests sont sur
+  SQLite).
+- Une migration doit rester COMPATIBLE AVEC LA VERSION PRÉCÉDENTE DU CODE : si le
+  nouveau code échoue son healthcheck, l'ancienne version continue de servir sur
+  le schéma déjà migré (ajout de colonne nullable : oui ; renommage ou
+  suppression : en deux déploiements).
 
 # Variables d'environnement (backend/.env, cf. .env.example)
 - DATABASE_URL (SQLite ou PostgreSQL, cf. section ci-dessus)
@@ -326,6 +372,9 @@ Frontend (depuis frontend/) :
     Sans `--reload` (dev uniquement : il surveille les fichiers et redémarre).
     `0.0.0.0` et non 127.0.0.1, sinon le conteneur n'accepte aucune connexion
     venue de l'extérieur. `$PORT` est injecté par Railway et doit être respecté.
+  - preDeployCommand `alembic upgrade head` : migre la base avant le démarrage
+    (cf. plus bas). `alembic` est appelé nu, comme `uvicorn` ; À CONFIRMER au
+    premier déploiement (repli : `python -m alembic upgrade head`).
   - healthcheckPath `/health` : Railway attend que l'app réponde avant de
     basculer le trafic — pas de fenêtre d'erreurs au redémarrage.
 - `backend/.python-version` épingle Python 3.13 (version de dev). Si le log de
@@ -333,9 +382,20 @@ Frontend (depuis frontend/) :
   NIXPACKS_PYTHON_VERSION.
 - La base PostgreSQL est un service Railway séparé ; référencer
   `DATABASE_URL=${{Postgres.DATABASE_URL}}` plutôt que copier l'URL en dur.
-- `Base.metadata.create_all()` crée les tables au premier démarrage, mais ne
-  MIGRE rien (cf. section base de données) : Alembic dès le premier changement
-  de schéma en prod.
+- Migrations : `preDeployCommand` (`alembic upgrade head`, dans railway.json)
+  s'exécute UNE fois par déploiement, avant le démarrage du nouveau conteneur.
+  Si elle échoue, le déploiement est en échec et l'ANCIENNE version continue de
+  servir ; PostgreSQL exécute le DDL en transaction, donc une migration en échec
+  est annulée en bloc (base inchangée). Pas dans startCommand : cela
+  s'exécuterait à chaque redémarrage et réplica, et `restartPolicyType:
+  ON_FAILURE` (10 essais) rejouerait dix fois la même erreur.
+- /health reste un test de vie et n'interroge PAS la base ni alembic_version :
+  le coupler ferait tomber le service pour des raisons étrangères au schéma.
+- Ordre de mise en place (fait le 2026-09-25) : la prod a été marquée
+  `alembic stamp 0001` AVANT le premier déploiement contenant le pre-deploy.
+  Sinon `upgrade head` aurait tenté de recréer des tables existantes (échec sans
+  gravité mais déploiement rouge). Une NOUVELLE base (autre environnement) n'a
+  pas besoin de stamp : `upgrade head` la construit.
 
 # Architecture frontend
 - `api/` centralise les appels backend. TOUS passent par `apiFetch`
