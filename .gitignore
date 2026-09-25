@@ -17,6 +17,12 @@ venv/
 *.db
 *.sqlite3
 
+# Dumps de base (pg_dump...) : contiennent emails et empreintes de mots de passe,
+# ils ne doivent JAMAIS entrer dans le dépôt. À stocker hors du dossier du projet.
+*.sql
+# Sauvegardes .bak sous alembic/ uniquement (le .bak suivi du frontend n'est pas concerné).
+backend/alembic/**/*.bak
+
 node_modules/
 dist/
 .vscode/
