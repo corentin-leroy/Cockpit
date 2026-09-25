@@ -69,6 +69,10 @@
   /* Bordures */
   --color-border: #e2ded8;
   --color-border-strong: #cfcac3;
+  /* Valeur identique à --color-text-muted : coïncidence de calibration, pas un
+   * lien entre les deux tokens (voir DESIGN.md, « les tokens de texte ne
+   * servent qu'au texte »). Les faire diverger un jour n'a aucun impact croisé. */
+  --color-border-hover: #6b645c;
 
   /* Texte : gris foncé chaud, jamais noir pur */
   --color-text: #2e2a26; /* 13.5:1 sur le fond */
@@ -115,6 +119,7 @@
 
   --color-border: #343843;
   --color-border-strong: #454a57;
+  --color-border-hover: #9e978f;
 
   /* Texte : gris clair chaud */
   --color-text: #eae6e1; /* 13.6:1 sur le fond */
@@ -159,6 +164,7 @@
 
     --color-border: #343843;
     --color-border-strong: #454a57;
+    --color-border-hover: #9e978f;
 
     --color-text: #eae6e1;
     --color-text-secondary: #C2BBB3;

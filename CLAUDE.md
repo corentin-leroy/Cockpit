@@ -9,22 +9,31 @@ en V1.5. AUCUN scraping serveur, AUCUN stockage de credentials de sites tiers.
 - Backend : FastAPI + SQLAlchemy 2.0 + SQLite (dev/tests) ou PostgreSQL (prod)
 - Frontend : React 19 + Vite + React Router 7 (dossier frontend/)
 - Extension : Chrome Manifest V3 (dossier extension/)
-- Environnement : Windows/PowerShell, Python invoqué avec `py`
 
 # Commandes
 Backend (depuis backend/, venv activé) :
 - Installer : `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`
   (requirements-dev.txt inclut requirements.txt + pytest/httpx ; la PRODUCTION
   n'installe que requirements.txt)
-- Lancer l'API : `py -m uvicorn app.main:app --reload`
-- Tests : `py -m pytest` (depuis backend/) — suite ciblée sécurité (auth,
-  ownership). Base SQLite EN MÉMOIRE isolée, recréée à chaque test ; ne touche
-  jamais cockpit.db et n'envoie aucun email (Brevo forcé en mode DEV dans
-  tests/conftest.py). Voir « Tests backend » plus bas.
+- Lancer l'API : `.venv\Scripts\python.exe -m uvicorn app.main:app --reload`
+- Tests : `.venv\Scripts\python.exe -m pytest` (depuis backend/) — suite ciblée
+  sécurité (auth, ownership). Base SQLite EN MÉMOIRE isolée, recréée à chaque
+  test ; ne touche jamais cockpit.db et n'envoie aucun email (Brevo forcé en
+  mode DEV dans tests/conftest.py). Voir « Tests backend » plus bas.
 Frontend (depuis frontend/) :
 - Installer : `npm install`
 - Lancer : `npm run dev` (http://localhost:5173)
 - Build : `npm run build` ; Lint : `npm run lint`
+
+# Direction visuelle
+- `DESIGN.md` à la racine est la référence unique pour tout ce qui touche au
+  style : densité, échelle typographique, espacements, usage de la couleur,
+  interdits. Le lire AVANT toute modification de CSS ou de rendu.
+- Cockpit est un outil dense, consulté plusieurs fois par jour (référence de
+  densité : Notion). La couleur et l'espace signalent, ils ne décorent pas.
+- Les tokens (couleurs, espacements, typo) sont dupliqués dans le bloc `<style>`
+  de `extension/popup.html` : toute modification de `tokens.css` doit y être
+  répercutée dans la même passe.
 
 # Architecture backend
 - `app/models.py` = tables SQLAlchemy ; `app/schemas.py` = contrats Pydantic.
@@ -46,7 +55,9 @@ Frontend (depuis frontend/) :
   au current_user (sinon 404). GET /applications filtre par ?board_id= et/ou
   ?status_filter=.
 - Le statut d'une candidature n'est PAS modifiable à la création (démarre
-  toujours en "saved"/Repérée) ; il évolue via PATCH (drag & drop côté front).
+  toujours en "saved"/Repérée). Il évolue ensuite par PATCH, via deux chemins :
+  le drag & drop entre colonnes, et le champ « statut » du formulaire, affiché
+  UNIQUEMENT en mode édition (jamais à la création).
 
 # Cascade de suppression (schéma + ORM)
 - Déclarée à DEUX niveaux, complémentaires et non redondants :
@@ -108,7 +119,7 @@ Frontend (depuis frontend/) :
   volée côté ASGI : renvoyer un 413 au milieu d'un flux déjà pris en charge par
   l'app provoque un double envoi de réponse.
 
-# Tests backend (backend/tests/, `py -m pytest`)
+# Tests backend (backend/tests/, `.venv\Scripts\python.exe -m pytest`)
 - Portée VOLONTAIREMENT ciblée : la matrice sécurité déjà validée manuellement
   (auth + ownership) et les garde-fous anti-abus, pas une couverture exhaustive.
   On teste les points où une régression serait silencieuse et coûteuse (fuite du
@@ -199,7 +210,7 @@ Frontend (depuis frontend/) :
   un EFFACEMENT, pas une désactivation : aucune donnée personnelle ne subsiste.
 - Le corps de la requête porte le MOT DE PASSE courant, vérifié avant toute
   suppression. Le JWT ne suffit délibérément pas : il prouve la session, pas
-  l'identité. Un token peut fuiter et vit 60 min ; il autorise des actions
+  l'identité. Un token peut fuiter et vit 12 h ; il autorise des actions
   réversibles, jamais la destruction définitive du compte. C'est une
   ré-authentification, pas une case à cocher.
 - Mot de passe faux → 403, et non 401. L'appelant est DÉJÀ authentifié comme cet
@@ -284,7 +295,7 @@ Frontend (depuis frontend/) :
   un pin oublié pendant deux ans est un risque de sécurité, pas une garantie.
 - Procédure de mise à jour :
   1. `.venv\Scripts\python.exe -m pip install --upgrade <paquet>`
-  2. `py -m pytest` — la suite doit rester au vert
+  2. `.venv\Scripts\python.exe -m pytest` — la suite doit rester au vert
   3. reporter la nouvelle version dans le fichier concerné, et mettre à jour la
      date « figées le … » en tête de requirements.txt
   4. déployer et vérifier /health avant de considérer la mise à jour faite
@@ -340,8 +351,14 @@ Frontend (depuis frontend/) :
   /verify-email) n'ont AUCUNE garde : le token de l'URL fait autorité, pas la
   session — un connecté qui clique son lien de vérification ne doit pas être
   redirigé.
-- `constants/applicationStatuses.js` = source unique des 6 statuts
-  (clé technique + libellé français + ordre des colonnes).
+- `constants/applicationStatuses.js` = source unique des statuts (clé technique
+  + libellé français + ordre des colonnes). Miroir exact de l'enum
+  `ApplicationStatus` côté backend : toute évolution se fait des deux côtés.
+- Cartes du kanban : la carte entière est cliquable et ouvre la modale
+  d'édition. Aucune action n'est affichée sur la carte. Le titre reste un lien
+  vers l'offre (stopPropagation), sans style de lien. Le drag & drop
+  (@dnd-kit) est pointeur uniquement : vérifier qu'un ajout d'élément
+  interactif sur une carte ne le perturbe pas.
 - URL du backend : `VITE_API_BASE_URL` (cf. frontend/.env.example), lue dans
   api/client.js avec repli `http://127.0.0.1:8000`. Le « / » final est retiré,
   les endpoints étant concaténés directement.
@@ -369,36 +386,45 @@ Frontend (depuis frontend/) :
   (.env backend, VITE_ pour le front).
 - Installer les dépendances Python UNIQUEMENT via
   `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt`
-  (chemin explicite, ne jamais utiliser `py` ni `pip` nus pour installer).
+  (chemin explicite, ne jamais utiliser `py` ni `pip` nus).
   Une dépendance nécessaire EN PRODUCTION va dans requirements.txt ; une
   dépendance de test uniquement va dans requirements-dev.txt. Toute nouvelle
-  dépendance s'ajoute avec une version EXACTE (==), cf. section ci-dessous.
+  dépendance s'ajoute avec une version EXACTE (==), cf. section ci-dessus.
 - Style backend : type hints partout, docstrings en français, code en anglais.
 - Commits en anglais, format conventional commits (feat:, fix:, docs:...).
 - Ne pas ajouter de dépendance sans la justifier dans le message de commit.
+- Toute modification de style suit DESIGN.md (cf. « Direction visuelle »).
 
 # Roadmap V1
 1. [fait] CRUD candidatures + extension navigateur (extraction générique + JSON-LD)
 2. [fait] Auth JWT multi-utilisateurs (inscription, login, protection, ownership)
-3. Front React (en cours)
+3. Front React
    - [fait] Setup Vite + structure
    - [fait] Couche API + contexte d'auth
    - [fait] Écrans Login/Register + routes protégées
    - [fait] Kanban en lecture seule
    - [fait] Création / édition / suppression de candidatures (modale)
    - [fait] Drag & drop des cartes entre colonnes
+   - [fait] Champ statut dans le formulaire, en mode édition uniquement
 4. Reconnecter l'extension à l'auth (elle ne peut plus créer sans token)
 5. Multi-tableaux (Boards)
    - [fait] Backend : modèle Board, CRUD, ownership en chaîne, board par défaut,
      dernier tableau non supprimable, cascade
    - [fait] Front : sélection/gestion des tableaux, board_id à la création
-6. Faire le design du site 
+6. Design du site (en cours)
+   - [fait] DESIGN.md : direction visuelle, échelle typo, espacements, couleur
+   - [fait] Refonte du kanban : densité, carte cliquable, tokens, contrastes
+   - [à faire] Reste de l'application (landing, formulaires, page compte)
 7. Mot de passe oublié + vérification d'email (Brevo)
    - [fait] Backend : app/email.py, SecurityToken, 4 endpoints, rate limiting
    - [fait] Front : écrans /forgot-password, /reset-password, /verify-email
      (routes PUBLIQUES, sans garde) + bandeau "confirmez votre adresse"
      (is_verified via GET /auth/me) avec renvoi de l'email
-8. Déploiement
+8. Déploiement (backend + PostgreSQL sur Railway)
+9. Archivage des candidatures (en cours)
+   - Champ archived_at (date nullable), statut conservé à l'archivage
+   - Page d'archives au niveau du compte, filtre par tableau, tri par date
+   - Suppression du statut "Refusée" du modèle et du kanban (5 colonnes)
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
 - Agrégation API officielles (La Bonne Alternance, France Travail) → V1.5

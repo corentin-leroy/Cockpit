@@ -34,6 +34,9 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Les colonnes n'ont pas de couleur propre. Le statut est porté par la position et le libellé.
 - Aucune information ne repose sur la couleur seule.
 - Contraste minimum WCAG AA : 4.5:1 pour le texte, 3:1 pour les bordures et icônes.
+- Les tokens `--color-text*` ne servent qu'au texte. Une bordure, un fond ou une icône
+  passent par un token dédié (`--color-border*`, `--color-surface*`…), jamais par un
+  token de texte détourné — même si la valeur hexadécimale coïncide au départ.
 
 ## Cartes
 - La carte entière est cliquable et ouvre la modale d'édition.
@@ -72,3 +75,5 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Compter les éléments teal à l'écran : idéalement un, deux au maximum.
 - Passer la capture dans un simulateur de daltonisme : aucune information perdue.
 - Mesurer les contrastes au lieu de les juger à l'œil.
+- Contrôler qu'aucun token de texte (`--color-text*`) n'est utilisé en `border-color`,
+  `background`/`background-color` ou couleur d'icône.

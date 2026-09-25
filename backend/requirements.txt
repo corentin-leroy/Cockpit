@@ -33,6 +33,11 @@ sqlalchemy==2.0.50
 # des roues précompilées — aucune compilation C, ni libpq à installer sur la
 # machine (utile sous Windows en dev comme dans l'image de déploiement).
 psycopg[binary]==3.3.4
+# Migrations de schéma. En PRODUCTION (pas seulement en dev) : Railway exécute
+# `alembic upgrade head` en pre-deploy (cf. railway.json). Remplace le
+# create_all() de main.py, qui ne modifiait jamais une table existante.
+# Tire Mako, MarkupSafe et typing_extensions en transitif.
+alembic==1.20.0
 
 # --- Sécurité ---
 # [bcrypt] tire le backend de hachage utilisé par le CryptContext (security.py).

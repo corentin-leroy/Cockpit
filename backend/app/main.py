@@ -12,12 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app.database import Base, engine
 from app.limits import MAX_REQUEST_BODY_BYTES
 from app.routers import applications, auth, boards
 
-# Crée les tables au démarrage (suffisant en dev ; on passera à Alembic plus tard)
-Base.metadata.create_all(bind=engine)
+# Aucun create_all() ici : le schéma est géré par Alembic, en dev comme en prod
+# (`.venv\Scripts\python.exe -m alembic upgrade head`, exécuté par Railway en
+# pre-deploy). Les tests créent leur propre schéma (tests/conftest.py).
 
 
 def get_allowed_origins() -> list[str]:
