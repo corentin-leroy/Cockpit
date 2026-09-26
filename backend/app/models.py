@@ -51,7 +51,6 @@ class ApplicationStatus(str, enum.Enum):
     APPLIED = "applied"      # Postulée
     FOLLOWED_UP = "followed_up"  # Relancée
     INTERVIEW = "interview"  # Entretien
-    REJECTED = "rejected"    # Refusée
     ACCEPTED = "accepted"    # Acceptée 🎉
 
 

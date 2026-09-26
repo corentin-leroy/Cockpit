@@ -132,9 +132,17 @@ Frontend (depuis frontend/) :
   via `config.attributes["connection"]`, cf. alembic/env.py) et vérifie : une
   seule tête de migration ; `upgrade head` depuis le vide produit EXACTEMENT le
   schéma des modèles (`alembic check`) ; `downgrade base` ne laisse aucune table.
-  C'est lui qui fait échouer la suite quand models.py change SANS migration.
-  Limite : SQLite uniquement, les types enum natifs de PostgreSQL n'y sont pas
-  exercés (à vérifier à la main avant déploiement).
+  C'est lui qui fait échouer la suite quand models.py change SANS migration,
+  et il couvre aussi le garde-fou de la migration 0002 (une ligne REJECTED
+  interrompt l'upgrade, sans rien modifier) et la conservation des lignes dans
+  les deux sens.
+  Limites : SQLite uniquement, les types enum natifs de PostgreSQL n'y sont pas
+  exercés. ⚠ POINT AVEUGLE : `alembic check` ne compare PAS les libellés d'un
+  enum (vérifié sur SQLite ET sur PostgreSQL : aucun écart signalé alors que le
+  type en base avait une valeur de moins que le modèle). Un changement de
+  valeurs d'enum n'est donc protégé par AUCUN test automatique : il se teste à
+  la main sur un PostgreSQL jetable (Docker, `postgres:18`, même version majeure
+  que la prod) et se vérifie en prod en lisant les libellés (`pg_enum`).
 - `test_account_deletion.py` couvre DELETE /auth/me (mot de passe exigé, refus en
   403, cloisonnement vis-à-vis des autres comptes) ET la cascade elle-même : ses
   assertions portent sur l'ÉTAT STOCKÉ, seul moyen de détecter des orphelins —
@@ -298,14 +306,35 @@ Frontend (depuis frontend/) :
   par `alembic stamp 0001` (2026-09-25), après comparaison en lecture seule
   (0 écart, `ON DELETE CASCADE` présents, libellés d'enum identiques). Elle ne
   s'exécute que pour bâtir une base neuve.
+- Révision 0002 (« remove rejected status ») : retire `REJECTED` de l'enum
+  `applicationstatus`. Voir la procédure ci-dessous, qui sert de modèle pour tout
+  retrait de valeur d'enum.
 - Enums : SQLAlchemy stocke les NOMS des membres (`APPLIED`), pas les valeurs
   (`applied`) — à retenir pour toute requête SQL manuelle. Sous PostgreSQL ce
   sont des types natifs (`applicationstatus`, `tokenpurpose`) : on n'y retire
   pas une valeur (pas de `DROP VALUE`), il faut recréer le type, et l'opération
   échoue s'il reste une ligne portant la valeur retirée.
-- Le `downgrade` de la baseline supprime explicitement les types enum
-  PostgreSQL ; ce code n'a jamais été exécuté sur PostgreSQL (les tests sont sur
-  SQLite).
+- Procédure de retrait d'une valeur d'enum (celle de 0002), dans UNE transaction :
+  `LOCK TABLE ... ACCESS EXCLUSIVE` (aucune écriture concurrente entre contrôle
+  et DDL), garde-fou qui échoue explicitement s'il reste une ligne portant la
+  valeur, `ALTER TYPE ... RENAME TO ..._old`, `CREATE TYPE` à la nouvelle liste,
+  `ALTER COLUMN ... TYPE ... USING col::text::type`, `DROP TYPE ..._old`. Un
+  échec annule tout (vérifié : aucun type `_old` orphelin). Les valeurs sont
+  écrites EN DUR dans la migration, jamais importées de app.models (une migration
+  décrit un état figé du schéma). Le downgrade fait l'inverse et ne perd aucune
+  ligne.
+- ORDRE de déploiement pour RETIRER une valeur de statut : (1) le FRONT d'abord
+  (retirer une colonne est compatible avec l'ancien backend, l'inverse ne l'est
+  pas) ; vérifier en prod qu'aucune ligne ne porte la valeur (comptage en
+  MAJUSCULES) et recharger tous les onglets ouverts (un ancien bundle peut encore
+  écrire la valeur) ; (2) ensuite migration + backend. Une ligne restée avec la
+  valeur retirée deviendrait invisible dans l'interface (BoardPage ignore un
+  statut inconnu) et ne se corrigerait que par SQL ou par l'API.
+- Migrations 0001 et 0002 testées sur un PostgreSQL 18.6 jetable (Docker) :
+  upgrade/downgrade/upgrade, contenu des lignes identique (md5), libellés du type
+  lus, cas d'échec, verrou face à une transaction concurrente, et
+  `downgrade base` puis remontée depuis le vide (le `downgrade` de la baseline,
+  qui supprime les types enum, fonctionne sur PostgreSQL).
 - Une migration doit rester COMPATIBLE AVEC LA VERSION PRÉCÉDENTE DU CODE : si le
   nouveau code échoue son healthcheck, l'ancienne version continue de servir sur
   le schéma déjà migré (ajout de colonne nullable : oui ; renommage ou
@@ -373,8 +402,8 @@ Frontend (depuis frontend/) :
     `0.0.0.0` et non 127.0.0.1, sinon le conteneur n'accepte aucune connexion
     venue de l'extérieur. `$PORT` est injecté par Railway et doit être respecté.
   - preDeployCommand `alembic upgrade head` : migre la base avant le démarrage
-    (cf. plus bas). `alembic` est appelé nu, comme `uvicorn` ; À CONFIRMER au
-    premier déploiement (repli : `python -m alembic upgrade head`).
+    (cf. plus bas). `alembic` est appelé nu, comme `uvicorn` : trouvé sous
+    Nixpacks, confirmé au premier déploiement.
   - healthcheckPath `/health` : Railway attend que l'app réponde avant de
     basculer le trafic — pas de fenêtre d'erreurs au redémarrage.
 - `backend/.python-version` épingle Python 3.13 (version de dev). Si le log de
@@ -413,7 +442,9 @@ Frontend (depuis frontend/) :
   redirigé.
 - `constants/applicationStatuses.js` = source unique des statuts (clé technique
   + libellé français + ordre des colonnes). Miroir exact de l'enum
-  `ApplicationStatus` côté backend : toute évolution se fait des deux côtés.
+  `ApplicationStatus` côté backend : toute évolution se fait des deux côtés
+  (5 statuts depuis le retrait de « rejected »). Pour RETIRER un statut, le front
+  passe en premier (cf. « Migrations », ordre de déploiement).
 - Cartes du kanban : la carte entière est cliquable et ouvre la modale
   d'édition. Aucune action n'est affichée sur la carte. Le titre reste un lien
   vers l'offre (stopPropagation), sans style de lien. Le drag & drop
@@ -484,7 +515,9 @@ Frontend (depuis frontend/) :
 9. Archivage des candidatures (en cours)
    - Champ archived_at (date nullable), statut conservé à l'archivage
    - Page d'archives au niveau du compte, filtre par tableau, tri par date
-   - Suppression du statut "Refusée" du modèle et du kanban (5 colonnes)
+   - Suppression du statut "Refusée" : front (2a) [fait, déployé] ; migration
+     0002 + backend (2b) [écrits et testés, à déployer]. Reste le texte
+     « Refusée » de la landing, du README et de commentaires (lot 7)
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
 - Agrégation API officielles (La Bonne Alternance, France Travail) → V1.5

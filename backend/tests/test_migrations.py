@@ -18,7 +18,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.pool import StaticPool
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -62,6 +62,76 @@ def test_migrations_build_the_schema_declared_by_models(migration_engine):
         config = _alembic_config(connection)
         command.upgrade(config, "head")
         command.check(config)
+
+
+def _seed_applications(connection, statuses: list[str]) -> None:
+    """Insère un utilisateur, un tableau et une candidature par statut, en SQL brut.
+
+    SQL brut et non les modèles : la base est au niveau de schéma d'une révision
+    donnée, qui n'est pas forcément celui des modèles actuels. Les statuts sont
+    des NOMS de membres (`SAVED`), comme SQLAlchemy les stocke."""
+    now = "2026-01-01 00:00:00"
+    connection.execute(
+        text(
+            "INSERT INTO users (email, hashed_password, is_verified, created_at) "
+            f"VALUES ('seed@example.com', 'x', 1, '{now}')"
+        )
+    )
+    connection.execute(
+        text(
+            "INSERT INTO boards (name, user_id, created_at, updated_at) "
+            f"VALUES ('B', 1, '{now}', '{now}')"
+        )
+    )
+    for index, status in enumerate(statuses):
+        connection.execute(
+            text(
+                "INSERT INTO applications "
+                "(title, company, source, status, board_id, created_at, updated_at) "
+                f"VALUES ('t{index}', 'c', 'manual', '{status}', 1, '{now}', '{now}')"
+            )
+        )
+
+
+def _stored_statuses(connection) -> list[str]:
+    rows = connection.execute(text("SELECT status FROM applications ORDER BY id"))
+    return [row[0] for row in rows]
+
+
+def test_migration_0002_refuses_to_run_while_rejected_rows_exist(migration_engine):
+    """GARDE-FOU de la migration 0002 : une ligne REJECTED interrompt l'upgrade
+    avec un message explicite, et la révision reste à 0001.
+
+    Seule partie de 0002 protégée automatiquement : le DDL PostgreSQL (recréation
+    du type enum) n'est PAS exercé ici, et `alembic check` ne compare pas les
+    libellés d'un enum. Il se vérifie à la main sur un PostgreSQL jetable."""
+    with migration_engine.connect() as connection:
+        config = _alembic_config(connection)
+        command.upgrade(config, "0001")
+        _seed_applications(connection, ["SAVED", "REJECTED"])
+
+        with pytest.raises(RuntimeError, match="REJECTED"):
+            command.upgrade(config, "head")
+
+        assert _stored_statuses(connection) == ["SAVED", "REJECTED"]
+        version = connection.execute(text("SELECT version_num FROM alembic_version"))
+        assert version.scalar_one() == "0001"
+
+
+def test_migration_0002_keeps_every_row_in_both_directions(migration_engine):
+    """Sans ligne REJECTED, l'upgrade passe et le downgrade aussi : aucune
+    candidature n'est modifiée ni perdue, dans un sens comme dans l'autre."""
+    statuses = ["SAVED", "APPLIED", "FOLLOWED_UP", "INTERVIEW", "ACCEPTED"]
+    with migration_engine.connect() as connection:
+        config = _alembic_config(connection)
+        command.upgrade(config, "0001")
+        _seed_applications(connection, statuses)
+
+        command.upgrade(config, "head")
+        assert _stored_statuses(connection) == statuses
+
+        command.downgrade(config, "0001")
+        assert _stored_statuses(connection) == statuses
 
 
 def test_migrations_can_be_fully_downgraded(migration_engine):
