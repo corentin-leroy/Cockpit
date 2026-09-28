@@ -21,6 +21,13 @@ MAX_BOARDS_PER_USER = 10
 # (candidatures dont le board appartient à l'utilisateur).
 MAX_APPLICATIONS_PER_USER = 300
 
+# Nombre maximum de candidatures ARCHIVÉES par utilisateur, GLOBAL (tous
+# tableaux confondus), compté via la même chaîne d'ownership que
+# MAX_APPLICATIONS_PER_USER. Distinct de ce dernier : une candidature archivée
+# ne compte PLUS dans la limite des actives (cf. create_application), donc les
+# deux plafonds ne se recoupent jamais pour une même ligne.
+MAX_ARCHIVED_APPLICATIONS_PER_USER = 2000
+
 # Taille maximale du corps d'une requête HTTP, en octets (1 Mo). Évite qu'une
 # charge utile énorme (ex. un champ `notes` de plusieurs Mo) ne consomme mémoire
 # et stockage. Appliqué globalement par un middleware (voir main.py).

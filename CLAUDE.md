@@ -55,8 +55,8 @@ Frontend (depuis frontend/) :
   TOUJOURS au moins un tableau. Corollaire : la suppression du DERNIER tableau
   d'un user est refusée (409). Supprimer un board supprime ses candidatures.
 - Créer une candidature exige un board_id ; le serveur vérifie qu'il appartient
-  au current_user (sinon 404). GET /applications filtre par ?board_id= et/ou
-  ?status_filter=.
+  au current_user (sinon 404). GET /applications filtre par ?board_id=,
+  ?status_filter= et/ou ?archived= (cf. « Archivage des candidatures »).
 - Le statut d'une candidature n'est PAS modifiable à la création (démarre
   toujours en "saved"/Repérée). Il évolue ensuite par PATCH, via deux chemins :
   le drag & drop entre colonnes, et le champ « statut » du formulaire, affiché
@@ -97,7 +97,9 @@ Frontend (depuis frontend/) :
 - Toutes les constantes sont dans `app/limits.py` (source unique, importée par
   les routers et par main.py) :
   - MAX_BOARDS_PER_USER = 10
-  - MAX_APPLICATIONS_PER_USER = 300
+  - MAX_APPLICATIONS_PER_USER = 300 (candidatures ACTIVES seulement, cf.
+    « Archivage des candidatures »)
+  - MAX_ARCHIVED_APPLICATIONS_PER_USER = 2000 (cf. même section)
   - MAX_REQUEST_BODY_BYTES = 1 Mo
 - Vérifiées CÔTÉ SERVEUR à la création, jamais côté front : le front peut les
   afficher pour l'UX mais ne fait pas autorité (extension, curl… restent
@@ -119,6 +121,68 @@ Frontend (depuis frontend/) :
   sur Content-Length ou l'omet (chunked). On n'implémente pas de comptage à la
   volée côté ASGI : renvoyer un 413 au milieu d'un flux déjà pris en charge par
   l'app provoque un double envoi de réponse.
+
+# Archivage des candidatures
+- `Application.archived_at` (DateTime nullable, migration 0003) : NULL = active,
+  renseignée = archivée à cette date. Le SERVEUR pose la date (`utcnow()`),
+  jamais le client : `archived_at` n'est PAS exposé en écriture dans
+  `ApplicationUpdate`, seulement en lecture dans `ApplicationRead`. Deux
+  endpoints dédiés, `POST /applications/{id}/archive` et `/unarchive` — pas de
+  PATCH générique sur ce champ.
+- Le STATUT (ApplicationStatus) n'est JAMAIS modifié par l'archivage ou le
+  désarchivage : il reste celui qu'il était au moment d'archiver.
+- 409 EXPLICITE (pas d'idempotence silencieuse) sur une action redondante :
+  archiver une candidature déjà archivée, ou désarchiver une candidature déjà
+  active. Un succès sur une action qui n'a rien fait masquerait un bug côté
+  client — cohérent avec le reste du projet (ex. le 409 du dernier tableau).
+- Deux plafonds DISTINCTS, comptés GLOBALEMENT par utilisateur (même chaîne
+  d'ownership que les autres limites), une candidature ne comptant jamais dans
+  les deux à la fois :
+  - MAX_APPLICATIONS_PER_USER (300) sur les ACTIVES, à la CRÉATION.
+  - MAX_ARCHIVED_APPLICATIONS_PER_USER (2000) sur les ARCHIVÉES, à
+    l'ARCHIVAGE. 409 : « Limite de 2000 candidatures archivées atteinte.
+    Supprimez d'anciennes archives pour en archiver de nouvelles. »
+  - Le DÉSARCHIVAGE est lui aussi plafonné par les 300 actives — sans ce
+    contrôle, la limite se contournerait en archivant puis désarchivant. 409 :
+    « Limite de 300 candidatures actives atteinte. Supprimez ou archivez une
+    candidature active pour faire de la place. » La candidature visée est
+    encore archivée au moment du contrôle, donc jamais comptée par erreur
+    parmi les 300 actives comparées au plafond.
+- ⚠ CORRECTION DE COMPORTEMENT (pas un simple ajout) : le comptage des 300
+  actives à la CRÉATION (`create_application`) filtrait auparavant TOUTES les
+  candidatures, archivées comprises. Sans le filtre `archived_at IS NULL`,
+  archiver ne libérait AUCUNE place — l'archivage n'aurait eu aucun intérêt.
+  Test de non-régression : `test_creating_application_counts_only_active_towards_the_cap`
+  (tests/test_archiving.py), qui aurait échoué avant cette correction.
+- Toutes les LECTURES DE LISTE excluent les archivées par défaut, via
+  `?archived=` sur `GET /applications` (`bool`, PAS optionnel : vaut `false`
+  quand il est absent — un client qui ignore l'archivage, extension comprise,
+  reçoit le comportement sûr). `?archived=true` n'affiche QUE les archivées,
+  jamais un mélange.
+  Le garde-fou vit dans `_visible_applications_query` (routers/applications.py),
+  dont le paramètre `archived` n'a PAS de valeur par défaut : tout futur
+  endpoint de liste qui la réutiliserait doit choisir explicitement — l'oubli
+  lève une `TypeError` immédiate, pas un bug silencieux. Ce n'est PAS la valeur
+  par défaut du paramètre de requête qui protège (elle ne protège que CET
+  endpoint), c'est celle-ci.
+- L'ACCÈS PAR IDENTIFIANT (`_get_owned_application`, donc `GET`/`PATCH`/`DELETE
+  /applications/{id}`) N'EST PAS filtré par `archived_at`, décision
+  DÉLIBÉRÉE : la correction d'une candidature depuis la future page d'archives
+  en dépend (un PATCH doit rester possible sur une archivée, sans la
+  désarchiver au passage).
+- La cascade de suppression d'un tableau (cf. « Cascade de suppression »)
+  emporte les candidatures ARCHIVÉES comme les actives — `ON DELETE CASCADE` ne
+  distingue pas `archived_at`, aucune logique possible à ce niveau.
+- `BoardRead` expose `active_applications_count` et `archived_applications_count`
+  (routers/boards.py, `_to_board_read`), pour que le frontend puisse annoncer
+  le nombre d'archives concernées avant de confirmer la suppression d'un
+  tableau (lot frontend séparé). Calculés par DEUX requêtes COUNT par tableau
+  (pas une agrégation), donc jusqu'à 2×MAX_BOARDS_PER_USER (20) requêtes
+  supplémentaires sur `GET /boards`. MESURÉ (pas supposé), le 2026-09-28, sur
+  PostgreSQL 18 jetable, 10 tableaux et ~200 candidatures chacun (2000 lignes,
+  mélange actif/archivé) : 34 ms médiane sur 20 appels — négligeable à cette
+  échelle (MAX_BOARDS_PER_USER = 10). À reconsidérer seulement si ce plafond
+  changeait significativement.
 
 # Validation des entrées (schémas Pydantic)
 - RÈGLE : aucune entrée d'un client ne doit produire un 500. Une valeur invalide
@@ -270,7 +334,7 @@ Frontend (depuis frontend/) :
 - Fichiers : `test_auth.py`, `test_boards_ownership.py`,
   `test_applications_ownership.py`, `test_limits.py`,
   `test_account_deletion.py`, `test_migrations.py`, `test_input_validation.py`,
-  `test_registration_race.py`, `test_error_messages.py`.
+  `test_registration_race.py`, `test_error_messages.py`, `test_archiving.py`.
 - `test_input_validation.py` : pour chaque champ borné, la valeur maximale passe
   et la valeur maximale + 1 donne 422 (création ET modification) ; NUL et
   surrogate isolé refusés dans chaque champ texte de chaque schéma d'entrée ;
@@ -298,6 +362,17 @@ Frontend (depuis frontend/) :
   `"field": "0"` sur un JSON syntaxiquement invalide ; `bool_parsing`/
   `bool_type` retirés du catalogue (aucun champ booléen dans les schémas
   actuels, donc invérifiables — à réintroduire avec le premier champ booléen).
+- `test_archiving.py` : archiver pose `archived_at` et conserve le statut,
+  désarchiver l'inverse ; 409 explicite sur une action redondante (archiver une
+  archivée, désarchiver une active) ; ownership ; filtre `?archived=` (exclusion
+  par défaut, combinaison avec `board_id`/`status_filter`) ; accès par
+  identifiant qui reste possible sur une archivée (GET/PATCH/DELETE) ; les deux
+  plafonds (2000 archivées, 300 actives au désarchivage) ; LE test de la
+  correction du comptage des 300 (archiver doit réellement libérer une place) ;
+  cascade de suppression d'un tableau sur une candidature archivée, assertion
+  sur l'état stocké (comme test_account_deletion.py) ; compteurs de `BoardRead`.
+  Seedé DIRECTEMENT en base pour les plafonds (comme test_limits.py), pas par
+  2000 requêtes HTTP.
 - `test_registration_race.py` : 40 inscriptions simultanées de la même adresse,
   5 manches, sur une base SQLite FICHIER (une connexion par requête, pool par
   défaut) et non la base en mémoire à connexion unique des autres tests, qui ne
@@ -502,6 +577,12 @@ Frontend (depuis frontend/) :
 - Révision 0002 (« remove rejected status ») : retire `REJECTED` de l'enum
   `applicationstatus`. Voir la procédure ci-dessous, qui sert de modèle pour tout
   retrait de valeur d'enum.
+- Révision 0003 (« archive applications ») : ajoute `applications.archived_at`
+  (DateTime nullable, sans valeur par défaut). À l'opposé de 0002 : une SEULE
+  instruction `ADD COLUMN`, aucun ajustement manuel du fichier généré. Mesuré
+  (pas supposé), PostgreSQL 18, table de 50 000 lignes : 68 ms — une opération
+  de métadonnées, pas une réécriture de table. Toutes les lignes existantes
+  valent NULL après la migration (donc actives) : aucune donnée réinterprétée.
 - Enums : SQLAlchemy stocke les NOMS des membres (`APPLIED`), pas les valeurs
   (`applied`) — à retenir pour toute requête SQL manuelle. Sous PostgreSQL ce
   sont des types natifs (`applicationstatus`, `tokenpurpose`) : on n'y retire
@@ -706,8 +787,14 @@ Frontend (depuis frontend/) :
      (is_verified via GET /auth/me) avec renvoi de l'email
 8. Déploiement (backend + PostgreSQL sur Railway)
 9. Archivage des candidatures (en cours)
-   - Champ archived_at (date nullable), statut conservé à l'archivage
-   - Page d'archives au niveau du compte, filtre par tableau, tri par date
+   - [fait, backend, écrit et testé, à déployer] Champ archived_at (migration
+     0003), statut conservé à l'archivage, endpoints /archive et /unarchive,
+     plafond de 2000 archivées, plafond de 300 actives au désarchivage,
+     correction du comptage des 300 (n'exclut plus les archivées à tort),
+     filtre ?archived= par défaut sur les listes, compteurs sur BoardRead
+   - [à faire] Page d'archives au niveau du compte, filtre par tableau, tri par
+     date, confirmation de suppression d'un tableau annonçant le nombre
+     d'archives concernées (frontend)
    - Suppression du statut "Refusée" : front (2a) [fait, déployé] ; migration
      0002 + backend (2b) [écrits et testés, à déployer]. Reste le texte
      « Refusée » de la landing, du README et de commentaires (lot 7)

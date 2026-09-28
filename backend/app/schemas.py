@@ -240,7 +240,16 @@ class BoardUpdate(InputModel):
 
 
 class BoardRead(BaseModel):
-    """Ce que l'API renvoie pour un tableau."""
+    """Ce que l'API renvoie pour un tableau.
+
+    active_applications_count / archived_applications_count : calculés par le
+    router (routers/boards.py, _to_board_read), PAS lus depuis l'objet ORM
+    directement (Board ne les porte pas) — model_config from_attributes reste
+    utile pour les 5 autres champs quand on construit depuis un ORM Board, mais
+    ces deux-là sont toujours fournis explicitement à la construction.
+    Objectif : permettre au frontend d'annoncer « N archives concernées » avant
+    de confirmer la suppression d'un tableau (lot frontend séparé, hors de
+    celui-ci) sans avoir à interroger un second endpoint."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -249,6 +258,8 @@ class BoardRead(BaseModel):
     user_id: int
     created_at: datetime
     updated_at: datetime
+    active_applications_count: int
+    archived_applications_count: int
 
 
 class ApplicationCreate(InputModel):
@@ -365,5 +376,6 @@ class ApplicationRead(BaseModel):
     status: ApplicationStatus
     notes: str | None
     applied_at: datetime | None
+    archived_at: datetime | None
     created_at: datetime
     updated_at: datetime

@@ -206,6 +206,16 @@ class Application(Base):
     notes: Mapped[str | None] = mapped_column(Text)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime)
 
+    # --- Archivage ---
+    # NULL = active ; renseignée = archivée à cette date. Le STATUT
+    # (ApplicationStatus) n'est PAS modifié à l'archivage : il reste celui qu'il
+    # était au moment d'archiver, conservé tel quel. Les listes l'excluent par
+    # défaut (cf. routers/applications.py, _visible_applications_query) ; un
+    # accès par IDENTIFIANT (GET/PATCH/DELETE /applications/{id}) reste possible
+    # sur une candidature archivée — la correction depuis la page d'archives en
+    # dépend.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime)
+
     # --- Rattachement ---
     # Une candidature appartient à un tableau (obligatoire). Le propriétaire n'est
     # PLUS stocké ici : on le retrouve via board.user_id (chaîne d'ownership).
