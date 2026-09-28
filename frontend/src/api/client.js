@@ -87,10 +87,55 @@ export async function apiFetch(endpoint, options = {}) {
       removeToken()
       emitSessionExpired()
     }
-    // FastAPI renvoie le motif dans `detail` ; fallback sur le texte de statut.
+    // Le backend renvoie `detail` déjà en français, directement affichable
+    // (chaîne dans tous les cas, y compris un 422 — cf. app/error_messages.py
+    // côté backend). Fallback sur le texte de statut si le corps est illisible.
     const message = data?.detail || response.statusText || 'Erreur API'
     throw new ApiError(message, response.status, data)
   }
 
   return data
+}
+
+/**
+ * Répartit les erreurs d'un 422 entre les champs d'un formulaire et un message
+ * général, à partir de `err.data.errors` (cf. app/error_messages.py côté
+ * backend : `{"field": "title", "message": "..."}`, jamais de `field` pour une
+ * erreur qui n'en désigne aucun — corps illisible, paramètre de requête).
+ *
+ * `fieldMap` associe le nom de champ BACKEND au nom d'état LOCAL du
+ * formulaire — ils ne coïncident pas toujours (ex. ResetPasswordPage : `password`
+ * localement, `new_password` côté API). Une clé absente de `fieldMap` (ex.
+ * `board_id` d'ApplicationForm, dont le sélecteur peut être masqué) est traitée
+ * comme si elle n'avait pas de champ : son message ne serait jamais vu s'il
+ * était rangé dans un `fieldErrors` que rien n'affiche.
+ *
+ * `generalMessage` n'est PAS `err.message` par défaut : c'est le message de la
+ * PREMIÈRE erreur qui n'a trouvé aucun champ où s'afficher. Si toutes les
+ * erreurs ont trouvé un champ, `generalMessage` est vide (pas de doublon entre
+ * un bandeau général et le message déjà affiché sous le champ). Pour une
+ * réponse SANS `errors` (401, 403, 404, 409, 413… — pas un 422), on retombe sur
+ * `err.message`, qui est déjà la bonne phrase française du backend.
+ *
+ * @param {ApiError} err
+ * @param {Record<string, string>} fieldMap
+ * @returns {{ fieldErrors: Record<string, string>, generalMessage: string }}
+ */
+export function splitFormErrors(err, fieldMap) {
+  const apiErrors = err.data?.errors
+  if (!Array.isArray(apiErrors) || apiErrors.length === 0) {
+    return { fieldErrors: {}, generalMessage: err.message }
+  }
+
+  const fieldErrors = {}
+  let unmatchedMessage = ''
+  for (const error of apiErrors) {
+    const localKey = error.field && fieldMap[error.field]
+    if (localKey) {
+      fieldErrors[localKey] = error.message
+    } else if (!unmatchedMessage) {
+      unmatchedMessage = error.message
+    }
+  }
+  return { fieldErrors, generalMessage: unmatchedMessage }
 }

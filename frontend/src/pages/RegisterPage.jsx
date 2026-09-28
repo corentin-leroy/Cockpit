@@ -6,8 +6,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { register as apiRegister } from '../api/auth.js'
+import { splitFormErrors } from '../api/client.js'
 import { useAuth } from '../auth/useAuth.js'
 import Alert, { FieldError } from '../components/Alert.jsx'
+import { PASSWORD_MAX_LENGTH } from '../constants/limits.js'
+
+const FIELD_MAP = { email: 'email', password: 'password' }
 
 export default function RegisterPage() {
   const navigate = useNavigate()
@@ -51,15 +55,13 @@ export default function RegisterPage() {
       await login(email, password)
       navigate('/app', { replace: true })
     } catch (err) {
-      if (err.status === 409) {
-        setFormError('Cet email est déjà utilisé.')
-      } else if (err.status === 422) {
-        // Validation refusée par le backend (filet de sécurité si la nôtre rate
-        // un cas, ex. email mal formé accepté par notre test « contient @ »).
-        setFormError('Email ou mot de passe invalide.')
-      } else {
-        setFormError(err.message || 'Une erreur est survenue. Réessayez.')
-      }
+      // Le 409 (email déjà pris) comme le 422 (ex. email mal formé accepté par
+      // notre test « contient @ », filet de sécurité) portent déjà un message
+      // backend directement affichable — plus besoin de le deviner par code
+      // HTTP ni de le reformuler ici.
+      const { fieldErrors: apiFieldErrors, generalMessage } = splitFormErrors(err, FIELD_MAP)
+      setFieldErrors(apiFieldErrors)
+      setFormError(generalMessage)
     } finally {
       setLoading(false)
     }
@@ -94,6 +96,7 @@ export default function RegisterPage() {
               type="password"
               autoComplete="new-password"
               className="input"
+              maxLength={PASSWORD_MAX_LENGTH}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               aria-invalid={Boolean(fieldErrors.password)}

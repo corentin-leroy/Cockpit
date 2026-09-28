@@ -7,11 +7,16 @@
 
 import { useState } from 'react'
 
+import { splitFormErrors } from '../api/client.js'
 import Alert, { FieldError } from './Alert.jsx'
 
 // Longueur max du nom côté UX : garde la sidebar et le titre lisibles. Le backend
 // borne plus largement (max_length=100) comme garde-fou de cohérence des données.
+// Volontairement PAS repris de constants/limits.js : cette borne est plus
+// stricte que le miroir backend, pas un simple reflet (cf. limits.js).
 const NAME_MAX_LENGTH = 25
+
+const FIELD_MAP = { name: 'name' }
 
 /**
  * @param {Object}   props
@@ -47,7 +52,9 @@ export default function BoardForm({
       await onSubmit(name.trim())
       // Succès : le parent ferme la modale (ce composant est démonté).
     } catch (err) {
-      setFormError(err.message || 'Une erreur est survenue. Réessayez.')
+      const { fieldErrors, generalMessage } = splitFormErrors(err, FIELD_MAP)
+      setFieldError(fieldErrors.name || '')
+      setFormError(generalMessage)
       setSubmitting(false)
     }
   }

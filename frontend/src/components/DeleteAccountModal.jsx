@@ -11,8 +11,11 @@
 
 import { useState } from 'react'
 
+import { splitFormErrors } from '../api/client.js'
 import Alert, { FieldError } from './Alert.jsx'
 import Modal from './Modal.jsx'
+
+const FIELD_MAP = { password: 'password' }
 
 /**
  * @param {Object} props
@@ -40,9 +43,13 @@ export default function DeleteAccountModal({ onConfirm, onClose }) {
       await onConfirm(password)
       // Succès : le parent purge la session et redirige (composant démonté).
     } catch (err) {
-      // 403 = mot de passe incorrect ; tout autre code = incident réseau/serveur.
-      // Dans les deux cas le compte est intact et la modale reste ouverte.
-      setFormError(err.message || 'La suppression a échoué. Réessayez.')
+      // 403 (mot de passe incorrect) n'a pas de `errors` (pas un 422) : reste en
+      // message général, comme avant. Le rare 422 (mot de passe présenté de
+      // plus de 4096 octets) s'affiche désormais sous le champ. Dans tous les
+      // cas le compte est intact et la modale reste ouverte.
+      const { fieldErrors: apiFieldErrors, generalMessage } = splitFormErrors(err, FIELD_MAP)
+      setFieldError(apiFieldErrors.password || '')
+      setFormError(generalMessage)
       setSubmitting(false)
     }
   }

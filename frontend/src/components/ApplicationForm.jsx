@@ -12,8 +12,29 @@
 
 import { useState } from 'react'
 
+import { splitFormErrors } from '../api/client.js'
 import Alert, { FieldError } from './Alert.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
+import {
+  COMPANY_MAX_LENGTH,
+  LOCATION_MAX_LENGTH,
+  NOTES_MAX_LENGTH,
+  TITLE_MAX_LENGTH,
+  URL_MAX_LENGTH,
+} from '../constants/limits.js'
+
+// board_id et status sont volontairement ABSENTS de cette table : leur erreur
+// (rarissime, jamais déclenchée par l'usage normal du sélecteur/du menu) irait
+// dans un champ parfois masqué (un seul tableau : le sélecteur ne s'affiche
+// pas) où le message ne serait jamais vu. Elle remonte donc en message général
+// via splitFormErrors, jamais perdue.
+const FIELD_MAP = {
+  title: 'title',
+  company: 'company',
+  location: 'location',
+  url: 'url',
+  notes: 'notes',
+}
 
 /**
  * @param {Object}   props
@@ -103,7 +124,9 @@ export default function ApplicationForm({
       await onSubmit(payload)
       // Succès : le parent ferme la modale (ce composant est démonté).
     } catch (err) {
-      setFormError(err.message || 'Une erreur est survenue. Réessayez.')
+      const { fieldErrors: apiFieldErrors, generalMessage } = splitFormErrors(err, FIELD_MAP)
+      setFieldErrors(apiFieldErrors)
+      setFormError(generalMessage)
       setSubmitting(false)
     }
   }
@@ -120,6 +143,7 @@ export default function ApplicationForm({
           id="app-title"
           type="text"
           className="input"
+          maxLength={TITLE_MAX_LENGTH}
           value={values.title}
           onChange={update('title')}
           aria-invalid={Boolean(fieldErrors.title)}
@@ -135,6 +159,7 @@ export default function ApplicationForm({
           id="app-company"
           type="text"
           className="input"
+          maxLength={COMPANY_MAX_LENGTH}
           value={values.company}
           onChange={update('company')}
           aria-invalid={Boolean(fieldErrors.company)}
@@ -150,9 +175,11 @@ export default function ApplicationForm({
           id="app-location"
           type="text"
           className="input"
+          maxLength={LOCATION_MAX_LENGTH}
           value={values.location}
           onChange={update('location')}
         />
+        {fieldErrors.location && <FieldError>{fieldErrors.location}</FieldError>}
       </div>
 
       <div className="field">
@@ -164,21 +191,35 @@ export default function ApplicationForm({
           type="url"
           placeholder="https://…"
           className="input"
+          maxLength={URL_MAX_LENGTH}
           value={values.url}
           onChange={update('url')}
+          aria-invalid={Boolean(fieldErrors.url)}
         />
+        {fieldErrors.url && <FieldError>{fieldErrors.url}</FieldError>}
       </div>
 
       <div className="field">
-        <label className="field__label" htmlFor="app-notes">
-          Notes
-        </label>
+        <div className="field__label-row">
+          <label className="field__label" htmlFor="app-notes">
+            Notes
+          </label>
+          {/* Pas de variante de couleur : avec maxLength, dépasser la limite est
+              IMPOSSIBLE (le navigateur bloque la saisie) — il n'y a donc rien à
+              signaler comme erreur, seulement une information neutre. */}
+          <span className="field__counter" aria-hidden="true">
+            {values.notes.length}/{NOTES_MAX_LENGTH}
+          </span>
+        </div>
         <textarea
           id="app-notes"
           className="input textarea"
+          maxLength={NOTES_MAX_LENGTH}
           value={values.notes}
           onChange={update('notes')}
+          aria-invalid={Boolean(fieldErrors.notes)}
         />
+        {fieldErrors.notes && <FieldError>{fieldErrors.notes}</FieldError>}
       </div>
 
       {showBoardSelect && (

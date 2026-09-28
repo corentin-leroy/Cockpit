@@ -8,12 +8,20 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { resetPassword } from '../api/auth.js'
+import { splitFormErrors } from '../api/client.js'
 import { useAuth } from '../auth/useAuth.js'
 import Alert, { FieldError } from '../components/Alert.jsx'
+import { PASSWORD_MAX_LENGTH } from '../constants/limits.js'
 
 // Délai avant la redirection automatique vers /login : laisse le temps de lire
 // le message de succès, sans obliger à cliquer.
 const REDIRECT_DELAY_MS = 2500
+
+// Le nom local (`password`, l'input « Nouveau mot de passe ») diffère du nom
+// backend (`new_password`) : ApplicationUpdate n'a pas ce problème, mais
+// ResetPasswordRequest si. `confirmation` n'a pas d'entrée ici : c'est une
+// vérification 100 % côté client, le backend ne la connaît pas.
+const FIELD_MAP = { new_password: 'password' }
 
 export default function ResetPasswordPage() {
   const navigate = useNavigate()
@@ -79,10 +87,12 @@ export default function ResetPasswordPage() {
         // Lien invalide, expiré ou déjà consommé : le backend ne distingue pas
         // les trois (inutile pour le client, l'action à faire est la même).
         setLinkInvalid(true)
-      } else if (err.status === 422) {
-        setFieldErrors({ password: 'Mot de passe invalide (8 caractères minimum).' })
       } else {
-        setFormError(err.message || 'Une erreur est survenue. Réessayez.')
+        // Le 422 (mot de passe trop court, etc.) porte déjà un message backend
+        // directement affichable, sous le bon champ (new_password -> password).
+        const { fieldErrors: apiFieldErrors, generalMessage } = splitFormErrors(err, FIELD_MAP)
+        setFieldErrors(apiFieldErrors)
+        setFormError(generalMessage)
       }
     } finally {
       setLoading(false)
@@ -132,6 +142,7 @@ export default function ResetPasswordPage() {
                   type="password"
                   autoComplete="new-password"
                   className="input"
+                  maxLength={PASSWORD_MAX_LENGTH}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   aria-invalid={Boolean(fieldErrors.password)}

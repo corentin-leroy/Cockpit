@@ -9,7 +9,10 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { forgotPassword } from '../api/auth.js'
+import { splitFormErrors } from '../api/client.js'
 import Alert, { FieldError } from '../components/Alert.jsx'
+
+const FIELD_MAP = { email: 'email' }
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -36,11 +39,10 @@ export default function ForgotPasswordPage() {
     } catch (err) {
       // Seuls des échecs TECHNIQUES arrivent ici (réseau, 422 email mal formé,
       // 5xx) : l'API ne renvoie jamais d'erreur signalant un compte inconnu.
-      if (err.status === 422) {
-        setFieldError('Format d’email invalide.')
-      } else {
-        setFormError(err.message || 'Une erreur est survenue. Réessayez.')
-      }
+      // Le 422 porte déjà un message backend directement affichable.
+      const { fieldErrors, generalMessage } = splitFormErrors(err, FIELD_MAP)
+      setFieldError(fieldErrors.email || '')
+      setFormError(generalMessage)
     } finally {
       setLoading(false)
     }

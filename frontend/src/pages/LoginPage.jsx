@@ -4,8 +4,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { splitFormErrors } from '../api/client.js'
 import { useAuth } from '../auth/useAuth.js'
-import Alert from '../components/Alert.jsx'
+import Alert, { FieldError } from '../components/Alert.jsx'
+
+const FIELD_MAP = { email: 'email', password: 'password' }
 
 // Valeur que React donne à `key` sur son événement synthétique quand
 // l'événement clavier natif n'en porte aucun. Mesuré sur le remplissage
@@ -19,6 +22,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -79,6 +83,7 @@ export default function LoginPage() {
   async function handleSubmit(event) {
     event.preventDefault()
     setFormError('')
+    setFieldErrors({})
     // Soumettre vaut acquittement, quel que soit le chemin emprunté pour
     // remplir le formulaire (clavier, collage souris, remplissage automatique).
     setShowExpired(false)
@@ -93,13 +98,14 @@ export default function LoginPage() {
       await login(email, password)
       navigate('/app', { replace: true })
     } catch (err) {
-      // 401 : le backend renvoie volontairement le même message que l'email
-      // existe ou non. On reste tout aussi générique côté UI.
-      if (err.status === 401) {
-        setFormError('Email ou mot de passe incorrect.')
-      } else {
-        setFormError(err.message || 'Une erreur est survenue. Réessayez.')
-      }
+      // 401 : le backend renvoie déjà « Email ou mot de passe incorrect. »,
+      // volontairement identique que l'email existe ou non — on relaie tel
+      // quel, plus besoin de le reformuler ici. Le seul 422 plausible ici est
+      // un mot de passe présenté de plus de 4096 octets (collage), affiché
+      // sous le champ via fieldErrors.
+      const { fieldErrors: apiFieldErrors, generalMessage } = splitFormErrors(err, FIELD_MAP)
+      setFieldErrors(apiFieldErrors)
+      setFormError(generalMessage)
     } finally {
       setLoading(false)
     }
@@ -136,7 +142,9 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               onBeforeInput={dismissExpiredNotice}
               onKeyDown={dismissExpiredNotice}
+              aria-invalid={Boolean(fieldErrors.email)}
             />
+            {fieldErrors.email && <FieldError>{fieldErrors.email}</FieldError>}
           </div>
 
           <div className="field">
@@ -155,7 +163,14 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               onBeforeInput={dismissExpiredNotice}
               onKeyDown={dismissExpiredNotice}
+              aria-invalid={Boolean(fieldErrors.password)}
             />
+            {/* PAS de maxLength ici : la borne du mot de passe PRÉSENTÉ est de
+                4096 OCTETS (pas des caractères), et un compte existant peut
+                avoir un mot de passe plus long que 128 caractères — un
+                maxLength empêcherait de s'authentifier avec un mot de passe
+                pourtant valide (cf. constants/limits.js). */}
+            {fieldErrors.password && <FieldError>{fieldErrors.password}</FieldError>}
           </div>
 
           <button
