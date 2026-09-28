@@ -153,7 +153,7 @@ def test_application_field_bound_on_create(ctx, field, limit):
         headers=ctx.user.headers,
     )
     assert too_long.status_code == 422
-    assert too_long.json()["detail"][0]["loc"][-1] == field
+    assert too_long.json()["errors"][0]["field"] == field
 
 
 @pytest.mark.parametrize("field,limit", BOUNDED_APPLICATION_FIELDS)
@@ -170,7 +170,7 @@ def test_application_field_bound_on_update(ctx, field, limit):
         url, json={field: "a" * (limit + 1)}, headers=ctx.user.headers
     )
     assert too_long.status_code == 422
-    assert too_long.json()["detail"][0]["loc"][-1] == field
+    assert too_long.json()["errors"][0]["field"] == field
     # La valeur refusée n'a rien changé.
     assert len(ctx.client.get(url, headers=ctx.user.headers).json()[field]) == limit
 
@@ -208,7 +208,10 @@ def test_application_source_is_a_closed_list(ctx, source):
         headers=ctx.user.headers,
     )
     assert response.status_code == 422
-    assert response.json()["detail"][0]["loc"][-1] == "source"
+    assert response.json()["errors"][0]["field"] == "source"
+    # Message dédié : jamais les valeurs techniques (manual/extension) exposées.
+    assert "manual" not in response.json()["detail"]
+    assert "extension" not in response.json()["detail"]
 
 
 def test_board_name_bound(ctx):
@@ -307,7 +310,7 @@ def test_unstorable_characters_are_rejected(ctx, name, method, path, build, auth
     )
 
     assert response.status_code == 422
-    assert response.json()["detail"][0]["loc"][-1] == field
+    assert response.json()["errors"][0]["field"] == field
 
 
 def test_valid_unicode_is_still_accepted(ctx):
@@ -413,7 +416,7 @@ def test_explicit_null_is_rejected_on_required_fields(ctx, field):
     response = ctx.client.patch(url, json={field: None}, headers=ctx.user.headers)
 
     assert response.status_code == 422
-    assert response.json()["detail"][0]["loc"][-1] == field
+    assert response.json()["errors"][0]["field"] == field
     assert ctx.client.get(url, headers=ctx.user.headers).json() == before
 
 
@@ -494,7 +497,11 @@ def test_applied_at_out_of_range_is_rejected_and_nothing_is_written(ctx, sent):
     response = ctx.client.patch(url, json={"applied_at": sent}, headers=ctx.user.headers)
 
     assert response.status_code == 422
-    assert response.json()["detail"][0]["loc"][-1] == "applied_at"
+    assert response.json()["errors"][0]["field"] == "applied_at"
+    # Message dédié, avec les bornes lisibles (JJ/MM/AAAA), pas les erreurs Pydantic
+    # brutes ("datetime_from_date_parsing", "value_error"…).
+    assert "01/01/1900" in response.json()["detail"]
+    assert "31/12/2100" in response.json()["detail"]
     # Rien n'a été écrit, et le compte reste pleinement utilisable.
     assert ctx.client.get(url, headers=ctx.user.headers).json()["applied_at"] == "2026-01-15T10:00:00"
     assert ctx.client.get("/applications", headers=ctx.user.headers).status_code == 200
@@ -600,8 +607,9 @@ def test_validation_bound_never_exceeds_the_column(model, column, bound):
 
 
 def test_validation_errors_do_not_echo_the_submitted_value(ctx):
-    """Le gestionnaire par défaut de FastAPI recopie la valeur fautive (`input`) :
-    un mot de passe refusé serait renvoyé en clair dans la réponse."""
+    """Le catalogue de messages (app/error_messages.py) ne lit jamais la valeur
+    soumise pour construire un message : un mot de passe refusé ne doit apparaître
+    NULLE PART dans la réponse, ni dans `detail` ni dans `errors`."""
     secret = "Sup3r-secret-" + "x" * MAX_PASSWORD_INPUT_BYTES
 
     response = ctx.client.post(
@@ -610,12 +618,16 @@ def test_validation_errors_do_not_echo_the_submitted_value(ctx):
 
     assert response.status_code == 422
     assert "Sup3r-secret" not in response.text
-    assert all("input" not in error for error in response.json()["detail"])
+    body = response.json()
+    assert isinstance(body["detail"], str)  # jamais le tableau brut de Pydantic
+    assert all("input" not in error for error in body["errors"])
+    assert all("Sup3r-secret" not in error["message"] for error in body["errors"])
 
 
-def test_validation_errors_keep_type_location_and_constraint(ctx):
-    """On retire la valeur soumise mais on garde de quoi expliquer l'erreur : c'est
-    ce que le frontend utilisera pour afficher un message lisible."""
+def test_validation_errors_are_french_with_a_field_reference(ctx):
+    """`detail` est une CHAÎNE française directement affichable (plus le tableau
+    brut de Pydantic — c'était la cause du « [object Object] » côté client) ;
+    `errors` porte, pour un champ du CORPS, de quoi colorer le champ en cause."""
     response = ctx.client.post(
         "/applications",
         json=_application_payload(ctx, title="a" * (MAX_TITLE_LENGTH + 1)),
@@ -623,8 +635,38 @@ def test_validation_errors_keep_type_location_and_constraint(ctx):
     )
 
     assert response.status_code == 422
-    error = response.json()["detail"][0]
-    assert error["type"] == "string_too_long"
-    assert error["loc"] == ["body", "title"]
-    assert error["ctx"]["max_length"] == MAX_TITLE_LENGTH
-    assert "msg" in error
+    body = response.json()
+    assert body["detail"] == f"L'intitulé du poste ne doit pas dépasser {MAX_TITLE_LENGTH} caractères."
+    assert body["errors"] == [{"field": "title", "message": body["detail"]}]
+
+
+def test_validation_errors_report_every_field_at_once(ctx):
+    """Plusieurs champs invalides dans la même requête : `errors` les liste TOUS,
+    `detail` reprend le message du PREMIER (un message actionnable plutôt qu'un
+    simple décompte)."""
+    response = ctx.client.post(
+        "/applications",
+        json=_application_payload(
+            ctx, title="a" * (MAX_TITLE_LENGTH + 1), company=""
+        ),
+        headers=ctx.user.headers,
+    )
+
+    assert response.status_code == 422
+    body = response.json()
+    fields = {error["field"] for error in body["errors"]}
+    assert fields == {"title", "company"}
+    assert body["detail"] == body["errors"][0]["message"]
+
+
+def test_path_and_query_errors_are_not_exposed_as_form_fields(ctx):
+    """Un identifiant malformé dans l'URL ou une chaîne de requête n'est jamais
+    saisi depuis l'usage normal de l'interface : `errors` n'expose PAS de `field`
+    pour ces cas (rien à colorer dans un formulaire), même si `detail` reste une
+    phrase française correcte."""
+    response = ctx.client.get(f"/applications/{0}", headers=ctx.user.headers)
+
+    assert response.status_code == 422
+    body = response.json()
+    assert "field" not in body["errors"][0]
+    assert body["detail"] == "La candidature n'est pas valide."

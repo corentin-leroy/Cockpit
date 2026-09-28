@@ -27,26 +27,39 @@ IdQuery = Annotated[int | None, Query(ge=1, le=MAX_ID)]
 # OAuth2PasswordBearer lit l'en-tête `Authorization: Bearer <token>`.
 # `tokenUrl` ne sert qu'à la documentation OpenAPI (bouton "Authorize" de
 # /docs) : il pointe vers l'endpoint qui délivre le token.
-# Si l'en-tête est absent, ce schéma renvoie lui-même un 401 (avec
-# WWW-Authenticate: Bearer), ce qui couvre le cas « token manquant ».
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+#
+# auto_error=False : par défaut (True), ce schéma lève LUI-MÊME un 401 quand
+# l'en-tête est absent, avec detail="Not authenticated" — EN ANGLAIS, codé en dur
+# dans FastAPI (fastapi/security/oauth2.py), avant même d'atteindre notre code.
+# C'est le message d'erreur le plus souvent vu par un utilisateur réel (une
+# session expirée). Avec auto_error=False, le schéma renvoie None au lieu de
+# lever, et c'est get_current_user ci-dessous qui décide du message (le même
+# 401 générique que pour un token invalide ou expiré).
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    token: str | None = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
     """Renvoie l'utilisateur authentifié à partir du JWT.
 
-    Lève 401 si le token est invalide/expiré, si le claim `sub` est absent ou
-    incohérent, ou si l'utilisateur n'existe plus en base. Le message reste
-    volontairement générique : on ne distingue pas les causes côté client.
+    Lève 401 si le token est ABSENT, invalide, expiré, si le claim `sub` est
+    absent ou incohérent, ou si l'utilisateur n'existe plus en base. Le message
+    reste volontairement générique : on ne distingue pas les causes côté client.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Impossible de valider les identifiants.",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    if token is None:
+        # auto_error=False : absence d'en-tête, ou en-tête qui n'est pas du
+        # "Bearer <valeur>". decode_access_token(None) lèverait une exception
+        # NON gérée (TypeError, jwt.decode attend une chaîne) : d'où ce contrôle
+        # AVANT l'appel, pas seulement `except`.
+        raise credentials_exception
 
     try:
         payload = decode_access_token(token)

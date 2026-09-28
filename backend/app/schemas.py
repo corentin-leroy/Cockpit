@@ -18,6 +18,7 @@ from pydantic import (
     Field,
     field_validator,
 )
+from pydantic_core import PydanticCustomError
 
 from app.limits import (
     MAX_BOARD_NAME_LENGTH,
@@ -54,19 +55,33 @@ class InputModel(BaseModel):
     futurs : l'oubli est impossible par construction, et tests/test_input_validation.py
     vérifie que chaque schéma d'entrée hérite bien de cette classe. Les schémas de
     SORTIE (`*Read`, Token, MessageResponse) n'en héritent pas : ils décrivent ce
-    que le serveur envoie, pas ce qu'il reçoit."""
+    que le serveur envoie, pas ce qu'il reçoit.
+
+    Lève PydanticCustomError, PAS un simple ValueError : avec un ValueError nu, le
+    `type` de l'erreur serait le générique `value_error` de Pydantic, identique à
+    celui de tous nos AUTRES validateurs personnalisés (mot de passe trop long,
+    date hors plage, null interdit…) — impossible de choisir le bon message
+    français sans deviner d'après le texte de l'exception. Le CODE stable
+    ("nul_character", "surrogate_character") permet à app/error_messages.py de
+    les distinguer de façon fiable. Effet de bord utile : le `ctx` de l'erreur
+    contient alors exactement ce qu'on lui passe (rien, ici), jamais l'objet
+    exception Python lui-même — ValueError l'y aurait mis (vérifié par
+    exécution), ce qui aurait empêché de bâtir une réponse JSON propre."""
 
     @field_validator("*", mode="before")
     @classmethod
     def _reject_unstorable_characters(cls, value):
         if isinstance(value, str):
             if "\x00" in value:
-                raise ValueError("Le caractère NUL (U+0000) n'est pas autorisé.")
+                raise PydanticCustomError(
+                    "nul_character", "Le caractère NUL (U+0000) n'est pas autorisé."
+                )
             try:
                 value.encode("utf-8")
             except UnicodeEncodeError:
-                raise ValueError(
-                    "Caractère Unicode invalide (surrogate isolé) non autorisé."
+                raise PydanticCustomError(
+                    "surrogate_character",
+                    "Caractère Unicode invalide (surrogate isolé) non autorisé.",
                 ) from None
         return value
 
@@ -77,10 +92,17 @@ def _check_presented_password_size(value: str) -> str:
 
     En octets et non en caractères : passlib compte les octets et lève
     PasswordSizeError (donc un 500) au-delà de 4096. Une borne en caractères
-    laisserait passer 2049 « é » (4098 octets)."""
+    laisserait passer 2049 « é » (4098 octets).
+
+    PydanticCustomError avec un code stable ("password_too_many_bytes") : voir
+    InputModel._reject_unstorable_characters pour pourquoi un ValueError nu ne
+    suffit pas (type générique `value_error`, indistinguable des autres
+    validateurs personnalisés)."""
     if len(value.encode("utf-8")) > MAX_PASSWORD_INPUT_BYTES:
-        raise ValueError(
-            f"Le mot de passe dépasse {MAX_PASSWORD_INPUT_BYTES} octets."
+        raise PydanticCustomError(
+            "password_too_many_bytes",
+            "Le mot de passe dépasse {max_bytes} octets.",
+            {"max_bytes": MAX_PASSWORD_INPUT_BYTES},
         )
     return value
 
@@ -276,8 +298,9 @@ class ApplicationUpdate(InputModel):
     @classmethod
     def _required_fields_cannot_be_null(cls, value):
         if value is None:
-            raise ValueError(
-                "Ce champ ne peut pas être null : omettez-le pour ne pas le modifier."
+            raise PydanticCustomError(
+                "null_not_allowed",
+                "Ce champ ne peut pas être null : omettez-le pour ne pas le modifier.",
             )
         return value
 
@@ -295,21 +318,34 @@ class ApplicationUpdate(InputModel):
            l'an 9999). Elles étaient commitées puis rendaient la ligne illisible :
            liste des candidatures du compte en 500, suppression comprise.
         3. La conversion elle-même peut déborder (an 1 avec +02:00) : OverflowError,
-           traité comme une date hors plage (422)."""
+           traité comme une date hors plage (422).
+
+        Les deux échecs lèvent le MÊME code PydanticCustomError
+        ("applied_at_out_of_range") : du point de vue de l'utilisateur, les deux
+        signifient « choisissez une date dans la plage acceptée ». Le contexte
+        transporte les bornes déjà formatées (JJ/MM/AAAA) : app/error_messages.py
+        les affiche telles quelles, sans dupliquer MIN_APPLIED_AT/MAX_APPLIED_AT."""
         if value is None:
             return value
+        range_ctx = {
+            "min": MIN_APPLIED_AT.strftime("%d/%m/%Y"),
+            "max": MAX_APPLIED_AT.strftime("%d/%m/%Y"),
+        }
         if value.tzinfo is not None:
             try:
                 value = value.astimezone(timezone.utc).replace(tzinfo=None)
             except OverflowError:
-                raise ValueError(
+                raise PydanticCustomError(
+                    "applied_at_out_of_range",
                     "Date hors plage : elle sort des dates représentables une fois "
-                    "convertie en UTC."
+                    "convertie en UTC.",
+                    range_ctx,
                 ) from None
         if not MIN_APPLIED_AT <= value <= MAX_APPLIED_AT:
-            raise ValueError(
-                f"La date doit être comprise entre le {MIN_APPLIED_AT:%d/%m/%Y} et le "
-                f"{MAX_APPLIED_AT:%d/%m/%Y} (heure UTC)."
+            raise PydanticCustomError(
+                "applied_at_out_of_range",
+                "La date doit être comprise entre le {min} et le {max} (UTC).",
+                range_ctx,
             )
         return value
 

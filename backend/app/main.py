@@ -5,17 +5,20 @@ Lance le serveur avec :  py -m uvicorn app.main:app --reload
 from dotenv import load_dotenv
 load_dotenv()
 
+import logging
 import os
 
 from fastapi import FastAPI, Request
-from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.error_messages import GENERIC_SERVER_ERROR_DETAIL, build_validation_error_body
 from app.limits import MAX_REQUEST_BODY_BYTES
 from app.routers import applications, auth, boards
+
+logger = logging.getLogger("app.errors")
 
 # Aucun create_all() ici : le schéma est géré par Alembic, en dev comme en prod
 # (`.venv\Scripts\python.exe -m alembic upgrade head`, exécuté par Railway en
@@ -101,22 +104,41 @@ app = FastAPI(
 async def validation_error_handler(
     request: Request, exc: RequestValidationError
 ) -> JSONResponse:
-    """Réponse 422 SANS la valeur soumise (`input`).
+    """Réponse 422 en FRANÇAIS, directement affichable (cf. app/error_messages.py).
 
-    Le gestionnaire par défaut de FastAPI recopie dans chaque erreur la valeur qui
-    l'a provoquée, ce qui pose deux problèmes :
-    - un MOT DE PASSE refusé (trop long, etc.) serait renvoyé en clair dans le
-      corps de la réponse, donc exposé à tout ce qui journalise les réponses ;
-    - un surrogate isolé (\\ud800) refusé par la validation faisait échouer la
-      sérialisation de la réponse d'erreur elle-même (UnicodeEncodeError → 500).
+    `detail` est une CHAÎNE (jamais le tableau brut de Pydantic — c'était la
+    cause du « [object Object] » côté client) ; `errors` liste chaque champ en
+    cause, pour un affichage sous le champ concerné.
 
-    On garde `type`, `loc`, `msg` et `ctx` (ex. `max_length`), qui suffisent au
-    client pour expliquer l'erreur ; seule la valeur soumise est retirée."""
-    errors = [
-        {key: value for key, value in error.items() if key != "input"}
-        for error in exc.errors()
-    ]
-    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
+    Cette reconstruction ignore aussi la valeur soumise (`input`) ET le `ctx` brut
+    de Pydantic : pour nos validateurs personnalisés, `ctx` contient l'OBJET
+    EXCEPTION Python lui-même (vérifié par exécution), non sérialisable
+    proprement en JSON ; pour un mot de passe refusé, le `msg` par défaut de
+    Pydantic recopierait la valeur en clair. build_validation_error_body ne lit
+    que `type`/`loc`/`ctx` pour CHOISIR un message dans le catalogue — jamais
+    pour le construire à partir de la donnée soumise."""
+    body = build_validation_error_body(exc.errors())
+    return JSONResponse(status_code=422, content=body)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Toute exception NON prévue (bug) renvoie un JSON français générique.
+
+    Par défaut, Starlette renvoie un corps VIDE ou non-JSON (« Internal Server
+    Error ») : `response.json()` échoue côté client, qui retombe sur
+    `response.statusText` — du texte anglais, sans rapport avec l'erreur réelle.
+
+    Le texte et la trace de l'exception ne sont JAMAIS renvoyés au client (fuite
+    de détail technique) ; ils restent visibles côté serveur via `logger.exception`
+    (logs locaux et Railway). Ce gestionnaire ne modifie PAS le comportement des
+    exceptions déjà gérées ailleurs (HTTPException, RequestValidationError) :
+    FastAPI/Starlette dispatchent toujours au gestionnaire le plus spécifique
+    enregistré pour le type réel de l'exception."""
+    logger.exception("Exception non gérée sur %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500, content={"detail": GENERIC_SERVER_ERROR_DETAIL}
+    )
 
 
 # Plafonne la taille des corps de requête (anti-charge utile démesurée).
