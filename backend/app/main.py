@@ -7,7 +7,9 @@ load_dotenv()
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -94,6 +96,28 @@ app = FastAPI(
     "candidatures, agrégation d'offres et extension navigateur.",
     version="0.1.0",
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Réponse 422 SANS la valeur soumise (`input`).
+
+    Le gestionnaire par défaut de FastAPI recopie dans chaque erreur la valeur qui
+    l'a provoquée, ce qui pose deux problèmes :
+    - un MOT DE PASSE refusé (trop long, etc.) serait renvoyé en clair dans le
+      corps de la réponse, donc exposé à tout ce qui journalise les réponses ;
+    - un surrogate isolé (\\ud800) refusé par la validation faisait échouer la
+      sérialisation de la réponse d'erreur elle-même (UnicodeEncodeError → 500).
+
+    On garde `type`, `loc`, `msg` et `ctx` (ex. `max_length`), qui suffisent au
+    client pour expliquer l'erreur ; seule la valeur soumise est retirée."""
+    errors = [
+        {key: value for key, value in error.items() if key != "input"}
+        for error in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(errors)})
+
 
 # Plafonne la taille des corps de requête (anti-charge utile démesurée).
 app.add_middleware(BodySizeLimitMiddleware, max_body_size=MAX_REQUEST_BODY_BYTES)

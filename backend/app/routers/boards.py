@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import IdPath, get_current_user
 from app.limits import MAX_BOARDS_PER_USER
 from app.models import Board, User
 from app.schemas import BoardCreate, BoardRead, BoardUpdate
@@ -77,7 +77,7 @@ def create_board(
 
 @router.patch("/{board_id}", response_model=BoardRead)
 def update_board(
-    board_id: int,
+    board_id: IdPath,
     payload: BoardUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -92,7 +92,7 @@ def update_board(
 
 @router.delete("/{board_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_board(
-    board_id: int,
+    board_id: IdPath,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

@@ -120,6 +120,91 @@ Frontend (depuis frontend/) :
   volée côté ASGI : renvoyer un 413 au milieu d'un flux déjà pris en charge par
   l'app provoque un double envoi de réponse.
 
+# Validation des entrées (schémas Pydantic)
+- RÈGLE : aucune entrée d'un client ne doit produire un 500. Une valeur invalide
+  est refusée en 422 AVANT la base. SQLite n'applique pas les longueurs de
+  VARCHAR(n) et accepte les NUL : un écart entre borne et colonne, ou un caractère
+  non enregistrable, n'échoue qu'en PostgreSQL (prod) — d'où des tests qui portent
+  sur la validation, indépendants du moteur (tests/test_input_validation.py).
+- Constantes dans `app/limits.py`, à côté des plafonds de quantité : longueurs de
+  champs (titre, entreprise, lieu 255 ; url 2048 ; notes 5000 ; nom de tableau
+  100 ; mot de passe choisi 128), `MAX_PASSWORD_INPUT_BYTES` (4096), `MAX_ID`.
+  Une borne ne doit JAMAIS dépasser la colonne de `models.py` (un test le vérifie).
+- Tous les schémas d'ENTRÉE héritent de `InputModel` (schemas.py) : un validateur
+  `'*'` refuse, dans tout champ texte, le NUL (U+0000 : PostgreSQL et bcrypt le
+  rejettent) et le surrogate isolé (`\ud800` : pas d'encodage UTF-8). REFUSÉS en
+  422, jamais nettoyés en silence (dans un mot de passe, retirer un caractère
+  changerait l'identifiant). Les schémas de SORTIE (`*Read`, Token,
+  MessageResponse) n'en héritent pas. Deux tests gardent l'oubli : tout schéma de
+  `schemas.py` est classé entrée/sortie, et tout corps de requête réel des routes
+  est un `InputModel`. Un nouveau schéma d'entrée doit donc en hériter.
+- Création et modification d'une candidature partagent les MÊMES types (alias
+  Title, Company, Location, Url, Notes, RowId) : une valeur acceptée à la création
+  l'est à la modification. L'écart entre les deux causait des 500 (location et url
+  non bornés en PATCH).
+- `notes` : 5000 caractères. La colonne reste `Text` (sans limite en base) jusqu'à
+  la migration prévue vers String(5000) (lot 3e) ; le test de cohérence
+  s'activera alors tout seul.
+- `source` : liste fermée `manual` | `extension` (Literal dans schemas.py,
+  colonne String(50) inchangée). Les sources d'API (V1.5) s'ajouteront à cette
+  liste le jour où elles existeront. `ApplicationRead.source` reste un `str` pour
+  qu'une valeur ancienne quelconque se lise toujours.
+- PATCH : un `null` EXPLICITE est refusé (422) sur les champs NOT NULL (title,
+  company, status, board_id) et reste permis sur location, url, notes, applied_at
+  (c'est le moyen de les vider). Pour ne pas modifier un champ, on l'OMET.
+- Identifiants : entiers >= 1 et <= 2147483647 (type `integer` de PostgreSQL).
+  `IdPath` / `IdQuery` (dependencies.py) pour l'URL et la requête, `RowId`
+  (schemas.py) pour le corps. 0 et les négatifs sont MALFORMÉS : 422, pas 404. Un
+  test refuse tout paramètre entier de route non borné.
+- Mot de passe CHOISI (inscription, réinitialisation) : 8 à 128 caractères. Mot de
+  passe PRÉSENTÉ (login, suppression de compte) : au plus 4096 OCTETS UTF-8, en
+  octets car passlib compte les octets (2049 « é » suffisent à le faire lever
+  PasswordSizeError). Borne haute technique, jamais un minimum : au-delà, 422 ; le
+  401 reste réservé à un mot de passe bien formé mais incorrect. La validation
+  précède la recherche du compte : la réponse ne dépend pas de l'existence de
+  l'email (anti-énumération préservée).
+- Réponses 422 : `validation_error_handler` (main.py) retire la valeur soumise
+  (`input`). Le gestionnaire par défaut de FastAPI la recopie : un mot de passe
+  refusé serait renvoyé en clair, et un surrogate isolé faisait échouer la
+  sérialisation de la réponse d'erreur elle-même (500). On garde `type`, `loc`,
+  `msg` et `ctx` (ex. `max_length`). `detail` d'un 422 est un TABLEAU : le front
+  et l'extension doivent le mettre en forme (sinon « [object Object] »).
+- Avant de changer ces règles ou d'ajouter un champ : sonder l'API contre un
+  PostgreSQL 18 jetable (Docker), pas seulement SQLite.
+- `applied_at` (PATCH) : ramené en UTC NAÏF puis borné à 1900-01-01 .. 2100-12-31
+  (`MIN_APPLIED_AT` / `MAX_APPLIED_AT`, limits.py), hors plage → 422. POURQUOI :
+  PostgreSQL accepte des dates de 4713 av. J.-C. à l'an 294276, mais psycopg ne
+  relit que les années 1 à 9999. Un fuseau converti en UTC pouvait sortir de cette
+  plage (`0001-01-01T00:00:00+02:00`, `9999-12-31T23:59:59-12:00`) : la date était
+  ÉCRITE ET COMMITÉE, puis sa relecture (`db.refresh`, juste après le commit)
+  échouait. La requête donnait 500 alors que l'écriture avait eu lieu, et la ligne
+  restait illisible pour toujours : la LISTE des candidatures du compte (le
+  kanban) donnait 500, et même DELETE (il charge la ligne d'abord). Seul un UPDATE
+  en base réparait. C'est un empoisonnement de DONNÉES, pas de session. La
+  normalisation règle aussi une divergence entre moteurs : `10:00+02:00` était
+  écrit 08:00 par PostgreSQL mais 10:00 par SQLite (qui ignore le fuseau).
+  Vérification avant déploiement : une requête en lecture seule compte les
+  `applied_at` hors plage (cast en TEXTE : un timestamp hors plage ferait échouer
+  la lecture elle-même).
+- Inscription concurrente de la même adresse : le contrôle de doublon lit puis
+  insère, donc plusieurs requêtes passent le contrôle avant qu'aucune n'ait commité.
+  C'est le `flush()` (l'INSERT dans users) qui lève la violation de la contrainte
+  unique, pas le commit : le `try/except IntegrityError` de `register` couvre les
+  deux. Sur violation : rollback, puis RELECTURE de l'email (pas d'analyse du
+  message d'erreur : les noms de contraintes diffèrent entre PostgreSQL et SQLite).
+  Le compte existe → le MÊME 409 que le contrôle préalable (constante
+  `EMAIL_TAKEN_DETAIL`, corps identique par construction) ; il n'existe pas → autre
+  violation d'intégrité, elle remonte en 500 visible et n'est jamais déguisée en
+  « email déjà pris ». Le contrôle préalable est conservé. Le nombre de perdantes
+  n'est pas aléatoire : 14 = 15 (pool 5 + 10) − 1. Avant correction : 14 x 500 /
+  25 x 409 / 1 x 201 par manche de 40 requêtes, sous PostgreSQL comme SQLite.
+- Connus et NON traités : durcissements de fond prévus dans un lot séparé : casse
+  des emails (deux comptes `Case@` et `case@`), bcrypt tronque à 72 octets, schéma
+  d'URL (`javascript:` accepté), espaces seuls acceptés côté backend, limites de
+  débit. Saturation du pool : inscription et login gardent leur connexion pendant
+  le hachage bcrypt (~0,2 s) ; environ 15 requêtes simultanées saturent le pool par
+  défaut (5 + 10) et, au-delà de 30 s d'attente, `QueuePool timeout` donne un 500.
+
 # Tests backend (backend/tests/, `.venv\Scripts\python.exe -m pytest`)
 - Portée VOLONTAIREMENT ciblée : la matrice sécurité déjà validée manuellement
   (auth + ownership) et les garde-fous anti-abus, pas une couverture exhaustive.
@@ -127,7 +212,28 @@ Frontend (depuis frontend/) :
   mot de passe, perte de l'anti-énumération, cloisonnement par user, plafonds).
 - Fichiers : `test_auth.py`, `test_boards_ownership.py`,
   `test_applications_ownership.py`, `test_limits.py`,
-  `test_account_deletion.py`, `test_migrations.py`.
+  `test_account_deletion.py`, `test_migrations.py`, `test_input_validation.py`,
+  `test_registration_race.py`.
+- `test_input_validation.py` : pour chaque champ borné, la valeur maximale passe
+  et la valeur maximale + 1 donne 422 (création ET modification) ; NUL et
+  surrogate isolé refusés dans chaque champ texte de chaque schéma d'entrée ;
+  mot de passe borné en octets au login et à la suppression ; `null` en PATCH ;
+  identifiants hors plage ; gardes contre l'oubli (héritage d'`InputModel`,
+  paramètres entiers bornés) ; cohérence borne/colonne ; corps 422 sans la valeur
+  soumise ; `applied_at` (bornes 1900/2100 acceptées et refusées, fuseau converti
+  en UTC naïf, débordements à la conversion, liste toujours lisible ensuite). Le
+  client de test LÈVE les exceptions non gérées : un 500 fait échouer le test
+  bruyamment. Limite : l'assertion « la liste reste lisible » ne peut pas échouer
+  sous SQLite (qui relit l'an 1 sans problème) ; ce qui protège en test, c'est le
+  422 et « rien n'est écrit ». Le vrai empoisonnement ne se prouve que sur
+  PostgreSQL (sondes HTTP contre un PostgreSQL jetable).
+- `test_registration_race.py` : 40 inscriptions simultanées de la même adresse,
+  5 manches, sur une base SQLite FICHIER (une connexion par requête, pool par
+  défaut) et non la base en mémoire à connexion unique des autres tests, qui ne
+  permettrait pas de vraie concurrence. Exige exactement une 201, le reste en 409,
+  zéro exception, un seul compte et un seul tableau par manche (~2 s au total).
+  Plus un test déterministe (contrôle préalable rendu aveugle) et un test de garde
+  (une autre `IntegrityError` reste un 500, jamais déguisée en 409).
 - `test_migrations.py` migre sa PROPRE base SQLite en mémoire (connexion injectée
   via `config.attributes["connection"]`, cf. alembic/env.py) et vérifie : une
   seule tête de migration ; `upgrade head` depuis le vide produit EXACTEMENT le
@@ -276,6 +382,22 @@ Frontend (depuis frontend/) :
   created_at).
 - Les tests restent sur SQLite en mémoire (cf. conftest.py) : rapides, isolés,
   aucune dépendance à un PostgreSQL local.
+- Session SQLAlchemy par requête (`get_db`, database.py) : ouverte, puis fermée
+  dans un `finally` (`db.close()`) ; aucun `rollback` explicite dans l'application,
+  et il n'en faut pas : `Session.close()` termine la transaction en cours. Un
+  EMPOISONNEMENT DE SESSION (une transaction non annulée qui ferait échouer les
+  requêtes suivantes sur la même connexion) a été soupçonné après une DataError et
+  ÉCARTÉ, preuve à l'appui, le 2026-09-26 : sur un vrai uvicorn et un PostgreSQL 18
+  jetable, pool réduit à UNE connexion, la même connexion (un seul pid, 56
+  emprunts) a servi toutes les requêtes ; juste après l'erreur, lectures et
+  écritures du même compte et d'un autre compte réussissent, et aucune connexion
+  n'est restée `idle in transaction`. Témoin : un `get_db` qui ne ferme jamais la
+  session épuise le pool (`QueuePool ... timed out`, 500 en 6 s), donc le test sait
+  détecter une session qui fuit. Ce qui ressemblait à un empoisonnement était un
+  empoisonnement de DONNÉES (cf. `applied_at`, section « Validation des entrées »).
+  Ne pas refaire ce diagnostic ; le pool n'est pas configurable dans l'app
+  (database.py : `create_engine` sans `pool_size`), le montage d'essai remplaçait
+  `sqlalchemy.create_engine` avant l'import de l'app.
 
 # Migrations (Alembic)
 - Le schéma est géré par Alembic (`alembic==1.20.0`, backend/alembic/), en dev

@@ -9,6 +9,8 @@ Source unique : ces constantes sont importées par les routers concernés
 (boards, applications) et par le middleware de taille de requête (main.py).
 """
 
+from datetime import datetime
+
 # Nombre maximum de tableaux par utilisateur. Un compte a toujours ≥ 1 tableau
 # (board par défaut à l'inscription) ; ce plafond borne l'autre extrémité.
 MAX_BOARDS_PER_USER = 10
@@ -23,3 +25,43 @@ MAX_APPLICATIONS_PER_USER = 300
 # charge utile énorme (ex. un champ `notes` de plusieurs Mo) ne consomme mémoire
 # et stockage. Appliqué globalement par un middleware (voir main.py).
 MAX_REQUEST_BODY_BYTES = 1 * 1024 * 1024
+
+# --- Longueurs de champs (en CARACTÈRES sauf mention contraire) ---
+# Bornes de validation des entrées, importées par schemas.py. Elles ne doivent
+# JAMAIS dépasser la longueur de la colonne correspondante (models.py) : une borne
+# plus large que la colonne laisse passer la validation puis échoue à l'écriture
+# en PostgreSQL (500 au lieu d'un 422). tests/test_input_validation.py vérifie
+# cette cohérence. SQLite n'applique pas les longueurs de VARCHAR : seul PostgreSQL
+# révèle l'écart, d'où ce test indépendant du moteur.
+MAX_TITLE_LENGTH = 255  # applications.title  String(255)
+MAX_COMPANY_LENGTH = 255  # applications.company String(255)
+MAX_LOCATION_LENGTH = 255  # applications.location String(255)
+MAX_URL_LENGTH = 2048  # applications.url String(2048)
+MAX_BOARD_NAME_LENGTH = 100  # boards.name String(255) : borne API plus stricte
+# notes : colonne Text (sans limite en base). Bornée ici seulement ; la migration
+# vers String(5000) est prévue à part (lot 3e).
+MAX_NOTES_LENGTH = 5000
+
+# Mot de passe choisi (inscription, réinitialisation), en caractères.
+MAX_PASSWORD_LENGTH = 128
+# Mot de passe PRÉSENTÉ (login, suppression de compte), en OCTETS UTF-8 et non en
+# caractères : passlib compte les octets et lève PasswordSizeError au-delà de 4096.
+# Une borne en caractères laisserait un 500 pour les mots de passe multi-octets
+# (2049 « é » = 4098 octets). Borne haute technique uniquement, jamais un minimum :
+# on ne rejoue pas la politique d'inscription à la connexion.
+MAX_PASSWORD_INPUT_BYTES = 4096
+
+# Plage acceptée pour la date de candidature (applied_at), en UTC naïf, bornes
+# INCLUSES. PostgreSQL stocke des dates de 4713 av. J.-C. à l'an 294276 alors que
+# Python et psycopg ne relisent que les années 1 à 9999 : une date hors de cette
+# plage (obtenue par ex. en convertissant en UTC un an 1 avec fuseau) est écrite
+# et commitée, puis sa RELECTURE échoue — la ligne devient illisible, la liste des
+# candidatures de tout le compte donne 500 et même la suppression échoue. Une plage
+# large mais bornée protège de ça sans rejeter de saisie réaliste.
+MIN_APPLIED_AT = datetime(1900, 1, 1)
+MAX_APPLIED_AT = datetime(2100, 12, 31, 23, 59, 59, 999999)
+
+# Plus grand identifiant accepté : entier signé 32 bits, le type `integer` de
+# PostgreSQL. Au-delà, la base lève « integer out of range » (500). Les
+# identifiants sont des entiers >= 1 : 0 et les négatifs sont malformés (422).
+MAX_ID = 2_147_483_647

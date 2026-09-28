@@ -4,14 +4,25 @@ Contient l'authentification : `get_current_user` transforme le JWT porté par
 la requête en objet `User`, ou refuse la requête avec un 401.
 """
 
+from typing import Annotated
+
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Path, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.limits import MAX_ID
 from app.models import User
 from app.security import decode_access_token
+
+# Identifiants reçus dans l'URL (chemin) ou la chaîne de requête. Un identifiant est
+# un entier >= 1 tenant dans le type `integer` de PostgreSQL : 0 et les négatifs
+# sont MALFORMÉS (422), pas « introuvables » ; au-delà de MAX_ID la base lève
+# « integer out of range » (500). Les identifiants du CORPS sont bornés dans
+# schemas.py (RowId, mêmes constantes).
+IdPath = Annotated[int, Path(ge=1, le=MAX_ID)]
+IdQuery = Annotated[int | None, Query(ge=1, le=MAX_ID)]
 
 # OAuth2PasswordBearer lit l'en-tête `Authorization: Bearer <token>`.
 # `tokenUrl` ne sert qu'à la documentation OpenAPI (bouton "Authorize" de

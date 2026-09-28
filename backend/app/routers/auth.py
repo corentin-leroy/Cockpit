@@ -13,6 +13,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -57,6 +58,11 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # base. Limite assumée : c'est une fenêtre glissante par compte, pas une défense
 # volumétrique par IP — celle-ci se posera au niveau du reverse proxy en prod.
 MAX_EMAILS_PER_HOUR = 3
+
+# Message du 409 « email déjà pris ». Une seule constante pour les DEUX chemins qui
+# le renvoient (contrôle préalable et course perdue, cf. register) : le corps est
+# identique par construction.
+EMAIL_TAKEN_DETAIL = "Un compte existe déjà avec cet email."
 
 
 def _recent_token_count(db: Session, user_id: int, purpose: TokenPurpose) -> int:
@@ -140,32 +146,54 @@ def register(
     Envoie un email de vérification, mais l'inscription réussit et le compte est
     immédiatement utilisable : la vérification n'est PAS bloquante (décision
     produit). Un échec d'envoi ne compromet donc pas l'inscription.
+
+    Deux inscriptions simultanées de la même adresse : le contrôle préalable ci-
+    dessous LIT puis on INSÈRE, donc plusieurs requêtes peuvent passer le contrôle
+    avant qu'aucune n'ait commité. La contrainte unique de la base les départage ;
+    les perdantes reçoivent le MÊME 409 que le contrôle préalable (cf. le `except`).
     """
-    # Contrôle applicatif du doublon : message clair pour le client.
-    # La contrainte unique en base reste le garde-fou ultime (voir plus bas).
+    # Contrôle applicatif du doublon : message clair pour le client, et chemin
+    # normal (sans écriture inutile). La contrainte unique en base reste le
+    # garde-fou ultime : elle seule est fiable face à la concurrence.
     existing = db.scalar(select(User).where(User.email == payload.email))
     if existing is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Un compte existe déjà avec cet email.",
+            detail=EMAIL_TAKEN_DETAIL,
         )
 
     user = User(
         email=payload.email,
         hashed_password=hash_password(payload.password),
     )
-    db.add(user)
-    db.flush()  # attribue user.id sans clore la transaction
+    try:
+        db.add(user)
+        # C'est CE flush (l'INSERT dans users) qui lève la violation de la
+        # contrainte unique, et non le commit : le `try` doit donc le couvrir.
+        db.flush()  # attribue user.id sans clore la transaction
 
-    # Tout utilisateur possède au moins un tableau : on lui en crée un par défaut
-    # à l'inscription (garantit l'invariant « toujours ≥ 1 board » dès la création
-    # du compte). Même transaction que l'utilisateur : les deux réussissent ou
-    # échouent ensemble.
-    db.add(Board(name="Mes candidatures", user_id=user.id))
+        # Tout utilisateur possède au moins un tableau : on lui en crée un par
+        # défaut à l'inscription (garantit l'invariant « toujours ≥ 1 board » dès la
+        # création du compte). Même transaction que l'utilisateur : les deux
+        # réussissent ou échouent ensemble.
+        db.add(Board(name="Mes candidatures", user_id=user.id))
 
-    verification_token = _issue_token(db, user, TokenPurpose.EMAIL_VERIFICATION)
+        verification_token = _issue_token(db, user, TokenPurpose.EMAIL_VERIFICATION)
 
-    db.commit()
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # On RELIT l'email plutôt que de deviner d'après le message d'erreur : les
+        # noms de contraintes diffèrent entre PostgreSQL et SQLite. Le compte existe
+        # → course perdue, même 409 que le contrôle préalable. Il n'existe pas →
+        # c'est une AUTRE violation d'intégrité : on la laisse remonter (500 visible)
+        # au lieu de la déguiser en « email déjà pris ».
+        if db.scalar(select(User).where(User.email == payload.email)) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=EMAIL_TAKEN_DETAIL,
+            ) from None
+        raise
     db.refresh(user)
 
     # Envoi APRÈS le commit et en tâche de fond : l'utilisateur n'attend pas

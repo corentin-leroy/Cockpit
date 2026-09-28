@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import IdPath, IdQuery, get_current_user
 from app.limits import MAX_APPLICATIONS_PER_USER
 from app.models import Application, ApplicationStatus, Board, User
 from app.routers.boards import get_owned_board
@@ -46,7 +46,7 @@ def _get_owned_application(
 
 @router.get("", response_model=list[ApplicationRead])
 def list_applications(
-    board_id: int | None = None,
+    board_id: IdQuery = None,
     status_filter: ApplicationStatus | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -115,7 +115,7 @@ def create_application(
 
 @router.get("/{application_id}", response_model=ApplicationRead)
 def get_application(
-    application_id: int,
+    application_id: IdPath,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -124,7 +124,7 @@ def get_application(
 
 @router.patch("/{application_id}", response_model=ApplicationRead)
 def update_application(
-    application_id: int,
+    application_id: IdPath,
     payload: ApplicationUpdate,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -153,7 +153,7 @@ def update_application(
 
 @router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_application(
-    application_id: int,
+    application_id: IdPath,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
