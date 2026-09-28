@@ -11,6 +11,8 @@
 // POST se font depuis le contexte de l'extension → pas soumis à la CSP du site.
 
 import { getBoards, createApplication } from "./api.js";
+import { URL_MAX_LENGTH } from "./limits.js";
+import { stripTrackingParams } from "./urlCleanup.js";
 
 // --- La fonction injectée dans la page ---
 // ATTENTION : cette fonction est sérialisée puis exécutée DANS la page.
@@ -78,10 +80,33 @@ function extractOffer() {
   return {
     title: (structured?.title ?? document.title ?? "").slice(0, 255),
     company: (structured?.company ?? "").slice(0, 255),
-    location: structured?.location ?? "",
+    location: (structured?.location ?? "").slice(0, 255),
     url: location.href,
     source: "extension",
   };
+}
+
+/**
+ * Ramène `offer.url` sous URL_MAX_LENGTH si besoin (mutation en place).
+ *
+ * En dessous de la borne : rien ne change, quels que soient les paramètres
+ * portés par l'URL. Au-delà : on retire d'abord les paramètres de suivi connus
+ * (urlCleanup.js) ; si ça ne suffit pas — fréquent sur LinkedIn/Indeed, où la
+ * longueur vient surtout de la navigation interne (identifiant d'offre, tri,
+ * pagination) et non du suivi marketing — on laisse le champ VIDE plutôt que de
+ * poster un lien tronqué et cassé. `offer.urlTooLong` signale ce cas à la popup,
+ * qui invite alors à coller le lien à la main.
+ */
+function shortenUrlIfNeeded(offer) {
+  if (!offer.url || offer.url.length <= URL_MAX_LENGTH) return;
+
+  const cleaned = stripTrackingParams(offer.url);
+  if (cleaned.length <= URL_MAX_LENGTH) {
+    offer.url = cleaned;
+  } else {
+    offer.url = "";
+    offer.urlTooLong = true;
+  }
 }
 
 /**
@@ -104,6 +129,9 @@ async function handleExtractOffer() {
       target: { tabId: tab.id },
       func: extractOffer,
     });
+    // Hors du contexte sandboxé (contrairement à extractOffer ci-dessus) : peut
+    // importer librement, d'où le nettoyage ICI plutôt que dans extractOffer.
+    shortenUrlIfNeeded(offer);
     return { ok: true, offer };
   } catch (err) {
     return { ok: false, error: err.message };

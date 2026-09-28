@@ -22,6 +22,17 @@
 - Aucun emoji dans les chaînes de `popup.js` : le pictogramme d'état vient uniquement
   du CSS (`::before`).
 
+## Bornes de validation — miroir du backend
+- `limits.js` reprend les bornes de `backend/app/limits.py` (titre, entreprise,
+  lieu : 255 ; url : 2048), posées par code sur les champs de la popup
+  (`titleEl.maxLength = ...`) plutôt qu'en dur dans popup.html.
+- N'inclut PAS la troncature appliquée à l'extraction (title/company/location
+  coupés à 255 dans `extractOffer`, background.js) : cette fonction est
+  sérialisée et exécutée dans la page visitée, elle ne peut importer aucun
+  module — ces valeurs y restent dupliquées en dur, comme avant ce lot.
+- Toute modification des bornes backend doit être répercutée dans CE fichier ET
+  dans le corps d'`extractOffer` (deux endroits, pour la raison ci-dessus).
+
 ## Comportements volontaires — ne pas « corriger »
 - La popup se ferme automatiquement 900 ms après un ajout réussi. C'est un choix assumé :
   la fermeture fait elle-même office de confirmation.

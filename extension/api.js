@@ -20,12 +20,22 @@ import { getToken, clearToken } from "./storage.js";
 // d'authentification vers un serveur arbitraire.
 export const API_BASE_URL = "https://cockpit-production-6afb.up.railway.app";
 
-/** Erreur d'API porteuse du code HTTP, pour que l'appelant détecte un 401. */
+/**
+ * Erreur d'API porteuse du code HTTP (pour détecter un 401) et du corps JSON
+ * complet (`data`) — notamment `data.errors`, la liste par champ que le backend
+ * fournit sur un 422 (`[{"field": "title", "message": "..."}]`). La popup n'a
+ * qu'un seul conteneur de message (`#message`, cf. CLAUDE.md de l'extension :
+ * « ne pas en créer un second ») et n'exploite donc PAS `data.errors`
+ * aujourd'hui — `message` (déjà la bonne phrase française, cf. plus bas) suffit
+ * à ce seul affichage. `data` est conservé pour rester aligné avec ApiError du
+ * front (frontend/src/api/client.js), qui l'exploite déjà.
+ */
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, data) {
     super(message);
     this.name = "ApiError";
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -43,9 +53,10 @@ export async function login(email, password) {
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    // FastAPI renvoie le motif dans `detail` (401 : « Email ou mot de passe
-    // incorrect. »). Fallback générique si le corps est illisible.
-    throw new ApiError(data?.detail || `Erreur ${response.status}`, response.status);
+    // Le backend renvoie `detail` déjà en français, directement affichable —
+    // TOUJOURS une chaîne, y compris sur un 422 (401 ici : « Email ou mot de
+    // passe incorrect. »). Fallback générique si le corps est illisible.
+    throw new ApiError(data?.detail || `Erreur ${response.status}`, response.status, data);
   }
   return data;
 }
@@ -70,7 +81,7 @@ export async function getBoards() {
     if (response.status === 401) {
       await clearToken();
     }
-    throw new ApiError(data?.detail || `Erreur ${response.status}`, response.status);
+    throw new ApiError(data?.detail || `Erreur ${response.status}`, response.status, data);
   }
   return data;
 }
@@ -100,7 +111,7 @@ export async function createApplication(offer) {
     if (response.status === 401) {
       await clearToken();
     }
-    throw new ApiError(data?.detail || `Erreur ${response.status}`, response.status);
+    throw new ApiError(data?.detail || `Erreur ${response.status}`, response.status, data);
   }
   return data;
 }

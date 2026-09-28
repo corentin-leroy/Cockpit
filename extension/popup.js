@@ -21,6 +21,12 @@ import {
   setLastBoardId,
 } from "./storage.js";
 import { login } from "./api.js";
+import {
+  TITLE_MAX_LENGTH,
+  COMPANY_MAX_LENGTH,
+  LOCATION_MAX_LENGTH,
+  URL_MAX_LENGTH,
+} from "./limits.js";
 
 const loadingEl = document.getElementById("loading");
 const loggedOutEl = document.getElementById("logged-out");
@@ -41,6 +47,14 @@ const boardFieldEl = document.getElementById("board-field");
 const boardSelectEl = document.getElementById("f-board");
 const addBtn = document.getElementById("add-btn");
 const logoutBtn = document.getElementById("logout-btn");
+
+// Bornes posées PAR CODE (miroir du backend, cf. limits.js) plutôt qu'en dur
+// dans popup.html : un fichier réellement appliqué, pas une documentation qu'on
+// pourrait oublier de tenir à jour.
+titleEl.maxLength = TITLE_MAX_LENGTH;
+companyEl.maxLength = COMPANY_MAX_LENGTH;
+locationEl.maxLength = LOCATION_MAX_LENGTH;
+urlEl.maxLength = URL_MAX_LENGTH;
 
 // Offre extraite courante : on la conserve pour préserver les champs non éditables
 // (source) et l'url même si l'utilisateur ne la touche pas — au moment de l'envoi,
@@ -103,6 +117,15 @@ async function startExtraction() {
   companyEl.value = offer.company ?? "";
   locationEl.value = offer.location ?? "";
   urlEl.value = offer.url ?? "";
+
+  // L'extraction a RÉUSSI (title/company/location sont là) ; seule l'URL a dû
+  // être écartée (trop longue même après nettoyage — cf. background.js). Pas de
+  // variante "error" (pas de ⚠) : ce n'est pas un échec global, la candidature
+  // pourra être ajoutée sans son lien, à compléter à la main si l'utilisateur le
+  // souhaite.
+  if (offer.urlTooLong) {
+    showMessage("Lien trop long : collez-le manuellement dans le champ ci-dessus si besoin.");
+  }
 
   extractStatusEl.style.display = "none";
   offerFormEl.style.display = "block";

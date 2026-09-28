@@ -84,6 +84,12 @@ du Web Store comme par n'importe qui.
   `extractOffer()` et renvoie l'offre à la popup (sans rien poster) ; `ADD_OFFER`
   poste les données validées vers l'API depuis le contexte extension (immunisé
   contre la CSP des sites), avec le token lu dans `chrome.storage`.
+- `limits.js` — miroir des bornes de validation du backend (cf. CLAUDE.md de
+  l'extension), appliqué aux champs du formulaire de correction.
+- `urlCleanup.js` — nettoyage d'une URL d'offre trop longue (> 2048
+  caractères) : liste EXPLICITE et volontairement minimale de paramètres de
+  suivi à retirer, jamais une règle générale. Documentée dans le fichier
+  lui-même, y compris comment l'étendre.
 
 ## Pistes d'amélioration
 
