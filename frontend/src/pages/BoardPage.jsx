@@ -3,24 +3,43 @@
 // les trois états : chargement, erreur, succès (dont le cas liste vide).
 
 import { useEffect, useMemo, useState } from 'react'
-import { DragDropProvider } from '@dnd-kit/react'
+import { DragDropProvider, useDragOperation } from '@dnd-kit/react'
 
 import {
   getApplications,
   createApplication,
   updateApplication,
   deleteApplication,
+  archiveApplication,
 } from '../api/applications.js'
 import { useBoards } from '../boards/useBoards.js'
 import Navbar from '../components/Navbar.jsx'
 import VerificationBanner from '../components/VerificationBanner.jsx'
 import Sidebar from '../components/Sidebar.jsx'
 import KanbanColumn from '../components/KanbanColumn.jsx'
+import ArchiveDropZone from '../components/ArchiveDropZone.jsx'
 import Modal from '../components/Modal.jsx'
 import Alert from '../components/Alert.jsx'
 import ApplicationForm from '../components/ApplicationForm.jsx'
 import BoardForm from '../components/BoardForm.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
+
+// Enveloppe de <main class="board-main"> qui pose board-main--dragging pendant
+// un glisser-déposer : cette classe réserve (par padding-bottom, cf.
+// components.css) la hauteur d'ArchiveDropZone, plutôt que de laisser la barre
+// se superposer au bas des colonnes. DOIT être un composant à part — un hook
+// appelé dans BoardPage lui-même n'aurait pas accès au contexte de
+// DragDropProvider que BoardPage rend dans le même JSX (le contexte n'est
+// fourni qu'à ses DESCENDANTS, pas au composant qui le monte).
+function BoardMain({ children }) {
+  const { source } = useDragOperation()
+  const isDragging = source != null
+  return (
+    <main className={`board-main${isDragging ? ' board-main--dragging' : ''}`}>
+      {children}
+    </main>
+  )
+}
 
 export default function BoardPage() {
   // Tableau courant (source de vérité partagée) : pilote quelles candidatures
@@ -137,6 +156,11 @@ export default function BoardPage() {
       return
     }
 
+    if (target.data?.type === 'archive') {
+      archiveViaDrag(applicationId)
+      return
+    }
+
     // Cible « colonne » : changement de statut (comportement existant, inchangé).
     const newStatus = target.id // clé du statut de la colonne cible (chaîne)
 
@@ -210,6 +234,32 @@ export default function BoardPage() {
     })
   }
 
+  // Archivage par glisser-déposer sur ArchiveDropZone : même chemin optimiste
+  // que moveApplicationToBoard (la carte disparaît immédiatement, la vue
+  // courante ne montrant que les candidatures ACTIVES). Rollback ciblé si le
+  // serveur refuse (409, plafond de 2000 archivées, ou déjà archivée) ;
+  // l'erreur va dans la bannière actionError, comme les autres échecs de drag.
+  function archiveViaDrag(applicationId) {
+    const index = applications.findIndex((item) => item.id === applicationId)
+    if (index === -1) return
+    const archived = applications[index]
+
+    setActionError('')
+    setApplications((prev) => prev.filter((item) => item.id !== applicationId))
+
+    archiveApplication(applicationId).catch((err) => {
+      setApplications((prev) => {
+        if (prev.some((item) => item.id === applicationId)) return prev
+        const next = [...prev]
+        next.splice(Math.min(index, next.length), 0, archived)
+        return next
+      })
+      setActionError(
+        err.message || "L'archivage a échoué. La carte a été restaurée.",
+      )
+    })
+  }
+
   // Création : la candidature créée est renvoyée par le backend (statut « saved »).
   // Le formulaire y attache un board_id (tableau courant par défaut, ou un autre
   // tableau choisi). On ne l'ajoute au kanban QUE si elle appartient au tableau
@@ -236,6 +286,19 @@ export default function BoardPage() {
         ? prev.map((item) => (item.id === updated.id ? updated : item))
         : prev.filter((item) => item.id !== updated.id),
     )
+    closeModal()
+  }
+
+  // Archivage depuis la modale (alternative au glisser-déposer vers la zone
+  // d'archive) : réversible, donc AUCUNE confirmation demandée. La candidature
+  // n'est plus active, elle sort de la vue de ce tableau — même sort qu'un
+  // déplacement vers un autre tableau (GET /applications ne renvoie que les
+  // actives). Aucun try/catch ici : une erreur (409, plafond de 2000
+  // archivées) doit remonter au formulaire, qui l'affiche et reste ouvert.
+  async function handleArchive() {
+    const target = modal.application
+    await archiveApplication(target.id)
+    setApplications((prev) => prev.filter((item) => item.id !== target.id))
     closeModal()
   }
 
@@ -338,7 +401,7 @@ export default function BoardPage() {
             deletingBoardId={deletingBoardId}
           />
 
-          <main className="board-main">
+          <BoardMain>
             <div className="board-header">
               <h1
                 className="board-header__title"
@@ -384,8 +447,9 @@ export default function BoardPage() {
                 ))}
               </div>
             )}
-          </main>
+          </BoardMain>
         </div>
+        <ArchiveDropZone />
         </DragDropProvider>
       )}
 
@@ -412,6 +476,7 @@ export default function BoardPage() {
             onCancel={closeModal}
             onDelete={handleDelete}
             deleting={deletingId === modal.application.id}
+            onArchive={handleArchive}
           />
         </Modal>
       )}

@@ -47,6 +47,7 @@ const FIELD_MAP = {
  * @param {() => void} props.onCancel        fermeture sans enregistrer.
  * @param {() => void} [props.onDelete]      si fourni, affiche « Supprimer ».
  * @param {boolean}  [props.deleting]        désactive les actions pendant la suppression.
+ * @param {() => Promise<void>} [props.onArchive]  si fourni, affiche « Archiver ».
  */
 export default function ApplicationForm({
   initialValues,
@@ -57,6 +58,7 @@ export default function ApplicationForm({
   onCancel,
   onDelete,
   deleting = false,
+  onArchive,
 }) {
   // On ne conserve que les champs éditables ; les valeurs manquantes (null côté
   // API) sont normalisées en chaîne vide pour des <input> contrôlés. board_id est
@@ -81,8 +83,9 @@ export default function ApplicationForm({
   const [fieldErrors, setFieldErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [archiving, setArchiving] = useState(false)
 
-  const busy = submitting || deleting
+  const busy = submitting || deleting || archiving
 
   function update(field) {
     return (event) => {
@@ -128,6 +131,22 @@ export default function ApplicationForm({
       setFieldErrors(apiFieldErrors)
       setFormError(generalMessage)
       setSubmitting(false)
+    }
+  }
+
+  // Archivage : réversible, donc aucune confirmation demandée (contrairement à
+  // la suppression). Erreur gérée ICI, pas déléguée au parent : un 409 (plafond
+  // de 2000 archivées) doit s'afficher dans la modale, qui reste ouverte,
+  // exactement comme un échec de handleSubmit.
+  async function handleArchive() {
+    setFormError('')
+    setArchiving(true)
+    try {
+      await onArchive()
+      // Succès : le parent ferme la modale (ce composant est démonté).
+    } catch (err) {
+      setFormError(err.message || "L'archivage a échoué.")
+      setArchiving(false)
     }
   }
 
@@ -272,6 +291,17 @@ export default function ApplicationForm({
       )}
 
       <div className="form-actions">
+        {onArchive && (
+          <button
+            type="button"
+            className="btn btn--secondary"
+            onClick={handleArchive}
+            disabled={busy}
+          >
+            {archiving ? 'Archivage…' : 'Archiver'}
+          </button>
+        )}
+
         {onDelete && (
           <button
             type="button"

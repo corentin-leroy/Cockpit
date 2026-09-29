@@ -52,3 +52,34 @@ export function updateApplication(id, data) {
 export function deleteApplication(id) {
   return apiFetch(`/applications/${id}`, { method: 'DELETE' })
 }
+
+/**
+ * Récupère les candidatures ARCHIVÉES de l'utilisateur connecté, tous tableaux
+ * confondus. GET /applications?archived=true (jamais un mélange actif/archivé,
+ * cf. CLAUDE.md « Archivage des candidatures »).
+ * @returns {Promise<Array>} liste des candidatures archivées.
+ */
+export function getArchivedApplications() {
+  return apiFetch('/applications?archived=true')
+}
+
+/**
+ * Archive une candidature. POST /applications/{id}/archive.
+ * Le statut n'est pas modifié ; le serveur pose archived_at. 409 si le plafond
+ * de 2000 archivées est atteint, ou si elle est déjà archivée.
+ * @param {number} id  identifiant de la candidature.
+ * @returns {Promise<Object>} la candidature à jour.
+ */
+export function archiveApplication(id) {
+  return apiFetch(`/applications/${id}/archive`, { method: 'POST' })
+}
+
+/**
+ * Désarchive une candidature. POST /applications/{id}/unarchive.
+ * 409 si le plafond de 300 actives est atteint, ou si elle est déjà active.
+ * @param {number} id  identifiant de la candidature.
+ * @returns {Promise<Object>} la candidature à jour.
+ */
+export function unarchiveApplication(id) {
+  return apiFetch(`/applications/${id}/unarchive`, { method: 'POST' })
+}

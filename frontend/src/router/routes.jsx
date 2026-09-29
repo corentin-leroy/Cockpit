@@ -4,6 +4,7 @@ import GuestRoute from '../components/GuestRoute.jsx'
 import ProtectedRoute from '../components/ProtectedRoute.jsx'
 import { BoardsProvider } from '../boards/BoardsProvider.jsx'
 import AccountPage from '../pages/AccountPage.jsx'
+import ArchivePage from '../pages/ArchivePage.jsx'
 import BoardPage from '../pages/BoardPage.jsx'
 import ForgotPasswordPage from '../pages/ForgotPasswordPage.jsx'
 import LandingPage from '../pages/LandingPage.jsx'
@@ -55,6 +56,17 @@ export default function AppRoutes() {
         element={
           <ProtectedRoute>
             <AccountPage />
+          </ProtectedRoute>
+        }
+      />
+      {/* Page d'archives : même raisonnement que /account — elle lit les
+          candidatures archivées de TOUS les tableaux (GET /applications sans
+          board_id), pas besoin de BoardsProvider. */}
+      <Route
+        path="/archives"
+        element={
+          <ProtectedRoute>
+            <ArchivePage />
           </ProtectedRoute>
         }
       />

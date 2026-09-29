@@ -12,6 +12,7 @@ export default function Navbar() {
   const { pathname } = useLocation()
 
   const onAccountPage = pathname === '/account'
+  const onArchivesPage = pathname === '/archives'
 
   function handleLogout() {
     logout()
@@ -28,8 +29,13 @@ export default function Navbar() {
       </Link>
 
       <div className="navbar__actions">
-        {/* Masqué quand on y est déjà : un lien vers la page courante n'apporte
+        {/* Masqués quand on y est déjà : un lien vers la page courante n'apporte
             rien et brouille le repérage. */}
+        {!onArchivesPage && (
+          <Link to="/archives" className="btn btn--ghost btn--sm">
+            Archives
+          </Link>
+        )}
         {!onAccountPage && (
           <Link to="/account" className="btn btn--ghost btn--sm">
             Mon compte
