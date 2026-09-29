@@ -59,14 +59,16 @@ export default function ApplicationCard({ application, onEdit }) {
           title
         )}
       </h3>
-      {/* L'ancienneté partage la ligne de l'entreprise (entreprise à gauche,
-          ancienneté à droite) plutôt que d'ajouter une ligne à la carte —
-          objectif DESIGN.md de 10 cartes visibles sans scroll. */}
+      <p className="app-card__company">{company}</p>
+      {/* Ligne du bas TOUJOURS présente, même sans lieu (choix explicite :
+          une mise en page cohérente plutôt qu'une économie de hauteur sur les
+          cartes sans lieu). Le lieu occupe l'espace disponible à gauche,
+          l'ancienneté reste collée à droite — y compris quand le lieu est
+          absent (span vide, flex:1 le pousse quand même jusqu'au bord). */}
       <p className="app-card__meta-row">
-        <span className="app-card__company">{company}</span>
+        <span className="app-card__location">{location}</span>
         <span className="app-card__age">{age}</span>
       </p>
-      {location && <p className="app-card__location">{location}</p>}
     </article>
   )
 }

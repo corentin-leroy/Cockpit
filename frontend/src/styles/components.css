@@ -507,19 +507,6 @@
   color: inherit;
 }
 
-/* Ligne entreprise + ancienneté : l'ancienneté partage la ligne de l'entreprise
- * au lieu d'ajouter une ligne à la carte (objectif DESIGN.md : 10 cartes sans
- * scroll). `min-width:0` sur .app-card__company laisse l'ellipse opérer dans
- * un conteneur flex (sans lui, le minimum de contenu l'emporterait sur
- * flex-shrink) ; .app-card__age ne rétrécit jamais (flex:0 0 auto), sa
- * largeur est fixe et courte. */
-.app-card__meta-row {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-  margin-top: var(--space-1);
-}
-
 /* Métadonnées (entreprise, lieu) : 12px, couleur secondaire pour les deux
  * (DESIGN.md), chacune limitée à UNE ligne puis ellipse. Contrairement au
  * titre (2 lignes), une seule ligne suffit ici et garde la hauteur de carte
@@ -537,12 +524,26 @@
 }
 
 .app-card__company {
-  flex: 1 1 auto;
-  min-width: 0;
+  margin-top: var(--space-1);
+}
+
+/* Ligne du bas de carte : lieu (facultatif) à gauche, ancienneté TOUJOURS à
+ * droite. Cette ligne existe même sans lieu (choix explicite : une mise en
+ * page cohérente plutôt qu'une économie de hauteur sur les cartes sans lieu).
+ * .app-card__location reste dans le DOM même vide : `flex:1 1 auto` lui fait
+ * occuper tout l'espace disponible quel que soit son contenu, ce qui pousse
+ * l'ancienneté jusqu'au bord droit dans les deux cas, sans logique
+ * conditionnelle. */
+.app-card__meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 
 .app-card__location {
-  margin-top: var(--space-1);
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* Ancienneté : information NEUTRE, sans seuil d'alerte ni changement de
