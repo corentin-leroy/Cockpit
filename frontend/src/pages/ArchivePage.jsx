@@ -19,6 +19,7 @@ import Alert from '../components/Alert.jsx'
 import ConfirmModal from '../components/ConfirmModal.jsx'
 import Navbar from '../components/Navbar.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
+import { parseUtcDate } from '../utils/dates.js'
 
 // Libellé français du statut, pour l'affichage ET pour la recherche (une seule
 // source, comme partout ailleurs dans le front).
@@ -64,8 +65,11 @@ export default function ArchivePage() {
         if (!active) return
         // Le backend ne garantit pas d'ordre particulier sur ce filtre : tri
         // explicite par date d'archivage décroissante, exigé par ce lot.
+        // parseUtcDate : archived_at est un datetime NAÏF en UTC (cf.
+        // utils/dates.js) — un `new Date()` direct l'interpréterait comme une
+        // heure locale et pourrait inverser l'ordre de deux archivages proches.
         const sorted = [...data].sort(
-          (a, b) => new Date(b.archived_at) - new Date(a.archived_at),
+          (a, b) => parseUtcDate(b.archived_at) - parseUtcDate(a.archived_at),
         )
         setArchives(sorted)
         setError('')
@@ -186,7 +190,7 @@ export default function ArchivePage() {
                       {STATUS_LABELS[application.status] ?? application.status}
                     </td>
                     <td>
-                      {DATE_FORMATTER.format(new Date(application.archived_at))}
+                      {DATE_FORMATTER.format(parseUtcDate(application.archived_at))}
                     </td>
                     <td className="archive-table__actions">
                       <button

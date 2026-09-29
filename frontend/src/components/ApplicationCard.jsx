@@ -5,8 +5,11 @@
 
 import { useDraggable } from '@dnd-kit/react'
 
+import { formatApplicationAge } from '../utils/dates.js'
+
 export default function ApplicationCard({ application, onEdit }) {
-  const { title, company, location, url } = application
+  const { title, company, location, url, created_at: createdAt } = application
+  const age = formatApplicationAge(createdAt)
 
   // Identifiant draggable = id de la candidature. On mémorise le statut courant
   // dans `data` : il sert de « colonne d'origine » pour détecter un no-op au drop.
@@ -56,7 +59,13 @@ export default function ApplicationCard({ application, onEdit }) {
           title
         )}
       </h3>
-      <p className="app-card__company">{company}</p>
+      {/* L'ancienneté partage la ligne de l'entreprise (entreprise à gauche,
+          ancienneté à droite) plutôt que d'ajouter une ligne à la carte —
+          objectif DESIGN.md de 10 cartes visibles sans scroll. */}
+      <p className="app-card__meta-row">
+        <span className="app-card__company">{company}</span>
+        <span className="app-card__age">{age}</span>
+      </p>
       {location && <p className="app-card__location">{location}</p>}
     </article>
   )

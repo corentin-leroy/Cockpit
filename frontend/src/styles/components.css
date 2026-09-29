@@ -507,21 +507,53 @@
   color: inherit;
 }
 
+/* Ligne entreprise + ancienneté : l'ancienneté partage la ligne de l'entreprise
+ * au lieu d'ajouter une ligne à la carte (objectif DESIGN.md : 10 cartes sans
+ * scroll). `min-width:0` sur .app-card__company laisse l'ellipse opérer dans
+ * un conteneur flex (sans lui, le minimum de contenu l'emporterait sur
+ * flex-shrink) ; .app-card__age ne rétrécit jamais (flex:0 0 auto), sa
+ * largeur est fixe et courte. */
+.app-card__meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
 /* Métadonnées (entreprise, lieu) : 12px, couleur secondaire pour les deux
- * (DESIGN.md), sur deux champs distincts, chacun limité à UNE ligne puis
- * ellipse. Contrairement au titre (2 lignes), une seule ligne suffit ici et
- * garde la hauteur de carte minimale. Un mot unique très long est tronqué de
- * même : `nowrap` empêche tout retour à la ligne, `min-width:0` sur la colonne
- * (voir .kanban-column) empêche ce texte d'élargir la carte. */
+ * (DESIGN.md), chacune limitée à UNE ligne puis ellipse. Contrairement au
+ * titre (2 lignes), une seule ligne suffit ici et garde la hauteur de carte
+ * minimale. Un mot unique très long est tronqué de même : `nowrap` empêche
+ * tout retour à la ligne, `min-width:0` sur la colonne (voir .kanban-column)
+ * empêche ce texte d'élargir la carte. */
 .app-card__company,
 .app-card__location {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  margin-top: var(--space-1);
   font-size: var(--text-xs);
   line-height: 1.4;
   color: var(--color-text-secondary);
+}
+
+.app-card__company {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-card__location {
+  margin-top: var(--space-1);
+}
+
+/* Ancienneté : information NEUTRE, sans seuil d'alerte ni changement de
+ * couleur au-delà d'une durée (demande explicite) — muted, plus discret que
+ * le secondaire de l'entreprise/du lieu, jamais la seule à porter un sens. */
+.app-card__age {
+  flex: 0 0 auto;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
 
 /* ================================================================== */
@@ -987,6 +1019,15 @@
 /* Précision sous un champ (pourquoi on le demande). Distinct de .field__error :
  * informatif, pas fautif. */
 .field__hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* Métadonnée discrète en tête de formulaire (ex. ancienneté d'une candidature,
+ * en édition) : même traitement que .field__hint (muted, xs), mais hors d'un
+ * champ précis. */
+.form-meta {
+  margin-bottom: var(--space-4);
   font-size: var(--text-xs);
   color: var(--color-text-muted);
 }

@@ -15,6 +15,7 @@ import { useState } from 'react'
 import { splitFormErrors } from '../api/client.js'
 import Alert, { FieldError } from './Alert.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
+import { formatApplicationAge } from '../utils/dates.js'
 import {
   COMPANY_MAX_LENGTH,
   LOCATION_MAX_LENGTH,
@@ -80,6 +81,13 @@ export default function ApplicationForm({
   // Champ status réservé à l'édition (initialValues présent) : à la création,
   // le backend impose toujours « saved », ce champ n'a donc pas lieu d'être.
   const showStatusSelect = Boolean(initialValues)
+  // Ancienneté en lecture seule, réservée à l'édition (created_at n'existe pas
+  // encore à la création). Première lettre mise en minuscule pour s'insérer
+  // dans la phrase (« Ajoutée aujourd'hui », « Ajoutée il y a 12 j » — déjà en
+  // minuscule, l'opération est sans effet).
+  const ageLabel = initialValues
+    ? formatApplicationAge(initialValues.created_at)
+    : null
   const [fieldErrors, setFieldErrors] = useState({})
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -153,6 +161,12 @@ export default function ApplicationForm({
   return (
     <form onSubmit={handleSubmit} noValidate>
       {formError && <Alert className="stack-gap">{formError}</Alert>}
+
+      {ageLabel && (
+        <p className="form-meta">
+          {`Ajoutée ${ageLabel[0].toLowerCase()}${ageLabel.slice(1)}`}
+        </p>
+      )}
 
       <div className="field">
         <label className="field__label" htmlFor="app-title">
