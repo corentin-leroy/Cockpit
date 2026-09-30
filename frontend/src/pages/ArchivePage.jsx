@@ -206,15 +206,19 @@ export default function ArchivePage() {
                   {filtered.map((application) => (
                     <tr key={application.id}>
                       <td>
-                        <span className="archive-table__title">
+                        <span className="archive-table__multiline">
                           {application.title}
                         </span>
                       </td>
-                      <td className="archive-table__ellipsis">
-                        {application.company}
+                      <td>
+                        <span className="archive-table__multiline">
+                          {application.company}
+                        </span>
                       </td>
-                      <td className="archive-table__ellipsis">
-                        {application.location || '—'}
+                      <td>
+                        <span className="archive-table__multiline">
+                          {application.location || '—'}
+                        </span>
                       </td>
                       <td>
                         {STATUS_LABELS[application.status] ?? application.status}

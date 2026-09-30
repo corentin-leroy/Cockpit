@@ -1235,18 +1235,27 @@
 /* Page d'archives                                                    */
 /* ================================================================== */
 
-/* flex:1/min-width:0 : .archive-page est maintenant un enfant flex de
- * .board-layout (sidebar + contenu), comme .board-main pour le kanban.
- * max-width relevé à 1120px (960 avant) : assez pour que l'intitulé reçoive
- * une largeur confortable (cf. .archive-table ci-dessous), mais borné pour
- * qu'une ligne reste lisible d'un bout à l'autre sur un grand écran — sans
- * cette limite, la date se retrouverait visuellement déconnectée de
- * l'intitulé qu'elle qualifie. */
+/* flex:1/min-width:0 : .archive-page est un enfant flex de .board-layout
+ * (sidebar + contenu), comme .board-main pour le kanban. max-width à 1120px :
+ * assez pour que l'intitulé reçoive une largeur confortable (cf.
+ * .archive-table ci-dessous), mais borné pour qu'une ligne reste lisible
+ * d'un bout à l'autre sur un grand écran.
+ *
+ * margin:0 auto CENTRE ce bloc dans l'espace restant à droite de la sidebar,
+ * plutôt que de le laisser collé à gauche avec du vide à droite sur un grand
+ * écran. Ça fonctionne ici précisément PARCE QUE flex-grow (flex:1) alloue à
+ * cet élément tout l'espace disponible, que max-width plafonne ensuite : sur
+ * un flex-item, des marges horizontales auto absorbent exactement cet excédent
+ * de manière égale des deux côtés — c'est le même mécanisme qui centre un
+ * bloc classique avec width fixe, appliqué ici à un enfant flex. Le kanban
+ * (.board-main) n'a PAS ce traitement : ses colonnes s'étendent et défilent
+ * horizontalement, un alignement à gauche y reste le bon choix. */
 .archive-page {
   flex: 1;
   min-width: 0;
   width: 100%;
   max-width: 1120px;
+  margin: 0 auto;
   padding: var(--space-6) var(--space-5);
 }
 
@@ -1254,19 +1263,26 @@
   margin-bottom: var(--space-5);
 }
 
-/* Ligne flex : la recherche prend l'espace disponible. Emplacement réservé
- * pour le futur filtre par tableau (lot suivant) : un <select> ajouté ici
- * comme frère de .archive-page__search s'alignera à droite sans
- * restructuration (flex-end aligne le bas des champs, avec ou sans label
- * au-dessus). */
+/* Ligne flex : la recherche a une largeur bornée (voir .archive-page__search),
+ * pas toute la largeur du contenu — disproportionnée pour deux ou trois mots.
+ * Emplacement réservé pour le futur filtre par tableau (lot suivant) : un
+ * <select> ajouté ici comme frère de .archive-page__search s'alignera à sa
+ * droite sans restructuration (flex-end aligne le bas des champs, avec ou
+ * sans label au-dessus). */
 .archive-page__filters {
   display: flex;
   align-items: flex-end;
   gap: var(--space-3);
 }
 
+/* 440px : milieu de la fourchette 400-480px. Assez pour taper confortablement
+ * deux ou trois mots de recherche sans paraître disproportionné à côté d'un
+ * tableau capable de faire 1120px de large. flex:1 1 auto (plutôt qu'une
+ * largeur fixe) laisse le champ rétrécir sur un écran étroit, sans jamais
+ * dépasser 440px sur un grand écran. */
 .archive-page__search {
   flex: 1 1 auto;
+  max-width: 440px;
 }
 
 /* Liste dense en lignes, pas un kanban (DESIGN.md) : un <table> réel plutôt
@@ -1326,22 +1342,18 @@
   background: var(--color-surface-2);
 }
 
-/* Entreprise, lieu : une ligne + ellipse, même traitement que les cartes du
- * kanban (.app-card__company/.app-card__location). Directement sur le <td> :
- * overflow/ellipsis ne change pas son `display`, contrairement à flex ou
- * -webkit-box (voir plus bas), donc aucun risque sur la hauteur de ligne ici. */
-.archive-table__ellipsis {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Intitulé : plafonné à 2 lignes avec ellipse, comme .app-card__title — évite
- * qu'un intitulé exceptionnellement long produise une ligne de tableau à 4
- * lignes. Sur un SPAN interne, jamais directement sur le <td> : même règle
- * que .archive-table__actions ci-dessous, -webkit-box changerait le display
- * du <td> et casserait son calcul de hauteur de ligne. */
-.archive-table__title {
+/* Intitulé, entreprise, lieu : plafonnés à 2 lignes avec ellipse au-delà,
+ * plutôt qu'une troncature sur une ligne. Choix délibéré (lot dédié) : les
+ * largeurs de colonnes ne bougent pas, et un intitulé long fait déjà parfois
+ * passer la ligne du tableau à 2 lignes — cette hauteur est donc déjà
+ * tolérée, un lieu ou une entreprise longs restant un cas rare. Sur un SPAN
+ * interne, JAMAIS directement sur le <td> : -webkit-box (nécessaire au
+ * line-clamp) changerait le `display` du <td> et casserait son calcul de
+ * hauteur de ligne — même bug, même règle que pour .archive-table__actions
+ * ci-dessous (mesuré et corrigé dans un lot précédent : une cellule avec un
+ * `display` différent de table-cell finit à une hauteur différente des
+ * autres cellules de la même ligne). */
+.archive-table__multiline {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
