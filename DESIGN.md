@@ -30,7 +30,8 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Métadonnées (entreprise, lieu) : 12px, couleur de texte secondaire.
 - Titre de colonne : 12px, poids 600, majuscules, couleur secondaire.
 - Titre de page : 28px, poids 600.
-- Interligne : 1.4 pour le texte courant, 1.2 pour les titres.
+- Interligne : 1.55 pour le texte courant (token `--leading-body`, source unique :
+  `html` et la hauteur minimale de `.input` le lisent), 1.2 pour les titres.
 - Un texte qui dépasse son espace est plafonné à DEUX lignes avec ellipse
   au-delà (titre de carte, cellule de tableau dense) — jamais coupé sur une
   seule ligne, et jamais laissé libre d'allonger indéfiniment la carte ou la

@@ -651,6 +651,14 @@
   color: var(--color-text);
   font: inherit;
   font-size: var(--text-md);
+  /* Hauteur minimale = celle d'un <input> : interligne + padding vertical +
+   * bordures (2 × 1px). Un <select> ignore `line-height` (Chrome le force à
+   * `normal`) et restait 2px plus bas qu'un <input> ; `min-height` est le seul
+   * levier qui l'égalise. Dérivée des tokens : elle suit tout changement de
+   * taille, d'interligne ou de padding. .textarea la surcharge (80px). */
+  min-height: calc(
+    var(--text-md) * var(--leading-body) + 2 * var(--space-2) + 2px
+  );
   transition:
     border-color var(--transition-fast),
     box-shadow var(--transition-fast);
@@ -1265,14 +1273,22 @@
 
 /* Ligne flex : la recherche a une largeur bornée (voir .archive-page__search),
  * pas toute la largeur du contenu — disproportionnée pour deux ou trois mots.
- * Emplacement réservé pour le futur filtre par tableau (lot suivant) : un
- * <select> ajouté ici comme frère de .archive-page__search s'alignera à sa
- * droite sans restructuration (flex-end aligne le bas des champs, avec ou
- * sans label au-dessus). */
+ * Le sélecteur de tableau (.archive-page__board) est son frère, à droite.
+ * flex-wrap : sur fenêtre étroite, le sélecteur passe SOUS la recherche plutôt
+ * que d'écraser l'un des deux champs. */
 .archive-page__filters {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
-  gap: var(--space-3);
+  gap: 0 var(--space-3);
+}
+
+/* 220px : assez pour un nom de tableau courant sans le tronquer, bien en deçà
+ * de la recherche (440px). Peut rétrécir (min-width:0) ; un nom plus long est
+ * tronqué par le <select> natif lui-même. */
+.archive-page__board {
+  flex: 0 1 220px;
+  min-width: 0;
 }
 
 /* 440px : milieu de la fourchette 400-480px. Assez pour taper confortablement

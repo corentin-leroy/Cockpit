@@ -9,7 +9,7 @@
 }
 
 html {
-  font: var(--text-md) / 1.55 var(--font-sans);
+  font: var(--text-md) / var(--leading-body) var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;

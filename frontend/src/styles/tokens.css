@@ -51,6 +51,9 @@
   /* Exception documentée dans DESIGN.md : palier réservé au titre principal
    * de la landing page, au-dessus du plafond de 28px de l'application. */
   --text-2xl: 30px;
+  /* Interligne du texte courant (posé sur html, base.css). Aussi lu par .input
+   * pour égaliser la hauteur d'un <select> et d'un <input>. */
+  --leading-body: 1.55;
 }
 
 /* ------------------------------------------------------------------ */

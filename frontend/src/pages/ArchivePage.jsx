@@ -19,6 +19,7 @@ import Alert from '../components/Alert.jsx'
 import ArchiveSidebar from '../components/ArchiveSidebar.jsx'
 import ConfirmModal from '../components/ConfirmModal.jsx'
 import Navbar from '../components/Navbar.jsx'
+import { useBoards } from '../boards/useBoards.js'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
 import { parseUtcDate } from '../utils/dates.js'
 
@@ -57,6 +58,13 @@ export default function ArchivePage() {
   // chargement — elle ne doit pas masquer les archives déjà affichées.
   const [actionError, setActionError] = useState('')
   const [query, setQuery] = useState('')
+  // Filtre par tableau : '' = « Tous les tableaux », sinon l'id du tableau en
+  // CHAÎNE (la valeur d'un <select> en est toujours une). Local à la page :
+  // revient à '' à chaque visite, jamais mémorisé. N'est pas réinitialisé quand
+  // la liste filtrée se vide après un désarchivage/une suppression (décision).
+  const [boardFilter, setBoardFilter] = useState('')
+  // Même liste, même ordre que la sidebar (contexte partagé, pas de requête).
+  const { boards } = useBoards()
   const [unarchivingId, setUnarchivingId] = useState(null)
   // Candidature ciblée par une suppression définitive : pilote l'ouverture de
   // ConfirmModal. null = fermée.
@@ -94,11 +102,21 @@ export default function ArchivePage() {
   // dans l'intitulé, l'entreprise, le lieu OU le libellé de statut (ET entre
   // les mots, OU entre les champs — un mot suffit à matcher n'importe lequel
   // des quatre). Notes et URL sont délibérément exclues (demande explicite).
+  //
+  // Le filtre par tableau s'applique EN PREMIER, la recherche ensuite sur ce
+  // sous-ensemble : les deux se combinent (ET). '' est testé AVANT toute
+  // conversion : Number('') vaut 0, ce qui ne laisserait passer aucune archive.
   const filtered = useMemo(() => {
-    const words = normalize(query).split(/\s+/).filter(Boolean)
-    if (words.length === 0) return archives
+    const boardId = boardFilter === '' ? null : Number(boardFilter)
+    const inBoard =
+      boardId === null
+        ? archives
+        : archives.filter((application) => application.board_id === boardId)
 
-    return archives.filter((application) => {
+    const words = normalize(query).split(/\s+/).filter(Boolean)
+    if (words.length === 0) return inBoard
+
+    return inBoard.filter((application) => {
       const haystack = normalize(
         [
           application.title,
@@ -109,7 +127,7 @@ export default function ArchivePage() {
       )
       return words.every((word) => haystack.includes(word))
     })
-  }, [archives, query])
+  }, [archives, query, boardFilter])
 
   async function handleUnarchive(application) {
     setActionError('')
@@ -146,10 +164,8 @@ export default function ArchivePage() {
 
           {actionError && <Alert className="stack-gap">{actionError}</Alert>}
 
-          {/* Ligne flex : la recherche prend l'espace disponible (flex:1).
-              Emplacement réservé pour le futur filtre par tableau (lot
-              suivant) : un <select> ajouté ici comme frère de
-              .archive-page__search s'alignera à droite sans restructuration. */}
+          {/* Ligne de filtres : recherche puis sélecteur de tableau. Les deux
+              utilisent .field + .input, donc le même rendu. */}
           <div className="archive-page__filters">
             <div className="field archive-page__search">
               <label className="field__label" htmlFor="archive-search">
@@ -164,6 +180,25 @@ export default function ArchivePage() {
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
+
+            <div className="field archive-page__board">
+              <label className="field__label" htmlFor="archive-board">
+                Tableau
+              </label>
+              <select
+                id="archive-board"
+                className="input"
+                value={boardFilter}
+                onChange={(event) => setBoardFilter(event.target.value)}
+              >
+                <option value="">Tous les tableaux</option>
+                {boards.map((board) => (
+                  <option key={board.id} value={board.id}>
+                    {board.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {loading && <p className="text-muted">Chargement des archives…</p>}
@@ -175,7 +210,7 @@ export default function ArchivePage() {
           )}
 
           {!loading && !error && archives.length > 0 && filtered.length === 0 && (
-            <p className="text-muted">Aucun résultat pour « {query.trim()} ».</p>
+            <p className="text-muted">Aucune archive ne correspond</p>
           )}
 
           {!loading && !error && filtered.length > 0 && (
