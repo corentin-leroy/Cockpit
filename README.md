@@ -7,7 +7,7 @@ qui capture une offre depuis n'importe quel site d'annonces en un clic.
 
 ### → [Voir l'application en ligne](https://cockpit-front-production.up.railway.app)
 
-![Le kanban de suivi des candidatures : six colonnes de statuts, de « Repérée » à
+![Le kanban de suivi des candidatures : cinq colonnes de statuts, de « Repérée » à
 « Acceptée », et la barre latérale de sélection des tableaux](docs/kanban-light.png)
 
 ---
@@ -25,8 +25,10 @@ une extension navigateur qui enregistre une offre sans quitter la page.
 
 ## Fonctionnalités
 
-- Suivi kanban à six statuts (repérée, postulée, relancée, entretien, refusée,
-  acceptée) avec déplacement des cartes par glisser-déposer
+- Suivi kanban à cinq statuts (repérée, postulée, relancée, entretien,
+  acceptée) avec déplacement des cartes par glisser-déposer ; une candidature
+  classée peut être archivée pour garder le tableau dégagé, sans rien perdre —
+  les archives restent consultables et cherchables
 - Tableaux multiples, pour séparer plusieurs recherches en parallèle
 - Extension navigateur (Chrome) : capture d'une offre en un clic depuis
   n'importe quel site
@@ -181,11 +183,6 @@ extension/   Extension Chrome Manifest V3
 
 ## Limites connues et suite
 
-- L'extension n'est **pas encore publiée sur le Chrome Web Store** : elle
-  s'installe pour l'instant en mode développeur.
-- Le schéma de base est créé au démarrage via `create_all()`, qui ne migre rien.
-  **Alembic est à mettre en place avant le premier changement de schéma en
-  production.**
 - L'agrégation d'offres via les API officielles (La Bonne Alternance, France
   Travail) est prévue après la V1.
 

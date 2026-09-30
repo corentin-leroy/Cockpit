@@ -332,7 +332,7 @@
   display: flex;
   gap: var(--space-3);
   align-items: flex-start;
-  overflow-x: auto; /* 6 colonnes : défilement horizontal si l'écran est étroit */
+  overflow-x: auto; /* 5 colonnes : défilement horizontal si l'écran est étroit */
   padding-bottom: var(--space-2);
 }
 
@@ -369,7 +369,7 @@
   margin-bottom: var(--space-3);
 }
 
-/* Le statut reste porté par son LIBELLÉ texte (« Repérée », « Refusée »…) : aucune
+/* Le statut reste porté par son LIBELLÉ texte (« Repérée », « Entretien »…) : aucune
  * information n'est confiée à la couleur seule — les colonnes sont d'ailleurs
  * toutes de la même teinte. */
 .kanban-column__label {

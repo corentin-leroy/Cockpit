@@ -10,6 +10,15 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Largeur de colonne : 280px, fixe.
 - Objectif mesurable : 10 cartes visibles sans scroll sur un écran 1080p.
 
+## Mise en page des écrans
+- Les pages de CONTENU (Archives, Mon compte) sont centrées dans l'espace
+  disponible à droite de la sidebar : `max-width` + `margin: 0 auto` sur le
+  conteneur. Sur un grand écran, le contenu ne doit jamais rester collé à
+  gauche avec du vide asymétrique à droite.
+- Le KANBAN reste aligné à gauche, jamais centré : ses colonnes s'étendent et
+  défilent horizontalement, un centrage n'a pas de sens sur un contenu qui
+  déborde par construction.
+
 ## Typographie
 - Une seule famille, celle déjà en place. Pas de police décorative.
 - Échelle : 12 / 14 / 16 / 20 / 28px. Aucune valeur hors échelle.
@@ -22,6 +31,10 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Titre de colonne : 12px, poids 600, majuscules, couleur secondaire.
 - Titre de page : 28px, poids 600.
 - Interligne : 1.4 pour le texte courant, 1.2 pour les titres.
+- Un texte qui dépasse son espace est plafonné à DEUX lignes avec ellipse
+  au-delà (titre de carte, cellule de tableau dense) — jamais coupé sur une
+  seule ligne, et jamais laissé libre d'allonger indéfiniment la carte ou la
+  ligne du tableau qui le contient.
 
 ## Espacement
 - Échelle unique : 4 / 8 / 12 / 16 / 24 / 32px. Aucune valeur intermédiaire.
@@ -64,6 +77,18 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Pas d'emoji dans l'interface.
 - Pas d'animation au-delà de 180ms, et uniquement sur opacité, fond et couleur.
 - Pas de bordure quand un espace suffit à séparer.
+- **Jamais `display: flex` ni `display: -webkit-box` directement sur un `<td>`.**
+  Un `<td>` doit garder son `display: table-cell` implicite pour participer au
+  calcul de hauteur de ligne du tableau (toutes les cellules d'une ligne sont
+  normalement étirées à la même hauteur). Lui poser un autre `display` le sort
+  de ce calcul : la cellule se retrouve avec sa propre hauteur, plus courte que
+  les autres, et sa bordure basse se décale visiblement au-dessus de celle du
+  reste de la ligne. Le flex (boutons d'action) ou le plafond à deux lignes
+  (ellipse) vivent toujours sur un élément INTERNE à la cellule (`<div>` ou
+  `<span>`), jamais sur le `<td>` lui-même. Piège rencontré deux fois sur la
+  page d'archives (colonne Actions, puis intitulé/entreprise/lieu) avant
+  d'être documenté ici — vérifier ce point en premier si des cellules d'un
+  même tableau finissent à des hauteurs différentes.
 
 ## Duplication à surveiller
 - Le bloc `<style>` de `extension/popup.html` duplique volontairement les tokens de

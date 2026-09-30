@@ -3,7 +3,7 @@
 // identifiée par la clé technique du statut : y déposer une carte la fait changer
 // de statut.
 //
-// Le statut est identifié par son LIBELLÉ (« Repérée », « Refusée »…) : les
+// Le statut est identifié par son LIBELLÉ (« Repérée », « Entretien »…) : les
 // colonnes partagent toutes la même couleur, aucune information n'est portée par
 // la teinte seule.
 

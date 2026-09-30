@@ -15,8 +15,8 @@ import ThemeToggle from '../components/ThemeToggle.jsx'
 const FEATURES = [
   {
     icon: '🗂',
-    title: 'Suivi kanban à six statuts',
-    text: 'Repérée, postulée, relancée, entretien, refusée, acceptée : chaque candidature avance par glisser-déposer, sans ressaisie.',
+    title: 'Suivi kanban à cinq statuts',
+    text: 'Repérée, postulée, relancée, entretien, acceptée : chaque candidature avance par glisser-déposer, sans ressaisie. Une fois classée, archivez-la pour garder le tableau dégagé sans rien perdre : elle reste consultable et cherchable depuis les archives.',
   },
   {
     icon: '📋',

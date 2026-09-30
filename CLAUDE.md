@@ -786,21 +786,47 @@ Frontend (depuis frontend/) :
      (routes PUBLIQUES, sans garde) + bandeau "confirmez votre adresse"
      (is_verified via GET /auth/me) avec renvoi de l'email
 8. Déploiement (backend + PostgreSQL sur Railway)
-9. Archivage des candidatures (en cours)
-   - [fait, backend, écrit et testé, à déployer] Champ archived_at (migration
+9. [fait] Archivage des candidatures
+   - [fait, déployé le 2026-09-28] Backend : champ archived_at (migration
      0003), statut conservé à l'archivage, endpoints /archive et /unarchive,
      plafond de 2000 archivées, plafond de 300 actives au désarchivage,
      correction du comptage des 300 (n'exclut plus les archivées à tort),
-     filtre ?archived= par défaut sur les listes, compteurs sur BoardRead
-   - [à faire] Page d'archives au niveau du compte, filtre par tableau, tri par
-     date, confirmation de suppression d'un tableau annonçant le nombre
-     d'archives concernées (frontend)
-   - Suppression du statut "Refusée" : front (2a) [fait, déployé] ; migration
-     0002 + backend (2b) [écrits et testés, à déployer]. Reste le texte
-     « Refusée » de la landing, du README et de commentaires (lot 7)
+     filtre ?archived= par défaut sur les listes, compteurs sur BoardRead —
+     confirmé en production (`alembic current` → 0003 head)
+   - [fait] Front : page d'archives (liste, recherche insensible aux accents
+     et à la casse, tri par date d'archivage), archivage depuis la modale
+     d'édition et par glisser-déposer sur le kanban, ancienneté affichée sur
+     les cartes (en bas à droite, sur la ligne du lieu — présente même sans
+     lieu), mise en page de la page d'archives (bordures de ligne alignées,
+     largeurs de colonnes fixes, page centrée, recherche à 440px, cellules
+     plafonnées à deux lignes) — committé et poussé sur origin/main (`git
+     log`), déployé comme le reste du front
+   - [à faire] Filtre par tableau sur la page d'archives (emplacement réservé
+     dans la mise en page)
+   - [à faire] Confirmation de suppression d'un tableau annonçant le nombre
+     d'archives concernées (BoardRead expose déjà
+     archived_applications_count, rien ne l'utilise côté front)
+   - [fait] Suppression du statut "Refusée" : front (2a) déployé ; migration
+     0002 + backend (2b) déployés le 2026-09-26 (confirmé : `alembic current`
+     → 0002 head, cinq libellés d'enum relus en base) ; textes résiduels de la
+     landing, du README et des commentaires nettoyés
+10. [fait] Durcissement de la validation des entrées (lots 3a-3e)
+    - [fait, déployé] 3a : mini-lot applied_at (bornes 1900-2100, conversion
+      UTC) et correctif de la course d'inscription concurrente
+    - [fait, déployé] 3b/3c : schémas Pydantic (InputModel, rejet du NUL et du
+      surrogate isolé, PydanticCustomError), catalogue de messages d'erreur,
+      format de réponse unique (detail + errors), les deux trous corrigés (401
+      anonyme, 500 catch-all)
+    - [fait, committé, en attente de republication sur le Chrome Web Store]
+      3d : extension alignée sur les mêmes limites (troncature du lieu,
+      nettoyage des URL trop longues, maxLength, ApiError.data) — la version
+      publiée est antérieure à ce lot, numéro de version du manifest inchangé
+    - [à faire, reporté] 3e : migration de `notes` en `String(5000)`. La borne
+      de 5000 caractères est aujourd'hui appliquée par Pydantic seulement, pas
+      par la colonne (`Text` en base, sans limite)
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
 - Agrégation API officielles (La Bonne Alternance, France Travail) → V1.5
 - Formulaire de correction dans l'extension → V2
-- Alertes email, statistiques, paiement, publication Web Store → V2
+- Alertes email, statistiques, paiement → V2
 - Connexion Google, refresh tokens, UUID → V3
