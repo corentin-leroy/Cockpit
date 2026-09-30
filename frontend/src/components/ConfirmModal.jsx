@@ -17,6 +17,8 @@ import Modal from './Modal.jsx'
  * @param {string} [props.warningDetail]  détail de ce qui va disparaître.
  * @param {string} props.confirmLabel     libellé du bouton de confirmation au repos.
  * @param {string} props.confirmingLabel  libellé du bouton pendant l'action.
+ * @param {boolean} [props.confirmDisabled]  désactive le bouton de confirmation
+ *   (ex. le temps de charger ce que l'action va détruire) sans fermer la modale.
  * @param {() => Promise<void>} props.onConfirm  action confirmée (async).
  * @param {() => void} props.onClose  fermeture sans confirmer.
  */
@@ -26,6 +28,7 @@ export default function ConfirmModal({
   warningDetail,
   confirmLabel,
   confirmingLabel,
+  confirmDisabled = false,
   onConfirm,
   onClose,
 }) {
@@ -79,7 +82,7 @@ export default function ConfirmModal({
           type="button"
           className="btn btn--danger"
           onClick={handleConfirm}
-          disabled={submitting}
+          disabled={submitting || confirmDisabled}
         >
           {submitting ? confirmingLabel : confirmLabel}
         </button>

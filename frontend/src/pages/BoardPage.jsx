@@ -22,6 +22,7 @@ import Modal from '../components/Modal.jsx'
 import Alert from '../components/Alert.jsx'
 import ApplicationForm from '../components/ApplicationForm.jsx'
 import BoardForm from '../components/BoardForm.jsx'
+import DeleteBoardModal from '../components/DeleteBoardModal.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
 
 // Enveloppe de <main class="board-main"> qui pose board-main--dragging pendant
@@ -74,8 +75,9 @@ export default function BoardPage() {
   const [deletingId, setDeletingId] = useState(null)
   // Modale de tableau : null, { mode: 'create' }, ou { mode: 'rename', board }.
   const [boardModal, setBoardModal] = useState(null)
-  // Id du tableau en cours de suppression (désactive son action dans la sidebar).
-  const [deletingBoardId, setDeletingBoardId] = useState(null)
+  // Tableau ciblé par une suppression : pilote l'ouverture de DeleteBoardModal.
+  // null = fermée.
+  const [boardToDelete, setBoardToDelete] = useState(null)
   // Erreur d'une action ponctuelle (ex. échec du changement de statut). Distincte
   // de `error` (échec de chargement) : elle ne masque pas le board, s'affiche en
   // bannière au-dessus, et est effacée à la prochaine action réussie.
@@ -344,24 +346,14 @@ export default function BoardPage() {
     closeBoardModal()
   }
 
-  // Suppression : confirmation explicite (la cascade supprime aussi les
-  // candidatures), puis appel. Le contexte rebascule le tableau courant si on
-  // supprime celui affiché. Un échec (ex. 409 dernier tableau, en filet de
-  // sécurité malgré l'action masquée) est signalé sans planter.
-  async function handleDeleteBoard(board) {
-    const confirmed = window.confirm(
-      `Supprimer le tableau « ${board.name} » et toutes ses candidatures ?`,
-    )
-    if (!confirmed) return
-
-    setDeletingBoardId(board.id)
-    try {
-      await removeBoard(board.id)
-    } catch (err) {
-      window.alert(err.message || 'La suppression du tableau a échoué. Réessayez.')
-    } finally {
-      setDeletingBoardId(null)
-    }
+  // Suppression : la confirmation (DeleteBoardModal) annonce ce que la cascade
+  // emporte. Pas de try/catch ici : une erreur (ex. 409 dernier tableau, en
+  // filet de sécurité malgré l'action masquée) remonte à ConfirmModal, qui
+  // l'affiche et reste ouverte. Le contexte rebascule le tableau courant si on
+  // supprime celui affiché.
+  async function handleConfirmDeleteBoard() {
+    await removeBoard(boardToDelete.id)
+    setBoardToDelete(null)
   }
 
   return (
@@ -397,8 +389,7 @@ export default function BoardPage() {
             onSelect={selectBoard}
             onCreate={() => setBoardModal({ mode: 'create' })}
             onRename={(board) => setBoardModal({ mode: 'rename', board })}
-            onDelete={handleDeleteBoard}
-            deletingBoardId={deletingBoardId}
+            onDelete={setBoardToDelete}
           />
 
           <BoardMain>
@@ -500,6 +491,14 @@ export default function BoardPage() {
             onCancel={closeBoardModal}
           />
         </Modal>
+      )}
+
+      {boardToDelete && (
+        <DeleteBoardModal
+          board={boardToDelete}
+          onConfirm={handleConfirmDeleteBoard}
+          onClose={() => setBoardToDelete(null)}
+        />
       )}
     </>
   )
