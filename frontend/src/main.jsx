@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import { AuthProvider } from './auth/AuthContext.jsx'
+import { SidebarProvider } from './preferences/SidebarProvider.jsx'
 import { ThemeProvider } from './theme/ThemeProvider.jsx'
 import { initTheme } from './theme/theme.js'
 import AppRoutes from './router/routes.jsx'
@@ -14,11 +15,15 @@ initTheme()
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ThemeProvider>
-      <BrowserRouter>
-        <AuthProvider>
-          <AppRoutes />
-        </AuthProvider>
-      </BrowserRouter>
+      {/* Au-dessus du routeur : l'état de repli de la sidebar est partagé par
+          toutes les pages et survit à la navigation entre elles. */}
+      <SidebarProvider>
+        <BrowserRouter>
+          <AuthProvider>
+            <AppRoutes />
+          </AuthProvider>
+        </BrowserRouter>
+      </SidebarProvider>
     </ThemeProvider>
   </StrictMode>,
 )

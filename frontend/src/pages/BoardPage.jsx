@@ -366,7 +366,7 @@ export default function BoardPage() {
 
   return (
     <>
-      <Navbar />
+      <Navbar withSidebarToggle />
       {/* Ne rend rien si l'adresse est déjà vérifiée (ou si `user` n'est pas
           encore chargé) : aucun décalage de mise en page dans le cas courant. */}
       <VerificationBanner />

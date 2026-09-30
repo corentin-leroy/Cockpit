@@ -154,7 +154,7 @@ export default function ArchivePage() {
 
   return (
     <>
-      <Navbar />
+      <Navbar withSidebarToggle />
 
       <div className="board-layout">
         <ArchiveSidebar />

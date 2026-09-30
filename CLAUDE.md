@@ -704,7 +704,19 @@ Frontend (depuis frontend/) :
 - `api/` centralise les appels backend. TOUS passent par `apiFetch`
   (api/client.js), qui ajoute le Bearer et purge le token sur 401.
   Jamais de `fetch` direct dans un composant.
-- Seul `auth/token.js` accède à localStorage (clé cockpit_token).
+- Aucun composant n'appelle `localStorage` directement : CHAQUE CLÉ a son propre
+  module d'accès, et c'est le seul endroit autorisé à y toucher :
+  `auth/token.js` (cockpit_token), `theme/storage.js` (cockpit_theme),
+  `boards/lastBoard.js` (cockpit_last_board), `preferences/storage.js`
+  (cockpit_sidebar_collapsed). Une nouvelle clé = un nouveau module de ce type.
+  Le stockage peut être indisponible (navigation privée, données de site
+  bloquées) et LEVER à la lecture comme à l'écriture : hors token, chaque module
+  l'entoure d'un `try/catch` (lecture = valeur par défaut, écriture ignorée,
+  sans erreur). Sans cela, `initTheme()` planterait avant le premier rendu.
+- Repli de la sidebar des tableaux : état PARTAGÉ (`preferences/`,
+  `SidebarProvider` monté dans main.jsx au-dessus du routeur), commun au kanban
+  et à la page d'archives, mémorisé, dépliée par défaut. Repliée, la sidebar est
+  `inert` (hors clavier) et les cibles de dépôt de `Sidebar.jsx` sont désactivées.
 - Contexte d'auth (auth/) : état isAuthenticated, login/logout, plus `user`
   (chargé via GET /auth/me dès qu'un token existe, rechargeable par refreshUser).
   `user` peut être null même connecté (chargement, ou /auth/me en échec) : son

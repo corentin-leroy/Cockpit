@@ -14,20 +14,26 @@
 import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/react'
 
+import { useSidebar } from '../preferences/useSidebar.js'
+
 // Une ligne de tableau. Extraite en composant pour pouvoir appeler le hook
 // useDroppable (interdit dans un callback .map) : chaque tableau devient une cible
 // de dépôt. L'identifiant du droppable est préfixé `board:` et porte dans `data`
 // le type (« board ») et le boardId : c'est ce qui permet à onDragEnd de
 // distinguer un dépôt sur un tableau d'un dépôt sur une colonne (cf. BoardPage).
-function BoardRow({ board, active, canDelete, onSelect, onRename, onDelete }) {
+function BoardRow({ board, active, collapsed, canDelete, onSelect, onRename, onDelete }) {
   const [hovered, setHovered] = useState(false)
 
   // Le tableau courant n'est pas une cible : la carte glissée en provient déjà.
   // `disabled` empêche à la fois la détection de collision et la surbrillance.
+  // Sidebar REPLIÉE : aussi désactivée. Repliée, elle est décalée hors de l'écran
+  // mais ses lignes gardent des rectangles ; sans ce `disabled`, un dépôt sur la
+  // zone qu'elles occupaient encore dans la mise en page pourrait déplacer une
+  // carte vers un autre tableau sans que rien ne soit visible.
   const { ref, isDropTarget } = useDroppable({
     id: `board:${board.id}`,
     data: { type: 'board', boardId: board.id },
-    disabled: active,
+    disabled: active || collapsed,
   })
 
   // Actions visibles au survol, et en permanence sur le tableau courant.
@@ -97,9 +103,17 @@ export default function Sidebar({
   // Règle métier « pas le dernier tableau » côté UX : sans au moins deux tableaux,
   // on masque l'action supprimer (le backend renverrait 409 de toute façon).
   const canDelete = boards.length > 1
+  const { collapsed } = useSidebar()
 
   return (
-    <aside className="sidebar">
+    // `inert` : repliée, la sidebar sort du parcours de Tab et de l'arbre
+    // d'accessibilité IMMÉDIATEMENT (aussi pendant l'animation), sans dépendre de
+    // la visibilité CSS. id : cible de aria-controls du bouton de la navbar.
+    <aside
+      id="board-sidebar"
+      className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}
+      inert={collapsed}
+    >
       <h2 className="sidebar__title">Tableaux</h2>
 
       {boards.map((board) => (
@@ -107,6 +121,7 @@ export default function Sidebar({
           key={board.id}
           board={board}
           active={board.id === currentBoardId}
+          collapsed={collapsed}
           canDelete={canDelete}
           onSelect={onSelect}
           onRename={onRename}

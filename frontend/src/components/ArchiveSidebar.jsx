@@ -15,9 +15,11 @@
 import { useNavigate } from 'react-router-dom'
 
 import { useBoards } from '../boards/useBoards.js'
+import { useSidebar } from '../preferences/useSidebar.js'
 
 export default function ArchiveSidebar() {
   const { boards, selectBoard } = useBoards()
+  const { collapsed } = useSidebar()
   const navigate = useNavigate()
 
   function goToBoard(boardId) {
@@ -26,7 +28,13 @@ export default function ArchiveSidebar() {
   }
 
   return (
-    <aside className="sidebar">
+    // Même état de repli que la sidebar du kanban (contexte partagé) ; `inert` et
+    // id : voir Sidebar.jsx.
+    <aside
+      id="board-sidebar"
+      className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}
+      inert={collapsed}
+    >
       <h2 className="sidebar__title">Tableaux</h2>
 
       {boards.map((board) => (

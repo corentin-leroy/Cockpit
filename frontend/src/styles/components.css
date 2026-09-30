@@ -143,6 +143,13 @@
     border-color var(--transition-base);
 }
 
+/* Bouton de repli de la sidebar + marque, groupés à gauche. */
+.navbar__start {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .navbar__brand {
   font-weight: 600;
   color: var(--color-text);
@@ -165,8 +172,10 @@
   font-weight: 600;
 }
 
-/* Bascule de thème : icône + libellé accessible (aria-label sur le bouton). */
-.theme-toggle {
+/* Bascule de thème et bouton de repli de la sidebar : boutons-icônes de la
+ * navbar, même gabarit. Icône décorative, libellé accessible en aria-label. */
+.theme-toggle,
+.sidebar-toggle {
   font-size: var(--text-lg);
   line-height: 1;
   padding: var(--space-2);
@@ -231,11 +240,21 @@
 /* Largeur DURE : width + min-width + max-width identiques neutralisent le
  * min-width:auto (basé sur le contenu) qui, avec un simple flex-basis, laissait
  * un nom long élargir la sidebar. flex-shrink:0 pour ne pas se comprimer face au
- * kanban. */
+ * kanban.
+ *
+ * REPLI (voir .sidebar--collapsed) : la largeur vient de --sidebar-width, la même
+ * variable que la marge de repli, pour que changer l'une ne casse pas l'autre.
+ * Le box-sizing global étant border-box, la largeur INCLUT le padding et la
+ * bordure : la marge de repli vaut exactement -1 × --sidebar-width, sans terme
+ * séparé pour la bordure. --sidebar-slide (180ms) est le plafond fixé par
+ * l'exception d'animation de DESIGN.md. */
 .sidebar {
-  width: 220px;
-  min-width: 220px;
-  max-width: 220px;
+  --sidebar-width: 220px;
+  --sidebar-slide: 180ms;
+
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  max-width: var(--sidebar-width);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -245,7 +264,34 @@
   border-right: 1px solid var(--color-border);
   transition:
     background-color var(--transition-base),
-    border-color var(--transition-base);
+    border-color var(--transition-base),
+    margin-left var(--sidebar-slide) ease;
+}
+
+/* Repliée : sort ENTIÈREMENT de la mise en page (marge négative = sa largeur) et
+ * cède sa place au contenu. visibility:hidden, appliqué en FIN d'animation
+ * (délai = durée) : le contenu reste visible pendant qu'elle glisse, puis n'est
+ * plus rendu du tout. Au dépliage, la règle disparaît : visibility revient
+ * immédiatement. En complément, l'attribut `inert` (Sidebar.jsx,
+ * ArchiveSidebar.jsx) retire la sidebar du clavier dès le clic. */
+.sidebar--collapsed {
+  margin-left: calc(-1 * var(--sidebar-width));
+  visibility: hidden;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    margin-left var(--sidebar-slide) ease,
+    visibility 0s linear var(--sidebar-slide);
+}
+
+/* prefers-reduced-motion : basculement instantané, délai de visibilité compris
+ * (la règle globale de base.css ramène les durées à ~0 mais ne touche pas aux
+ * délais). */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar--collapsed {
+    transition: none;
+  }
 }
 
 .sidebar__title {

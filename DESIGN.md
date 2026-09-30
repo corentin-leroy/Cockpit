@@ -77,6 +77,13 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Pas d'ombre décorative. L'ombre sert uniquement aux éléments flottants (modale, menu).
 - Pas d'emoji dans l'interface.
 - Pas d'animation au-delà de 180ms, et uniquement sur opacité, fond et couleur.
+  EXCEPTION UNIQUE, écrite et limitée à ce seul cas : le repli de la sidebar des
+  tableaux (`.sidebar`, propriété `margin-left`, propriété de mise en page).
+  180ms au maximum (`--sidebar-slide`, components.css), jamais davantage. Sous
+  `prefers-reduced-motion: reduce`, le basculement est INSTANTANÉ (aucune
+  transition, délai de visibilité compris). Aucun autre élément ne peut
+  invoquer cette exception : toute autre animation de mise en page reste
+  interdite.
 - Pas de bordure quand un espace suffit à séparer.
 - **Jamais `display: flex` ni `display: -webkit-box` directement sur un `<td>`.**
   Un `<td>` doit garder son `display: table-cell` implicite pour participer au
