@@ -12,7 +12,7 @@ Deux principes transverses ici :
 from datetime import timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -102,34 +102,50 @@ def _issue_token(db: Session, user: User, purpose: TokenPurpose) -> str:
     return plain_token
 
 
-def _consume_token(db: Session, plain_token: str, purpose: TokenPurpose) -> SecurityToken:
-    """Valide un token reçu et le marque comme consommé.
+def _consume_token(db: Session, plain_token: str, purpose: TokenPurpose) -> int:
+    """Valide un token reçu, le marque comme consommé, et renvoie l'id de son user.
+
+    La validation ET la consommation sont UNE SEULE instruction : un UPDATE
+    conditionnel (non consommé, non expiré, bon `purpose`). Une lecture suivie
+    d'une écriture laissait une fenêtre où plusieurs requêtes portant le même
+    jeton passaient toutes le contrôle : le jeton servait plusieurs fois. Ici la
+    base départage : PostgreSQL fait attendre la seconde requête sur le verrou de
+    la ligne puis réévalue le WHERE (consumed_at n'est plus NULL, 0 ligne) ;
+    SQLite sérialise les écritures avec le même résultat. Le même SQL tourne sur
+    les deux moteurs, contrairement à un SELECT ... FOR UPDATE que SQLite ignore.
+
+    Aucun SELECT ne doit précéder cet UPDATE dans la transaction (sous SQLite, lire
+    puis écrire expose à un « database is locked » immédiat). Le commit reste à
+    l'appelant : les effets de bord (mot de passe, is_verified) et la consommation
+    sont ainsi validés ensemble, ou annulés ensemble (le jeton n'a alors pas servi).
 
     Le filtre sur `purpose` est essentiel : sans lui, un lien de vérification
     d'email (valable 24 h) pourrait servir à réinitialiser un mot de passe.
 
-    Lève un 400 unique pour les trois cas d'échec (inconnu, expiré, déjà utilisé) :
-    inutile de détailler à un client qui présente un lien invalide, et le message
-    est de toute façon actionnable de la même façon — redemander un lien.
+    Lève un 400 unique pour les trois cas d'échec (inconnu, expiré, déjà utilisé,
+    y compris perdu dans une course) : inutile de détailler à un client qui
+    présente un lien invalide, et le message est de toute façon actionnable de la
+    même façon — redemander un lien.
     """
-    token = db.scalar(
-        select(SecurityToken).where(
+    now = utcnow()
+    user_id = db.scalar(
+        update(SecurityToken)
+        .where(
             SecurityToken.token_hash == hash_token(plain_token),
             SecurityToken.purpose == purpose,
+            SecurityToken.consumed_at.is_(None),
+            SecurityToken.expires_at >= now,
         )
+        .values(consumed_at=now)
+        .returning(SecurityToken.user_id)
+        .execution_options(synchronize_session=False)
     )
-    if (
-        token is None
-        or token.consumed_at is not None
-        or token.expires_at < utcnow()
-    ):
+    if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ce lien est invalide ou expiré. Demandez-en un nouveau.",
         )
-
-    token.consumed_at = utcnow()
-    return token
+    return user_id
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -326,9 +342,12 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     démontre la vérification d'email. Continuer à réclamer une confirmation
     après ça n'apporterait aucune garantie supplémentaire.
     """
-    token = _consume_token(db, payload.token, TokenPurpose.PASSWORD_RESET)
+    # Consommation atomique d'abord : seule la requête gagnante va plus loin (et
+    # paie bcrypt). Tout ce qui suit est dans la MÊME transaction, validée par le
+    # seul commit final.
+    user_id = _consume_token(db, payload.token, TokenPurpose.PASSWORD_RESET)
 
-    user = db.get(User, token.user_id)
+    user = db.get(User, user_id)
     user.hashed_password = hash_password(payload.new_password)
     user.is_verified = True
 
@@ -356,9 +375,9 @@ def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)):
     Endpoint public : le token EST la preuve d'identité (l'utilisateur peut
     cliquer depuis sa boîte mail sans être connecté à l'app).
     """
-    token = _consume_token(db, payload.token, TokenPurpose.EMAIL_VERIFICATION)
+    user_id = _consume_token(db, payload.token, TokenPurpose.EMAIL_VERIFICATION)
 
-    user = db.get(User, token.user_id)
+    user = db.get(User, user_id)
     user.is_verified = True
 
     db.commit()

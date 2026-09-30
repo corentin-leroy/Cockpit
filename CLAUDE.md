@@ -342,7 +342,8 @@ Frontend (depuis frontend/) :
 - Fichiers : `test_auth.py`, `test_boards_ownership.py`,
   `test_applications_ownership.py`, `test_limits.py`,
   `test_account_deletion.py`, `test_migrations.py`, `test_input_validation.py`,
-  `test_registration_race.py`, `test_error_messages.py`, `test_archiving.py`.
+  `test_registration_race.py`, `test_error_messages.py`, `test_archiving.py`,
+  `test_token_race.py`.
 - `test_input_validation.py` : pour chaque champ borné, la valeur maximale passe
   et la valeur maximale + 1 donne 422 (création ET modification) ; NUL et
   surrogate isolé refusés dans chaque champ texte de chaque schéma d'entrée ;
@@ -388,6 +389,13 @@ Frontend (depuis frontend/) :
   zéro exception, un seul compte et un seul tableau par manche (~2 s au total).
   Plus un test déterministe (contrôle préalable rendu aveugle) et un test de garde
   (une autre `IntegrityError` reste un 500, jamais déguisée en 409).
+- `test_token_race.py` : 20 reset-password et 40 verify-email simultanés avec le
+  MÊME jeton, 5 manches, base SQLite FICHIER (comme test_registration_race.py).
+  Exige exactement une 200, le reste en 400 au corps identique à celui d'un jeton
+  consommé ; pour le reset, chaque requête envoie un mot de passe différent et
+  celui du gagnant doit être celui de la base. Jetons semés directement en base.
+  ~12 s (écritures SQLite sérialisées). Vérifié qu'il détecte le défaut : sur
+  l'ancien code il échoue avec 15 x 200.
 - `test_migrations.py` migre sa PROPRE base SQLite en mémoire (connexion injectée
   via `config.attributes["connection"]`, cf. alembic/env.py) et vérifie : une
   seule tête de migration ; `upgrade head` depuis le vide produit EXACTEMENT le
@@ -439,6 +447,30 @@ Frontend (depuis frontend/) :
   la génération ; expiration 60 min (reset) / 24 h (vérification) ; usage unique
   via `consumed_at`. La vérification filtre TOUJOURS sur `purpose` : un lien de
   vérification ne doit jamais pouvoir réinitialiser un mot de passe.
+- USAGE UNIQUE GARANTI, y compris en requêtes SIMULTANÉES. `_consume_token`
+  (routers/auth.py) valide et consomme en UNE SEULE instruction : un
+  `UPDATE security_tokens SET consumed_at = :now WHERE token_hash = :h AND
+  purpose = :p AND consumed_at IS NULL AND expires_at >= :now RETURNING user_id`.
+  Une ligne renvoyée = gagnante ; aucune = 400 identique à celui d'un jeton
+  inconnu, expiré ou déjà consommé (rien de plus n'est révélé). Le défaut
+  d'origine (SELECT, test de `consumed_at` en Python, écriture plus tard) laissait
+  passer plusieurs requêtes avec le même jeton. MESURÉ avant correction : 15 x 200
+  sur 20 reset simultanés (15 = pool 5 + 10), 15 x 200 sur 40 vérifications
+  (SQLite) et 3 à 5 x 200 sur PostgreSQL 18 ; après : exactement 1 x 200, partout.
+  - Pourquoi un UPDATE conditionnel et non `SELECT ... FOR UPDATE` : le même SQL
+    tourne sur PostgreSQL et SQLite. SQLAlchemy IGNORE `FOR UPDATE` sur SQLite, les
+    tests n'auraient alors exercé aucun verrou. PostgreSQL (READ COMMITTED) fait
+    attendre la seconde requête sur le verrou de ligne puis réévalue le WHERE ;
+    SQLite sérialise les écritures. `RETURNING` exige SQLite >= 3.35 (3.50.4 ici).
+  - L'UPDATE doit rester la PREMIÈRE instruction de la transaction (sous SQLite,
+    lire puis écrire expose à un « database is locked » immédiat), et le commit
+    reste à l'appelant : mot de passe, `is_verified` et invalidation des autres
+    liens de reset s'écrivent APRÈS la consommation, dans la même transaction,
+    donc pour la seule requête gagnante. Ordre du reset : consommer, puis bcrypt,
+    puis écrire, un seul commit ; un jeton invalide échoue toujours avant bcrypt.
+    Si la transaction du gagnant est annulée, la consommation l'est aussi.
+  - Garde : `tests/test_token_race.py`. Aucune migration (aucun changement de
+    schéma).
 - Vérification d'email NON BLOQUANTE (décision produit) : un compte non vérifié
   se connecte et utilise l'app normalement. `User.is_verified` est exposé dans
   UserRead pour que le front affiche un bandeau d'invitation.
