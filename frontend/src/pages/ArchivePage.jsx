@@ -16,6 +16,7 @@ import {
   unarchiveApplication,
 } from '../api/applications.js'
 import Alert from '../components/Alert.jsx'
+import ArchiveSidebar from '../components/ArchiveSidebar.jsx'
 import ConfirmModal from '../components/ConfirmModal.jsx'
 import Navbar from '../components/Navbar.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
@@ -27,9 +28,12 @@ const STATUS_LABELS = Object.fromEntries(
   APPLICATION_STATUSES.map((status) => [status.key, status.label]),
 )
 
+// Mois abrégé (« 29 sept. 2026 ») plutôt que numérique : sur cette page on
+// cherche une archive précise, la lisibilité prime sur les quelques pixels
+// gagnés par un format numérique (qui demanderait de décoder le mois).
 const DATE_FORMATTER = new Intl.DateTimeFormat('fr-FR', {
   day: 'numeric',
-  month: 'long',
+  month: 'short',
   year: 'numeric',
 })
 
@@ -134,90 +138,126 @@ export default function ArchivePage() {
     <>
       <Navbar />
 
-      <main className="archive-page">
-        <h1 className="archive-page__title">Archives</h1>
+      <div className="board-layout">
+        <ArchiveSidebar />
 
-        {actionError && <Alert className="stack-gap">{actionError}</Alert>}
+        <main className="archive-page">
+          <h1 className="archive-page__title">Archives</h1>
 
-        <div className="field archive-page__search">
-          <label className="field__label" htmlFor="archive-search">
-            Rechercher
-          </label>
-          <input
-            id="archive-search"
-            type="search"
-            className="input"
-            placeholder="Intitulé, entreprise, lieu, statut…"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </div>
+          {actionError && <Alert className="stack-gap">{actionError}</Alert>}
 
-        {loading && <p className="text-muted">Chargement des archives…</p>}
-
-        {!loading && error && <Alert>{error}</Alert>}
-
-        {!loading && !error && archives.length === 0 && (
-          <p className="text-muted">Aucune candidature archivée.</p>
-        )}
-
-        {!loading && !error && archives.length > 0 && filtered.length === 0 && (
-          <p className="text-muted">Aucun résultat pour « {query.trim()} ».</p>
-        )}
-
-        {!loading && !error && filtered.length > 0 && (
-          <div className="archive-table-wrapper">
-            <table className="archive-table">
-              <thead>
-                <tr>
-                  <th scope="col">Intitulé</th>
-                  <th scope="col">Entreprise</th>
-                  <th scope="col">Lieu</th>
-                  <th scope="col">Statut</th>
-                  <th scope="col">Archivée le</th>
-                  <th scope="col">
-                    <span className="visually-hidden">Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((application) => (
-                  <tr key={application.id}>
-                    <td>{application.title}</td>
-                    <td>{application.company}</td>
-                    <td>{application.location || '—'}</td>
-                    <td>
-                      {STATUS_LABELS[application.status] ?? application.status}
-                    </td>
-                    <td>
-                      {DATE_FORMATTER.format(parseUtcDate(application.archived_at))}
-                    </td>
-                    <td className="archive-table__actions">
-                      <button
-                        type="button"
-                        className="btn btn--secondary btn--sm"
-                        onClick={() => handleUnarchive(application)}
-                        disabled={unarchivingId === application.id}
-                      >
-                        {unarchivingId === application.id
-                          ? 'Désarchivage…'
-                          : 'Désarchiver'}
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn--danger btn--sm"
-                        onClick={() => setDeleteTarget(application)}
-                      >
-                        Supprimer définitivement
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* Ligne flex : la recherche prend l'espace disponible (flex:1).
+              Emplacement réservé pour le futur filtre par tableau (lot
+              suivant) : un <select> ajouté ici comme frère de
+              .archive-page__search s'alignera à droite sans restructuration. */}
+          <div className="archive-page__filters">
+            <div className="field archive-page__search">
+              <label className="field__label" htmlFor="archive-search">
+                Rechercher
+              </label>
+              <input
+                id="archive-search"
+                type="search"
+                className="input"
+                placeholder="Intitulé, entreprise, lieu, statut…"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
           </div>
-        )}
-      </main>
+
+          {loading && <p className="text-muted">Chargement des archives…</p>}
+
+          {!loading && error && <Alert>{error}</Alert>}
+
+          {!loading && !error && archives.length === 0 && (
+            <p className="text-muted">Aucune candidature archivée.</p>
+          )}
+
+          {!loading && !error && archives.length > 0 && filtered.length === 0 && (
+            <p className="text-muted">Aucun résultat pour « {query.trim()} ».</p>
+          )}
+
+          {!loading && !error && filtered.length > 0 && (
+            <div className="archive-table-wrapper">
+              <table className="archive-table">
+                {/* table-layout:fixed (CSS) s'appuie sur ces largeurs : Intitulé
+                    n'en a PAS, il absorbe tout l'espace restant — c'est la
+                    colonne qui doit en recevoir le plus (demande explicite). */}
+                <colgroup>
+                  <col />
+                  <col style={{ width: 180 }} />
+                  <col style={{ width: 130 }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 110 }} />
+                  <col style={{ width: 230 }} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col">Intitulé</th>
+                    <th scope="col">Entreprise</th>
+                    <th scope="col">Lieu</th>
+                    <th scope="col">Statut</th>
+                    <th scope="col">Archivée le</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((application) => (
+                    <tr key={application.id}>
+                      <td>
+                        <span className="archive-table__title">
+                          {application.title}
+                        </span>
+                      </td>
+                      <td className="archive-table__ellipsis">
+                        {application.company}
+                      </td>
+                      <td className="archive-table__ellipsis">
+                        {application.location || '—'}
+                      </td>
+                      <td>
+                        {STATUS_LABELS[application.status] ?? application.status}
+                      </td>
+                      <td>
+                        {DATE_FORMATTER.format(
+                          parseUtcDate(application.archived_at),
+                        )}
+                      </td>
+                      <td>
+                        {/* Le flex vit sur ce DIV interne, jamais directement
+                            sur le <td> : posé sur le <td>, il le sort du
+                            calcul de hauteur de ligne du tableau (mesuré :
+                            cette cellule finissait plus courte que les
+                            autres, d'où la bordure « décrochée »). */}
+                        <div className="archive-table__actions">
+                          <button
+                            type="button"
+                            className="btn btn--secondary btn--sm"
+                            onClick={() => handleUnarchive(application)}
+                            disabled={unarchivingId === application.id}
+                          >
+                            {unarchivingId === application.id
+                              ? 'Désarchivage…'
+                              : 'Désarchiver'}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn--danger btn--sm"
+                            onClick={() => setDeleteTarget(application)}
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </main>
+      </div>
 
       {deleteTarget && (
         <ConfirmModal

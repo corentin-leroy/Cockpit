@@ -59,14 +59,19 @@ export default function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* Page d'archives : même raisonnement que /account — elle lit les
-          candidatures archivées de TOUS les tableaux (GET /applications sans
-          board_id), pas besoin de BoardsProvider. */}
+      {/* Page d'archives : BoardsProvider ajouté pour la sidebar de navigation
+          (ArchiveSidebar) — elle lit la liste des tableaux pour les proposer,
+          sans les utiliser pour filtrer les archives (GET /applications sans
+          board_id, inchangé). Instance séparée de celle de /app : un GET
+          /boards de plus à chaque visite, comme le reste de l'app qui ne
+          partage pas de cache entre routes. */}
       <Route
         path="/archives"
         element={
           <ProtectedRoute>
-            <ArchivePage />
+            <BoardsProvider>
+              <ArchivePage />
+            </BoardsProvider>
           </ProtectedRoute>
         }
       />

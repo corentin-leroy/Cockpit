@@ -19,6 +19,16 @@ export default function Navbar() {
     navigate('/login', { replace: true })
   }
 
+  // Classe d'un lien de nav : même traitement pour Archives et Mon compte,
+  // qu'il s'agisse de la page courante ou non — harmonisé sur demande, pas de
+  // cas particulier entre les deux. `aria-current="page"` porte le sens pour
+  // un lecteur d'écran, le style (texte pleine intensité + semi-gras) le porte
+  // visuellement, jamais la couleur seule (DESIGN.md) : même principe que
+  // .board-row--active dans la sidebar du kanban.
+  function navLinkClass(active) {
+    return `btn btn--ghost btn--sm${active ? ' navbar__link--active' : ''}`
+  }
+
   return (
     <nav className="navbar">
       {/* La marque ramène au kanban : sur la page de compte, c'est le chemin de
@@ -29,18 +39,22 @@ export default function Navbar() {
       </Link>
 
       <div className="navbar__actions">
-        {/* Masqués quand on y est déjà : un lien vers la page courante n'apporte
-            rien et brouille le repérage. */}
-        {!onArchivesPage && (
-          <Link to="/archives" className="btn btn--ghost btn--sm">
-            Archives
-          </Link>
-        )}
-        {!onAccountPage && (
-          <Link to="/account" className="btn btn--ghost btn--sm">
-            Mon compte
-          </Link>
-        )}
+        {/* TOUJOURS visibles, y compris sur leur propre page : c'est la page
+            courante qui se marque comme active, elle ne disparaît plus. */}
+        <Link
+          to="/archives"
+          className={navLinkClass(onArchivesPage)}
+          aria-current={onArchivesPage ? 'page' : undefined}
+        >
+          Archives
+        </Link>
+        <Link
+          to="/account"
+          className={navLinkClass(onAccountPage)}
+          aria-current={onAccountPage ? 'page' : undefined}
+        >
+          Mon compte
+        </Link>
         <ThemeToggle />
         <button
           type="button"
