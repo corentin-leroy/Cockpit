@@ -592,13 +592,23 @@ def test_validation_bound_never_exceeds_the_column(model, column, bound):
     puis PostgreSQL la refuse à l'écriture (500 au lieu de 422). SQLite n'applique
     pas les longueurs de VARCHAR : ce test est le seul à détecter l'écart en test.
 
-    `notes` est une colonne Text (longueur None, donc sans limite en base) jusqu'à
-    la migration prévue vers String(5000) : le test ne compare alors rien et
-    s'activera tout seul le jour où la colonne aura une longueur."""
+    Une colonne SANS longueur (Text, longueur None) fait ÉCHOUER le test, elle ne
+    le fait pas sauter : c'était le cas de `notes` avant la migration 0004, où le
+    test ne comparait rien. Un champ borné par l'API doit l'être aussi par la
+    base ; une colonne repassée à Text en silence lèverait sinon aucune alarme."""
     length = _column_length(model, column)
-    if length is None:
-        pytest.skip(f"{model.__tablename__}.{column} : colonne sans longueur (Text)")
+    assert length is not None, (
+        f"{model.__tablename__}.{column} n'a pas de longueur en base (Text ?) : "
+        "la borne de validation ne serait appliquée que par l'API"
+    )
     assert bound <= length
+
+
+def test_notes_column_length_is_the_validation_bound():
+    """`notes` : la colonne est EXACTEMENT la borne de limits.py (models.py lit la
+    constante). Plus strict que « borne <= colonne » : une colonne plus large que
+    la borne laisserait la base accepter ce que l'API refuse."""
+    assert _column_length(Application, "notes") == MAX_NOTES_LENGTH
 
 
 # ---------------------------------------------------------------------------

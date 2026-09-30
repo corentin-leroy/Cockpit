@@ -29,10 +29,11 @@ que cela impose sous SQLite.
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.limits import MAX_NOTES_LENGTH
 from app.security import utcnow
 
 # Les colonnes DateTime sont NAIVES et exprimées en UTC, partout (cf. utcnow()).
@@ -203,7 +204,11 @@ class Application(Base):
     status: Mapped[ApplicationStatus] = mapped_column(
         Enum(ApplicationStatus), default=ApplicationStatus.SAVED, nullable=False
     )
-    notes: Mapped[str | None] = mapped_column(Text)
+    # Longueur tirée de limits.py (source unique de la borne de validation) : la
+    # base impose elle-même la limite, y compris à un chemin qui contourne l'API
+    # (script de maintenance, SQL manuel). Changer la constante exige une
+    # migration : test_migrations.py (alembic check) échoue sinon.
+    notes: Mapped[str | None] = mapped_column(String(MAX_NOTES_LENGTH))
     applied_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # --- Archivage ---

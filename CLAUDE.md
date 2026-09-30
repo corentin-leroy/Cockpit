@@ -206,9 +206,17 @@ Frontend (depuis frontend/) :
   Title, Company, Location, Url, Notes, RowId) : une valeur acceptée à la création
   l'est à la modification. L'écart entre les deux causait des 500 (location et url
   non bornés en PATCH).
-- `notes` : 5000 caractères. La colonne reste `Text` (sans limite en base) jusqu'à
-  la migration prévue vers String(5000) (lot 3e) ; le test de cohérence
-  s'activera alors tout seul.
+- `notes` : 5000 caractères, appliqués PAR L'API (Pydantic) ET PAR LA BASE : la
+  colonne est `String(MAX_NOTES_LENGTH)` (models.py lit la constante de
+  limits.py, migration 0004, lot 3e). Elle n'était avant que `Text`, sans limite :
+  tout chemin contournant l'API (script de maintenance, SQL manuel, futur import)
+  n'était pas protégé. Vérifié sur PostgreSQL 18.6 : la base refuse elle-même une
+  note de 5001 caractères, en INSERT comme en UPDATE (« value too long for type
+  character varying(5000) »). Modifier `MAX_NOTES_LENGTH` exige une nouvelle
+  migration (test_migrations.py échoue sinon). Tous les champs texte sont donc
+  désormais bornés à la fois par l'API et par leur colonne ; le test de cohérence
+  (test_input_validation.py) ÉCHOUE, au lieu de sauter, si une colonne bornée
+  n'a plus de longueur (repassée à `Text`).
 - `source` : liste fermée `manual` | `extension` (Literal dans schemas.py,
   colonne String(50) inchangée). Les sources d'API (V1.5) s'ajouteront à cette
   liste le jour où elles existeront. `ApplicationRead.source` reste un `str` pour
@@ -387,7 +395,11 @@ Frontend (depuis frontend/) :
   C'est lui qui fait échouer la suite quand models.py change SANS migration,
   et il couvre aussi le garde-fou de la migration 0002 (une ligne REJECTED
   interrompt l'upgrade, sans rien modifier) et la conservation des lignes dans
-  les deux sens.
+  les deux sens, ainsi que celui de la 0004 (une note de 5001 caractères
+  interrompt l'upgrade, rien n'est tronqué ; NULL, vide et 5000 caractères sont
+  conservés dans les deux sens). Sous SQLite, le DDL `VARCHAR(5000)` n'est PAS
+  appliqué : l'application de la borne par la base ne se prouve que sur
+  PostgreSQL (fait, cf. révision 0004).
   Limites : SQLite uniquement, les types enum natifs de PostgreSQL n'y sont pas
   exercés. ⚠ POINT AVEUGLE : `alembic check` ne compare PAS les libellés d'un
   enum (vérifié sur SQLite ET sur PostgreSQL : aucun écart signalé alors que le
@@ -583,6 +595,26 @@ Frontend (depuis frontend/) :
   (pas supposé), PostgreSQL 18, table de 50 000 lignes : 68 ms — une opération
   de métadonnées, pas une réécriture de table. Toutes les lignes existantes
   valent NULL après la migration (donc actives) : aucune donnée réinterprétée.
+- Révision 0004 (« notes string 5000 ») : passe `applications.notes` de `Text` à
+  `String(5000)`. Dans UNE transaction : `LOCK TABLE ... ACCESS EXCLUSIVE`, puis
+  garde-fou qui échoue explicitement (nombre de notes et longueur maximale dans
+  le message) si une note dépasse déjà 5000 caractères — il ne TRONQUE JAMAIS —,
+  puis `ALTER COLUMN ... TYPE VARCHAR(5000)`. La valeur 5000 est en dur dans la
+  migration (état figé du schéma), pas importée de limits.py. MESURÉ (pas
+  supposé) sur PostgreSQL 18.6 jetable, 50 000 lignes, 18 Mo :
+  - `text` → `varchar(5000)` RÉÉCRIT TOUTE LA TABLE (`relfilenode` change) :
+    ~950 ms sous verrou exclusif. Négligeable pour cette base (quelques
+    lignes), mais à savoir : sur une grosse table les écritures seraient
+    bloquées pendant la réécriture.
+  - Une valeur trop longue FAIT ÉCHOUER la conversion (« value too long for type
+    character varying(5000) »), la transaction est annulée et rien n'est
+    tronqué : même sans le garde-fou, aucune donnée n'est perdue. Le garde-fou
+    sert à rendre l'échec lisible et actionnable.
+  - Le downgrade (`varchar(5000)` → `text`) ne réécrit pas la table et ne perd
+    rien (md5 du contenu identique dans les deux sens).
+  Compatible avec la version précédente du code (elle n'écrit déjà que des notes
+  de 5000 caractères au plus) : si le déploiement échoue, l'ancienne version
+  continue de servir sur le schéma migré.
 - Enums : SQLAlchemy stocke les NOMS des membres (`APPLIED`), pas les valeurs
   (`applied`) — à retenir pour toute requête SQL manuelle. Sous PostgreSQL ce
   sont des types natifs (`applicationstatus`, `tokenpurpose`) : on n'y retire
@@ -833,9 +865,12 @@ Frontend (depuis frontend/) :
       3d : extension alignée sur les mêmes limites (troncature du lieu,
       nettoyage des URL trop longues, maxLength, ApiError.data) — la version
       publiée est antérieure à ce lot, numéro de version du manifest inchangé
-    - [à faire, reporté] 3e : migration de `notes` en `String(5000)`. La borne
-      de 5000 caractères est aujourd'hui appliquée par Pydantic seulement, pas
-      par la colonne (`Text` en base, sans limite)
+    - [fait] 3e : migration 0004, `notes` passe de
+      `Text` à `String(5000)` (longueur tirée de MAX_NOTES_LENGTH) : la borne est
+      désormais appliquée par l'API ET par la base, comme tous les autres champs
+      texte. Garde-fou explicite si une note dépasse déjà 5000 caractères,
+      jamais de troncature. Testée sur PostgreSQL 18.6 jetable (aller-retour avec
+      données, échec du garde-fou, échec de conversion sans troncature)
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
 - Agrégation API officielles (La Bonne Alternance, France Travail) → V1.5

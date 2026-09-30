@@ -45,8 +45,9 @@ MAX_COMPANY_LENGTH = 255  # applications.company String(255)
 MAX_LOCATION_LENGTH = 255  # applications.location String(255)
 MAX_URL_LENGTH = 2048  # applications.url String(2048)
 MAX_BOARD_NAME_LENGTH = 100  # boards.name String(255) : borne API plus stricte
-# notes : colonne Text (sans limite en base). Bornée ici seulement ; la migration
-# vers String(5000) est prévue à part (lot 3e).
+# notes : applications.notes String(MAX_NOTES_LENGTH). models.py lit CETTE
+# constante pour la longueur de la colonne (migration 0004, lot 3e) : borne API et
+# colonne ne peuvent plus diverger. La modifier exige une nouvelle migration.
 MAX_NOTES_LENGTH = 5000
 
 # Mot de passe choisi (inscription, réinitialisation), en caractères.

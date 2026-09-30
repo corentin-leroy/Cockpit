@@ -134,6 +134,60 @@ def test_migration_0002_keeps_every_row_in_both_directions(migration_engine):
         assert _stored_statuses(connection) == statuses
 
 
+def _seed_notes(connection, notes: list[str | None]) -> None:
+    """Insère un utilisateur, un tableau et une candidature par note (SQL brut :
+    la base est au niveau de schéma d'une révision donnée)."""
+    _seed_applications(connection, ["SAVED"] * len(notes))
+    for index, note in enumerate(notes, start=1):
+        connection.execute(
+            text("UPDATE applications SET notes = :note WHERE id = :id"),
+            {"note": note, "id": index},
+        )
+
+
+def _stored_notes(connection) -> list[str | None]:
+    rows = connection.execute(text("SELECT notes FROM applications ORDER BY id"))
+    return [row[0] for row in rows]
+
+
+def test_migration_0004_refuses_to_run_while_a_note_is_too_long(migration_engine):
+    """GARDE-FOU de la migration 0004 : une note de 5001 caractères interrompt
+    l'upgrade avec un message explicite, rien n'est tronqué, et la révision reste
+    à 0003. Une note de 5000 caractères, elle, ne bloque pas.
+
+    Seule partie de 0004 protégée ici : le DDL PostgreSQL (ALTER ... TYPE
+    VARCHAR(5000)) n'est PAS exercé, SQLite n'applique pas les longueurs. Il se
+    vérifie à la main sur un PostgreSQL jetable."""
+    too_long = "x" * 5001
+    with migration_engine.connect() as connection:
+        config = _alembic_config(connection)
+        command.upgrade(config, "0003")
+        _seed_notes(connection, ["ok", too_long, "y" * 5000])
+
+        with pytest.raises(RuntimeError, match=r"1 candidature\(s\).*5001"):
+            command.upgrade(config, "0004")
+
+        assert _stored_notes(connection) == ["ok", too_long, "y" * 5000]
+        version = connection.execute(text("SELECT version_num FROM alembic_version"))
+        assert version.scalar_one() == "0003"
+
+
+def test_migration_0004_keeps_every_note_in_both_directions(migration_engine):
+    """Sans note trop longue, l'upgrade passe et le downgrade aussi : aucune note
+    n'est modifiée, tronquée ni perdue (NULL, vide et 5000 caractères compris)."""
+    notes = [None, "", "court", "é" * 5000]
+    with migration_engine.connect() as connection:
+        config = _alembic_config(connection)
+        command.upgrade(config, "0003")
+        _seed_notes(connection, notes)
+
+        command.upgrade(config, "0004")
+        assert _stored_notes(connection) == notes
+
+        command.downgrade(config, "0003")
+        assert _stored_notes(connection) == notes
+
+
 def test_migrations_can_be_fully_downgraded(migration_engine):
     """Toute migration doit être réversible : `downgrade base` ne laisse aucune
     table applicative (seule la table de suivi d'Alembic subsiste)."""
