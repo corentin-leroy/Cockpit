@@ -19,7 +19,7 @@ import { useDroppable } from '@dnd-kit/react'
 // de dépôt. L'identifiant du droppable est préfixé `board:` et porte dans `data`
 // le type (« board ») et le boardId : c'est ce qui permet à onDragEnd de
 // distinguer un dépôt sur un tableau d'un dépôt sur une colonne (cf. BoardPage).
-function BoardRow({ board, active, canDelete, deleting, onSelect, onRename, onDelete }) {
+function BoardRow({ board, active, canDelete, onSelect, onRename, onDelete }) {
   const [hovered, setHovered] = useState(false)
 
   // Le tableau courant n'est pas une cible : la carte glissée en provient déjà.
@@ -76,7 +76,6 @@ function BoardRow({ board, active, canDelete, deleting, onSelect, onRename, onDe
               title="Supprimer"
               className="btn btn--ghost btn--icon"
               onClick={() => onDelete(board)}
-              disabled={deleting}
             >
               <span aria-hidden="true">🗑</span>
             </button>
@@ -94,7 +93,6 @@ export default function Sidebar({
   onCreate,
   onRename,
   onDelete,
-  deletingBoardId,
 }) {
   // Règle métier « pas le dernier tableau » côté UX : sans au moins deux tableaux,
   // on masque l'action supprimer (le backend renverrait 409 de toute façon).
@@ -110,7 +108,6 @@ export default function Sidebar({
           board={board}
           active={board.id === currentBoardId}
           canDelete={canDelete}
-          deleting={deletingBoardId === board.id}
           onSelect={onSelect}
           onRename={onRename}
           onDelete={onDelete}

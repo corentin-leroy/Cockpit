@@ -47,7 +47,6 @@ const FIELD_MAP = {
  * @param {(data: Object) => Promise<void>} props.onSubmit  soumission (async).
  * @param {() => void} props.onCancel        fermeture sans enregistrer.
  * @param {() => void} [props.onDelete]      si fourni, affiche « Supprimer ».
- * @param {boolean}  [props.deleting]        désactive les actions pendant la suppression.
  * @param {() => Promise<void>} [props.onArchive]  si fourni, affiche « Archiver ».
  */
 export default function ApplicationForm({
@@ -58,7 +57,6 @@ export default function ApplicationForm({
   onSubmit,
   onCancel,
   onDelete,
-  deleting = false,
   onArchive,
 }) {
   // On ne conserve que les champs éditables ; les valeurs manquantes (null côté
@@ -93,7 +91,7 @@ export default function ApplicationForm({
   const [submitting, setSubmitting] = useState(false)
   const [archiving, setArchiving] = useState(false)
 
-  const busy = submitting || deleting || archiving
+  const busy = submitting || archiving
 
   function update(field) {
     return (event) => {
@@ -323,7 +321,7 @@ export default function ApplicationForm({
             onClick={onDelete}
             disabled={busy}
           >
-            {deleting ? 'Suppression…' : 'Supprimer'}
+            Supprimer
           </button>
         )}
 

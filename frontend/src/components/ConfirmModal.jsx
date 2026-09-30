@@ -61,7 +61,7 @@ export default function ConfirmModal({
         <span className="confirm-warning__icon" aria-hidden="true">
           ⚠
         </span>
-        <div>
+        <div className="confirm-warning__body">
           <p className="confirm-warning__lead">{warningLead}</p>
           {warningDetail && (
             <p className="confirm-warning__detail">{warningDetail}</p>

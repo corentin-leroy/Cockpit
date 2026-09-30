@@ -751,6 +751,14 @@
   line-height: 1.5;
 }
 
+/* Le texte est un enfant flex : sans min-width:0 un mot sans espace élargit le
+ * bandeau au lieu de passer à la ligne. Aujourd'hui les messages viennent du
+ * catalogue backend (jamais la valeur saisie) : protection préventive. */
+.alert__icon + span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Erreur sous un champ : icône + texte, même principe. */
 .field__error {
   display: flex;
@@ -853,6 +861,7 @@
 .banner__text {
   flex: 1;
   min-width: 0;
+  overflow-wrap: anywhere; /* une adresse email longue, sans espace, ne sort pas du bandeau */
 }
 
 /* Retour de l'envoi, à la suite du texte du bandeau. Le sens ne repose pas sur
@@ -1024,16 +1033,29 @@
   color: var(--color-danger-text);
 }
 
+/* Protection contre une longue chaîne sans espace (nom d'entreprise ou de
+ * tableau : 255 caractères acceptés, un lien collé par erreur suffit). DEUX
+ * réglages, tous deux nécessaires : min-width:0 sur le conteneur de texte (enfant
+ * FLEX, dont le min-width:auto — la largeur du plus long mot — le faisait sortir
+ * de la modale), et overflow-wrap:anywhere sur les textes pour qu'ils passent à
+ * la ligne au milieu du mot. Vit ici, pas dans une page : toute modale bâtie sur
+ * .confirm-warning (ConfirmModal, DeleteAccountModal) est protégée d'un coup. */
+.confirm-warning__body {
+  min-width: 0;
+}
+
 .confirm-warning__lead {
   font-weight: 600;
   font-size: var(--text-sm);
   color: var(--color-danger-text);
+  overflow-wrap: anywhere;
 }
 
 .confirm-warning__detail {
   margin-top: var(--space-1);
   font-size: var(--text-sm);
   color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
 }
 
 /* Précision sous un champ (pourquoi on le demande). Distinct de .field__error :

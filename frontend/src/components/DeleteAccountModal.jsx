@@ -65,7 +65,7 @@ export default function DeleteAccountModal({ onConfirm, onClose }) {
           <span className="confirm-warning__icon" aria-hidden="true">
             ⚠
           </span>
-          <div>
+          <div className="confirm-warning__body">
             <p className="confirm-warning__lead">
               Cette action est définitive et ne peut pas être annulée.
             </p>

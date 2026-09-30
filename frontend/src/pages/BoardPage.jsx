@@ -22,6 +22,7 @@ import Modal from '../components/Modal.jsx'
 import Alert from '../components/Alert.jsx'
 import ApplicationForm from '../components/ApplicationForm.jsx'
 import BoardForm from '../components/BoardForm.jsx'
+import ConfirmModal from '../components/ConfirmModal.jsx'
 import DeleteBoardModal from '../components/DeleteBoardModal.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
 
@@ -71,8 +72,10 @@ export default function BoardPage() {
   // État de la modale : null (fermée), { mode: 'create' }, ou
   // { mode: 'edit', application }. Une seule modale ouverte à la fois.
   const [modal, setModal] = useState(null)
-  // Id de la candidature en cours de suppression (désactive les actions).
-  const [deletingId, setDeletingId] = useState(null)
+  // Candidature ciblée par une suppression : pilote ConfirmModal. null = fermée.
+  // Jamais ouverte en même temps que `modal` : une seule modale à la fois (deux
+  // <Modal> empilées réagiraient toutes deux à Échap, écouteur posé sur document).
+  const [applicationToDelete, setApplicationToDelete] = useState(null)
   // Modale de tableau : null, { mode: 'create' }, ou { mode: 'rename', board }.
   const [boardModal, setBoardModal] = useState(null)
   // Tableau ciblé par une suppression : pilote l'ouverture de DeleteBoardModal.
@@ -304,24 +307,29 @@ export default function BoardPage() {
     closeModal()
   }
 
-  // Suppression : confirmation, puis retrait de la carte de l'affichage.
-  async function handleDelete() {
-    const target = modal.application
-    if (!window.confirm(`Supprimer la candidature « ${target.title} » ?`)) {
-      return
-    }
+  // Suppression, en trois temps. « Supprimer » (modale d'édition) ÉCHANGE la
+  // modale d'édition contre la confirmation — jamais les deux à la fois.
+  // Les modifications non enregistrées du formulaire sont perdues (décision :
+  // cliquer sur « Supprimer » signifie qu'on veut jeter la candidature).
+  function handleDelete() {
+    setApplicationToDelete(modal.application)
+    setModal(null)
+  }
 
-    setDeletingId(target.id)
-    try {
-      await deleteApplication(target.id)
-      setApplications((prev) => prev.filter((item) => item.id !== target.id))
-      closeModal()
-    } catch (err) {
-      // Erreur réseau/serveur : on garde la modale ouverte et on signale l'échec.
-      window.alert(err.message || 'La suppression a échoué. Réessayez.')
-    } finally {
-      setDeletingId(null)
-    }
+  // « Annuler » ramène à l'édition de la même candidature (celle d'où l'on
+  // venait), formulaire réinitialisé.
+  function handleCancelDelete() {
+    setModal({ mode: 'edit', application: applicationToDelete })
+    setApplicationToDelete(null)
+  }
+
+  // Pas de try/catch : une erreur remonte à ConfirmModal, qui l'affiche et reste
+  // ouverte (même principe que la suppression d'un tableau ou d'une archive).
+  async function handleConfirmDeleteApplication() {
+    const target = applicationToDelete
+    await deleteApplication(target.id)
+    setApplications((prev) => prev.filter((item) => item.id !== target.id))
+    setApplicationToDelete(null)
   }
 
   // --- Gestion des tableaux (création / renommage / suppression) ---
@@ -466,7 +474,6 @@ export default function BoardPage() {
             onSubmit={handleUpdate}
             onCancel={closeModal}
             onDelete={handleDelete}
-            deleting={deletingId === modal.application.id}
             onArchive={handleArchive}
           />
         </Modal>
@@ -491,6 +498,18 @@ export default function BoardPage() {
             onCancel={closeBoardModal}
           />
         </Modal>
+      )}
+
+      {applicationToDelete && (
+        <ConfirmModal
+          title="Supprimer la candidature"
+          warningLead="Cette action est définitive et ne peut pas être annulée."
+          warningDetail={`La candidature « ${applicationToDelete.title} » chez ${applicationToDelete.company} sera supprimée immédiatement.`}
+          confirmLabel="Supprimer la candidature"
+          confirmingLabel="Suppression…"
+          onConfirm={handleConfirmDeleteApplication}
+          onClose={handleCancelDelete}
+        />
       )}
 
       {boardToDelete && (
