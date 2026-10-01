@@ -327,10 +327,42 @@ Frontend (depuis frontend/) :
   « email déjà pris ». Le contrôle préalable est conservé. Le nombre de perdantes
   n'est pas aléatoire : 14 = 15 (pool 5 + 10) − 1. Avant correction : 14 x 500 /
   25 x 409 / 1 x 201 par manche de 40 requêtes, sous PostgreSQL comme SQLite.
-- Connus et NON traités : durcissements de fond prévus dans un lot séparé : casse
-  des emails (deux comptes `Case@` et `case@`), bcrypt tronque à 72 octets, schéma
-  d'URL (`javascript:` accepté), espaces seuls acceptés côté backend, limites de
-  débit. Saturation du pool : inscription et login gardent leur connexion pendant
+- Adresses email NORMALISÉES à l'entrée (minuscules, sans espaces autour), par UN
+  type partagé `NormalizedEmail` (schemas.py) : `Annotated[EmailStr,
+  BeforeValidator(_normalize_email)]`. Avant, `Case@Example.com` et
+  `case@example.com` donnaient deux comptes (l'index unique compare la casse ;
+  EmailStr ne met en minuscules que le DOMAINE) et la connexion échouait dès que
+  la casse tapée différait de celle de l'inscription. Aujourd'hui TOUS les champs
+  email des schémas d'entrée l'utilisent (UserCreate, UserLogin,
+  ForgotPasswordRequest) : l'index unique existant suffit alors à empêcher les
+  doublons, sans contrainte supplémentaire en base (choix assumé : pas de
+  `CHECK (email = lower(email))`, la normalisation à l'entrée et les tests font
+  foi), et sans migration (production et cockpit.db : aucune adresse à convertir,
+  vérifié le 2026-10-01).
+  - Pourquoi un TYPE dédié et pas le validateur `'*'` d'InputModel : celui-ci vise
+    tous les champs texte, mots de passe compris ; y passer en minuscules serait
+    catastrophique. Le type suit le patron des alias existants (PresentedPassword…).
+  - ORDRE (vérifié par exécution) : le `'*'` d'InputModel refuse d'abord le NUL et
+    le surrogate isolé sur la valeur BRUTE, puis la normalisation, puis EmailStr
+    valide l'adresse normalisée. Une valeur non textuelle traverse la
+    normalisation intacte : EmailStr produit son erreur habituelle (catalogue de
+    messages inchangé). Espaces à l'INTÉRIEUR : toujours refusés par EmailStr
+    (EmailStr retirait déjà les espaces autour ; le `strip()` rend la règle
+    explicite, indépendante d'un détail de Pydantic).
+  - `lower()` et non `casefold()` (« ß » deviendrait « ss » : l'identité de
+    l'adresse changerait). Idempotent.
+  - Anti-énumération INCHANGÉE : les endpoints reçoivent la valeur déjà normalisée
+    et ne se branchent jamais sur la casse ; la réponse de /auth/forgot-password et
+    le 401 générique du login (corps ET en-têtes) sont identiques que le compte
+    existe ou non, quelle que soit la casse (tests).
+  - Un NOUVEAU schéma d'entrée portant un email doit utiliser `NormalizedEmail`.
+    GARDE (test_email_normalization.py) : tout champ d'un InputModel typé `EmailStr`
+    ou dont le nom contient « email » (même typé `str`) sans ce normaliseur fait
+    échouer la suite. `UserRead.email` (sortie) reste un `EmailStr` nu : il relit
+    la valeur stockée.
+- Connus et NON traités : durcissements de fond prévus dans un lot séparé : bcrypt
+  tronque à 72 octets, schéma d'URL (`javascript:` accepté), espaces seuls acceptés
+  côté backend, limites de débit. Saturation du pool : inscription et login gardent leur connexion pendant
   le hachage bcrypt (~0,2 s) ; environ 15 requêtes simultanées saturent le pool par
   défaut (5 + 10) et, au-delà de 30 s d'attente, `QueuePool timeout` donne un 500.
 
@@ -343,7 +375,17 @@ Frontend (depuis frontend/) :
   `test_applications_ownership.py`, `test_limits.py`,
   `test_account_deletion.py`, `test_migrations.py`, `test_input_validation.py`,
   `test_registration_race.py`, `test_error_messages.py`, `test_archiving.py`,
-  `test_token_race.py`.
+  `test_token_race.py`, `test_email_normalization.py`.
+- `test_email_normalization.py` : inscription `Case@` puis `case@` → 409 identique
+  au doublon exact et un seul compte ; adresse stockée en minuscules et sans
+  espaces ; connexion réussie quelle que soit la casse tapée ; mot de passe oublié
+  en autre casse → un jeton de reset est émis pour le BON compte ; anti-énumération
+  (forgot-password et 401 du login identiques, compte existant ou non, toutes
+  casses) ; espace intérieur, espaces seuls et valeur vide toujours en 422 sur les
+  trois points d'entrée ; NUL et surrogate refusés avant la normalisation ;
+  idempotence ; GARDE (champ email non normalisé) + preuve que le garde détecte un
+  schéma fautif. Vérifié par mutation : normalisation neutralisée → 7 tests rouges ;
+  un schéma revenu à `EmailStr` → le garde le nomme.
 - `test_input_validation.py` : pour chaque champ borné, la valeur maximale passe
   et la valeur maximale + 1 donne 422 (création ET modification) ; NUL et
   surrogate isolé refusés dans chaque champ texte de chaque schéma d'entrée ;

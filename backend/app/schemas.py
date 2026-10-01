@@ -13,6 +13,7 @@ from typing import Annotated, Literal
 from pydantic import (
     AfterValidator,
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     EmailStr,
     Field,
@@ -107,6 +108,30 @@ def _check_presented_password_size(value: str) -> str:
     return value
 
 
+def _normalize_email(value):
+    """Adresse email en minuscules et sans espaces autour.
+
+    Sans cela « Case@Example.com » et « case@example.com » étaient deux comptes
+    (l'index unique de la colonne compare la casse) et la connexion échouait dès que
+    la casse tapée différait de celle de l'inscription. EmailStr ne met en minuscules
+    que le DOMAINE.
+
+    S'exécute APRÈS le refus du NUL et du surrogate isolé (le validateur `'*'` de
+    InputModel passe en premier : vérifié) et AVANT EmailStr, qui valide l'adresse
+    déjà normalisée. Une valeur qui n'est pas une chaîne est laissée telle quelle :
+    EmailStr produit alors son erreur habituelle. Les espaces À L'INTÉRIEUR ne sont
+    pas touchés, EmailStr les refuse. `lower()` et non `casefold()` : casefold
+    transformerait « ß » en « ss », donc changerait l'identité de l'adresse.
+    Idempotent."""
+    if isinstance(value, str):
+        return value.strip().lower()
+    return value
+
+
+# Adresse email d'un schéma d'ENTRÉE. TOUT champ email d'un InputModel doit avoir ce
+# type : un test (test_email_normalization.py) fait échouer la suite sinon.
+NormalizedEmail = Annotated[EmailStr, BeforeValidator(_normalize_email)]
+
 # Mot de passe PRÉSENTÉ (login, suppression de compte) : borne haute technique en
 # octets, jamais un minimum ni la politique d'inscription.
 PresentedPassword = Annotated[str, AfterValidator(_check_presented_password_size)]
@@ -130,10 +155,11 @@ ApplicationSource = Literal["manual", "extension"]
 
 
 class UserCreate(InputModel):
-    """Payload d'inscription. EmailStr valide le format de l'email ;
-    le mot de passe en clair n'existe que le temps de la requête, jamais stocké."""
+    """Payload d'inscription. NormalizedEmail normalise (minuscules, sans espaces
+    autour) puis valide le format de l'email ; le mot de passe en clair n'existe
+    que le temps de la requête, jamais stocké."""
 
-    email: EmailStr
+    email: NormalizedEmail
     password: str = Field(min_length=8, max_length=MAX_PASSWORD_LENGTH)
 
 
@@ -165,7 +191,7 @@ class UserLogin(InputModel):
     est très en deçà : la borne ne peut verrouiller aucun compte. Au-delà : 422 —
     le 401 reste réservé à un mot de passe bien formé mais incorrect."""
 
-    email: EmailStr
+    email: NormalizedEmail
     password: PresentedPassword
 
 
@@ -179,7 +205,7 @@ class Token(BaseModel):
 class ForgotPasswordRequest(InputModel):
     """Demande d'un lien de réinitialisation. Seul l'email est fourni."""
 
-    email: EmailStr
+    email: NormalizedEmail
 
 
 class ResetPasswordRequest(InputModel):
