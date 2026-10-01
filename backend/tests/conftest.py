@@ -79,6 +79,47 @@ def client():
     Base.metadata.drop_all(bind=test_engine)
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiting(monkeypatch):
+    """Compteurs de débit remis à zéro AVANT chaque test (et après), réglages de proxy
+    par défaut (aucun proxy de confiance : seule l'adresse TCP compte).
+
+    Indispensable : la suite fait des centaines d'inscriptions et de connexions depuis
+    la MÊME adresse de test ; sans cela, les plafonds par IP (20 inscriptions par
+    heure, 60 connexions par minute) s'accumuleraient d'un test à l'autre."""
+    from app import client_ip, rate_limit
+
+    rate_limit.limiters.reset()
+    client_ip._warned_at.clear()
+    monkeypatch.setattr(client_ip, "settings", client_ip.ProxySettings())
+    yield
+    rate_limit.limiters.reset()
+
+
+class FakeClock:
+    """Horloge injectable : les fenêtres glissantes se testent sans attendre."""
+
+    def __init__(self, start: float = 1000.0):
+        self.now = start
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+@pytest.fixture
+def clock():
+    """Horloge factice installée sur les limiteurs (restaurée par la réinitialisation
+    automatique ci-dessus)."""
+    from app.rate_limit import limiters
+
+    fake = FakeClock()
+    limiters.clock = fake
+    return fake
+
+
 @pytest.fixture
 def db_session():
     """Session directe sur la base de test, pour les assertions sur l'état stocké

@@ -11,7 +11,7 @@ Deux principes transverses ici :
 
 from datetime import timedelta
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -20,6 +20,13 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.email import send_password_reset_email, send_verification_email
 from app.models import Board, SecurityToken, TokenPurpose, User
+from app.rate_limit import (
+    clear_login_failures,
+    limit_forgot_password_per_ip,
+    limit_login_per_ip,
+    limit_register_per_ip,
+    reserve_login_attempt,
+)
 from app.schemas import (
     DeleteAccountRequest,
     ForgotPasswordRequest,
@@ -56,7 +63,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # Redis ni de dépendance type slowapi), le compteur survit à un redémarrage et
 # reste correct si plusieurs workers tournent, puisque la source de vérité est la
 # base. Limite assumée : c'est une fenêtre glissante par compte, pas une défense
-# volumétrique par IP — celle-ci se posera au niveau du reverse proxy en prod.
+# volumétrique par IP — celle-ci est dans app/rate_limit.py (dépendances par IP sur
+# la connexion, l'inscription et /forgot-password), EN PLUS de ce plafond.
 MAX_EMAILS_PER_HOUR = 3
 
 # Message du 409 « email déjà pris ». Une seule constante pour les DEUX chemins qui
@@ -148,7 +156,12 @@ def _consume_token(db: Session, plain_token: str, purpose: TokenPurpose) -> int:
     return user_id
 
 
-@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(limit_register_per_ip)],
+)
 def register(
     payload: UserCreate,
     background_tasks: BackgroundTasks,
@@ -219,9 +232,19 @@ def register(
     return user
 
 
-@router.post("/login", response_model=Token)
-def login(payload: UserLogin, db: Session = Depends(get_db)):
+@router.post(
+    "/login", response_model=Token, dependencies=[Depends(limit_login_per_ip)]
+)
+def login(payload: UserLogin, request: Request, db: Session = Depends(get_db)):
     """Authentifie un utilisateur et renvoie un JWT.
+
+    Limites de débit (app/rate_limit.py), TOUTES vérifiées avant le moindre calcul
+    bcrypt, sinon elles ne protégeraient pas le serveur : 60 tentatives par minute
+    et par IP (dépendance de la route), puis 5 échecs par quart d'heure et par
+    COUPLE (IP, email). La tentative est RÉSERVÉE avant bcrypt (atomique : des
+    requêtes simultanées ne passent pas toutes le contrôle) et effacée par une
+    connexion réussie. Le compteur de couple ne dépend pas de l'existence du compte
+    (un email inconnu compte comme un mot de passe faux) : le 429 est identique.
 
     En cas d'échec, renvoie un 401 avec un message **identique** que l'email
     soit inconnu ou le mot de passe faux : on ne révèle jamais si un compte
@@ -231,6 +254,8 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
 
     Un compte non vérifié se connecte normalement (vérification non bloquante).
     """
+    reserve_login_attempt(request, payload.email)
+
     user = db.scalar(select(User).where(User.email == payload.email))
     hashed = user.hashed_password if user is not None else DUMMY_PASSWORD_HASH
 
@@ -240,6 +265,8 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
             detail="Email ou mot de passe incorrect.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    clear_login_failures(request, payload.email)
 
     # `sub` (subject) = identité portée par le token ; chaîne par convention JWT.
     access_token = create_access_token({"sub": str(user.id)})
@@ -296,7 +323,11 @@ def delete_current_user(
     db.commit()
 
 
-@router.post("/forgot-password", response_model=MessageResponse)
+@router.post(
+    "/forgot-password",
+    response_model=MessageResponse,
+    dependencies=[Depends(limit_forgot_password_per_ip)],
+)
 def forgot_password(
     payload: ForgotPasswordRequest,
     background_tasks: BackgroundTasks,

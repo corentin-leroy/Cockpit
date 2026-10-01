@@ -60,6 +60,20 @@ FALLBACK_MESSAGE = "Une des informations fournies n'est pas valide."
 # est journalisée côté serveur (cf. main.py), jamais renvoyée au client.
 GENERIC_SERVER_ERROR_DETAIL = "Une erreur inattendue est survenue. Réessayez dans un instant."
 
+# Réponses 429 (limites de débit, app/rate_limit.py). Statiques : la durée d'attente
+# est dans l'en-tête Retry-After. Elles ne dépendent JAMAIS de l'existence d'un compte
+# (anti-énumération) : le même texte sort que l'adresse visée existe ou non.
+RATE_LIMITED_LOGIN_DETAIL = (
+    "Trop de tentatives de connexion. Patientez quelques minutes avant de réessayer, "
+    "ou utilisez « Mot de passe oublié »."
+)
+RATE_LIMITED_REGISTER_DETAIL = (
+    "Trop d'inscriptions depuis cette connexion. Réessayez plus tard."
+)
+RATE_LIMITED_FORGOT_PASSWORD_DETAIL = (
+    "Trop de demandes de réinitialisation depuis cette connexion. Réessayez plus tard."
+)
+
 # ---------------------------------------------------------------------------
 # Gabarits GÉNÉRIQUES : un message par `type` Pydantic, valable pour N'IMPORTE
 # QUEL champ (utilisent {label}, jamais un nom de champ technique brut).

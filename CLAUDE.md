@@ -122,6 +122,120 @@ Frontend (depuis frontend/) :
   volée côté ASGI : renvoyer un 413 au milieu d'un flux déjà pris en charge par
   l'app provoque un double envoi de réponse.
 
+# Limites de débit (connexion, inscription, mot de passe oublié)
+- MENACES : deviner un mot de passe par essais répétés ; tester en masse des
+  identifiants volés ailleurs ; créer des comptes en masse (chaque inscription fait
+  envoyer un email par Brevo, sur le quota) ; saturer le serveur (une connexion coûte
+  ~0,2 s de bcrypt et une connexion du pool). Code : `app/rate_limit.py` (compteurs,
+  dépendances FastAPI), `app/client_ip.py` (lecture de l'IP), seuils dans `limits.py`.
+- SEUILS, en FENÊTRE GLISSANTE, constantes dans `limits.py` :
+  - connexion : 60 tentatives par minute et par IP, TOUTES confondues (celles dont
+    le corps est invalide comptent aussi) ;
+  - connexion : 5 ÉCHECS par quart d'heure et par COUPLE (IP, email visé) ; seuls
+    les échecs comptent, une connexion réussie remet ce compteur à zéro. Le couple et
+    non l'email seul : sinon n'importe qui bloquerait le compte d'un autre en
+    échouant volontairement sur son adresse (il n'épuise que SON compteur) ;
+  - inscription : 20 par heure et par IP (409 et 422 comptent aussi) ;
+  - mot de passe oublié : 10 par heure et par IP, EN PLUS du plafond de 3 envois par
+    heure et par compte, qui reste inchangé et silencieux.
+  Les seuils par IP sont LARGES volontairement : derrière une IP partagée (école,
+  entreprise), des dizaines de personnes légitimes apparaissent comme une adresse.
+- RÉPONSE : 429, `{"detail": "<français>"}`, en-tête `Retry-After` (secondes entières,
+  au moins 1 : le délai avant que la plus ancienne tentative comptée sorte de la
+  fenêtre). Textes dans `error_messages.py` (`RATE_LIMITED_*_DETAIL`), statiques. Celui
+  de la connexion invite à patienter ou à utiliser « Mot de passe oublié ».
+- ORDRE : TOUTES les vérifications précèdent le calcul bcrypt, sinon elles ne
+  protégeraient pas le serveur. Seuils par IP : dépendances de route (avant le corps
+  de l'endpoint). Couple : `reserve_login_attempt` au tout début de `login`.
+- ATOMICITÉ : `SlidingWindowCounter.hit` vérifie ET enregistre sous un verrou. Pour le
+  couple, la tentative est RÉSERVÉE avant bcrypt puis effacée si la connexion réussit :
+  seuls les échecs restent. Un contrôle séparé de l'enregistrement de l'échec laissait
+  passer les ~15 requêtes simultanées (taille du pool) avant qu'aucune ne soit comptée
+  (test de rafale : 20 mauvais mots de passe simultanés = exactement 5 bcrypt réels).
+- ANTI-ÉNUMÉRATION : le compteur de couple s'incrémente de la même façon que le compte
+  existe ou non (un email inconnu compte comme un mot de passe faux) : le 429 arrive au
+  même moment, avec le même corps et le même `Retry-After`. La limite par IP de
+  /auth/forgot-password peut être EXPLICITE (429) : elle ne dépend pas de l'existence
+  du compte ; le plafond par compte, lui, reste silencieux. L'email du couple est celui
+  du schéma, déjà normalisé : la casse ne permet pas d'esquiver.
+- STOCKAGE EN MÉMOIRE, sans dépendance (décision). ⚠ HYPOTHÈSE D'INSTANCE UNIQUE : le
+  backend tourne en UN SEUL processus (railway.json ne passe pas `--workers` ; le nombre
+  de RÉPLICAS du service, réglage Railway, doit rester à 1). Conséquences acceptées :
+  un redémarrage remet les compteurs à zéro ; pendant un déploiement l'ancienne et la
+  nouvelle instance coexistent brièvement avec des compteurs séparés. À PLUSIEURS
+  instances (workers, réplicas) chaque instance compterait de son côté : les seuils
+  seraient multipliés par leur nombre. Il faudrait alors des compteurs PARTAGÉS (Redis
+  avec expiration, ou une table PostgreSQL) en gardant l'interface de
+  `SlidingWindowCounter` (`hit`, `clear`, `reset`) ; la lecture de l'IP ne change pas.
+- MÉMOIRE BORNÉE (un attaquant qui varie IP ou emails ne peut pas la faire grossir) :
+  - par clé, jamais plus de `limite` horodatages (une tentative refusée n'est pas
+    enregistrée : marteler une clé bloquée ne prolonge pas le blocage) ;
+  - PURGE : les clés sont gardées dans l'ordre de leur dernière tentative enregistrée,
+    donc les expirées forment un préfixe ; chaque appel dépile par l'avant (coût
+    amorti constant, ni balayage ni thread) ;
+  - PLAFOND : `RATE_LIMIT_MAX_TRACKED_KEYS` = 10 000 clés par compteur. Atteint avec des
+    clés encore vivantes, la MOINS RÉCEMMENT ACTIVE est oubliée (son quota est rendu)
+    et un WARNING limité en fréquence est journalisé. On ne refuse JAMAIS une nouvelle
+    clé : cela permettrait de bloquer tout le monde en remplissant la table. Une IP
+    seule ne crée que 60 clés par minute ; seul un réseau d'adresses distinctes en
+    profite, et il contourne déjà les seuils par IP ;
+  - MESURÉ (tracemalloc, pire cas : 10 000 clés toutes pleines) : ~14,7 Mo (connexion
+    par IP, 60 horodatages par clé), ~9,8 Mo (couple), ~9,5 Mo (inscription), ~9,5 Mo
+    (mot de passe oublié), soit ~43 Mo si les quatre sont au plafond ; plusieurs
+    centaines de milliers d'opérations par seconde.
+- LECTURE DE L'IP DERRIÈRE RAILWAY (`client_ip.py`). MESURÉ en production le 2026-10-01
+  par un diagnostic temporaire (commits fb9f5b0 puis son revert e60d5db), sans
+  hypothèse sur Railway :
+  - uvicorn ne réécrit PAS l'adresse (FORWARDED_ALLOW_IPS absente, défaut 127.0.0.1) :
+    `request.client.host` vaut 100.64.0.x, plusieurs proxys internes différents ;
+    limiter dessus partagerait des compteurs entre tous les utilisateurs ;
+  - `X-Forwarded-For` arrive sous la forme « <client>, <saut du proxy> » ; un en-tête
+    falsifié par le client (une ou deux valeurs) est ÉCARTÉ par Railway ; `X-Real-IP`
+    porte le client (la valeur falsifiée est écrasée) ; `Forwarded` traverse TEL QUEL
+    (falsifiable : JAMAIS lu) ;
+  - NON mesuré : client IPv6 (la machine d'essai n'en avait pas), autre point d'entrée
+    que bcn1, en-tête répété sur plusieurs lignes.
+  MÉTHODE : avec N proxys de confiance (`TRUSTED_PROXY_COUNT`, 2 sur Railway), le client
+  est la N-ième entrée de X-Forwarded-For EN PARTANT DE LA DROITE. Ce que le client
+  écrit se retrouve à gauche et n'est jamais lu : correct que le proxy écrase l'en-tête
+  (cas mesuré) ou qu'il y ajoute (d'où le choix contre la lecture de la première valeur
+  ou de X-Real-IP). IPv6 regroupé par préfixe /64 (un client en contrôle un entier),
+  IPv4 mappée ramenée à l'IPv4.
+  REPLIS (toujours l'adresse TCP : compteur PARTAGÉ, jamais un contournement) avec
+  WARNING limité en fréquence : moins d'entrées que de proxys, entrée qui n'est pas une
+  IP, adresse TCP hors de `TRUSTED_PROXY_NETWORKS` (accès direct : en-tête forgeable).
+  RISQUE RÉSIDUEL, sans repli ni avertissement : Railway retirerait un saut ET se
+  mettrait à AJOUTER au lieu d'écraser. Refaire la vérification après tout changement
+  d'infrastructure.
+  ⚠ Ne JAMAIS poser FORWARDED_ALLOW_IPS / `--forwarded-allow-ips` : avec `*`, uvicorn
+  prend la PREMIÈRE valeur (celle de gauche, falsifiable) comme adresse du client.
+  `client_ip.py` suppose que `request.client` est l'adresse TCP brute.
+- NON COUVERT (volontairement) : /auth/reset-password et /auth/verify-email (jetons de
+  256 bits non devinables) ; DELETE /auth/me (vérifie un mot de passe avec bcrypt mais
+  exige un jeton de session valide) ; la concurrence GLOBALE de hachages (un attaquant
+  disposant de nombreuses adresses n'est pas borné, cf. « Saturation du pool »).
+- CORS : `Retry-After` n'est PAS dans `expose_headers` : un navigateur (front sur un
+  autre domaine) ne peut pas le lire. Sans conséquence aujourd'hui (messages
+  statiques, aucun décompte affiché) ; à ajouter le jour où un client voudrait un
+  compte à rebours.
+- VÉRIFICATION APRÈS DÉPLOIEMENT (sans route de diagnostic) :
+  1. AVANT de déployer : variable `TRUSTED_PROXY_COUNT=2` posée sur le service Railway,
+     `FORWARDED_ALLOW_IPS` absente, réplicas = 1. Un déploiement qui démarre prouve que
+     la valeur est syntaxiquement valide (une valeur invalide échoue au démarrage).
+  2. Preuve que la valeur est LUE : 6 connexions ratées d'affilée sur un email inconnu,
+     depuis UNE machine, doivent donner 401 x 5 puis 429 EXACTEMENT à la 6e, avec
+     `Retry-After` proche de 900 ; répété sur 3 emails différents. Si la variable
+     n'était pas lue, la clé serait l'adresse du proxy interne (3 proxys observés, les
+     requêtes d'un même client se répartissent entre eux) : un 429 net à la 6e, trois
+     fois de suite, est très improbable.
+  3. Un autre réseau (partage de connexion du téléphone) : la 1re tentative sur l'un
+     de ces emails déjà bloqués doit donner 401, pas 429 (le compteur suit le client).
+  4. Un X-Forwarded-For forgé, différent à chaque requête, ne retarde pas le 429.
+  5. Journaux Railway : aucun WARNING « Lecture de l'IP du client » (sinon la
+     topologie diffère : repli sur l'adresse TCP).
+  6. Une connexion normale depuis le navigateur fonctionne, et le message du 429
+     s'affiche dans le formulaire.
+
 # Archivage des candidatures
 - `Application.archived_at` (DateTime nullable, migration 0003) : NULL = active,
   renseignée = archivée à cette date. Le SERVEUR pose la date (`utcnow()`),
@@ -263,8 +377,9 @@ Frontend (depuis frontend/) :
 - Messages d'erreur, RÉDIGÉS PAR LE BACKEND (décision produit, lot 3b) : pas
   traduits par chaque client (frontend, extension) — une table de correspondance
   dupliquée dans les deux aurait divergé avec le temps. Catalogue UNIQUE :
-  `app/error_messages.py`, importé seulement par les gestionnaires d'exception
-  de `main.py`. `schemas.py` décide QUOI a échoué (un type d'erreur stable + un
+  `app/error_messages.py`, importé par les gestionnaires d'exception de `main.py`
+  et par `rate_limit.py` (messages des 429, cf. « Limites de débit »).
+  `schemas.py` décide QUOI a échoué (un type d'erreur stable + un
   contexte minimal) ; `error_messages.py` décide COMMENT le dire en français.
   Changer un texte ne touche jamais la logique de validation.
 - Format de réponse d'erreur, UNIQUE pour tous les codes (422 compris) :
@@ -386,10 +501,14 @@ Frontend (depuis frontend/) :
     échouer la suite. `UserRead.email` (sortie) reste un `EmailStr` nu : il relit
     la valeur stockée.
 - Connus et NON traités : durcissements de fond prévus dans un lot séparé : schéma
-  d'URL (`javascript:` accepté), espaces seuls acceptés côté backend, limites de
-  débit. Saturation du pool : inscription et login gardent leur connexion pendant
-  le hachage bcrypt (~0,2 s) ; environ 15 requêtes simultanées saturent le pool par
-  défaut (5 + 10) et, au-delà de 30 s d'attente, `QueuePool timeout` donne un 500.
+  d'URL (`javascript:` accepté), espaces seuls acceptés côté backend. Saturation du
+  pool : inscription et login gardent leur connexion pendant le hachage bcrypt
+  (~0,2 s) ; environ 15 requêtes simultanées saturent le pool par défaut (5 + 10)
+  et, au-delà de 30 s d'attente, `QueuePool timeout` donne un 500. Les limites de
+  débit (cf. « Limites de débit ») la RÉDUISENT sans la supprimer : elles bornent
+  chaque IP (au plus 60 connexions par minute, soit ~12 s de bcrypt) mais pas la
+  concurrence GLOBALE ; un attaquant disposant de nombreuses adresses reste hors de
+  leur portée. Un plafond global de hachages simultanés serait un lot séparé.
 
 # Tests backend (backend/tests/, `.venv\Scripts\python.exe -m pytest`)
 - Portée VOLONTAIREMENT ciblée : la matrice sécurité déjà validée manuellement
@@ -400,7 +519,35 @@ Frontend (depuis frontend/) :
   `test_applications_ownership.py`, `test_limits.py`,
   `test_account_deletion.py`, `test_migrations.py`, `test_input_validation.py`,
   `test_registration_race.py`, `test_error_messages.py`, `test_archiving.py`,
-  `test_token_race.py`, `test_email_normalization.py`, `test_password_limit.py`.
+  `test_token_race.py`, `test_email_normalization.py`, `test_password_limit.py`,
+  `test_rate_limit.py`, `test_client_ip.py`, `test_auth_rate_limit.py`.
+- Limites de débit (tests) : `conftest.py` remet les compteurs à zéro AVANT chaque
+  test (fixture autouse `_reset_rate_limiting`) et fournit une horloge factice
+  (`clock`, fenêtres testées sans attendre). Sans la remise à zéro, les centaines
+  d'inscriptions de la suite depuis la même adresse de test dépasseraient 20 par
+  heure. `test_registration_race.py` DÉSACTIVE le limiteur (`limiters.enabled`) :
+  ses 40 inscriptions simultanées depuis une IP en refuseraient la moitié en 429 et
+  masqueraient la contrainte unique qu'il vérifie.
+- `test_rate_limit.py` (compteur) : seuil atteint puis dépassé, glissement de la
+  fenêtre, `Retry-After`, tentative refusée non enregistrée, indépendance des clés,
+  purge des clés expirées, plafond de clés (la moins récente est oubliée, une
+  NOUVELLE clé n'est jamais refusée), journal limité, atomicité sous 200 threads, et
+  les quatre seuils décidés écrits en dur. `test_client_ip.py` (lecture de l'IP) : la
+  forme MESURÉE sur Railway, valeurs forgées à gauche (en ajout ou en remplacement,
+  en-têtes répétés, énorme en-tête), replis (trop peu d'entrées, entrée invalide,
+  adresse TCP hors du réseau des proxys), IPv6 par /64, IPv4 mappée, réglages
+  invalides refusés. `test_auth_rate_limit.py` (HTTP) : chaque seuil atteint puis
+  dépassé, glissement, remise à zéro après succès, indépendance des couples, 429
+  identique que le compte existe ou non, limite vérifiée AVANT bcrypt (compteur
+  d'appels), plafond de 3 envois par compte inchangé, compteur par vrai client
+  derrière le proxy, garde « la dépendance est branchée à la route », et une rafale
+  de 20 mauvais mots de passe simultanés avec le VRAI bcrypt (exactement 5 calculs).
+  Vérifié par 16 mutations (limite après bcrypt, pas de remise à zéro, couple sans
+  IP ou sans email, verrou retiré, pas de purge ni de plafond, nouvelles clés
+  refusées, tentative refusée enregistrée, 429 selon l'existence du compte,
+  dépendance retirée, `Retry-After` absent, seuil modifié, lecture de la première
+  valeur de X-Forwarded-For, réseau des proxys non vérifié, IPv6 non regroupé) :
+  chacune fait échouer au moins un test.
 - `test_password_limit.py` : 72 octets acceptés et 73 refusés à l'inscription ET à
   la réinitialisation, en ASCII, accents (« é »), mélange et émojis ; minimum de 8
   caractères inchangé ; messages exacts avec le bon `field`, sans écho de la valeur ;
@@ -620,7 +767,9 @@ Frontend (depuis frontend/) :
 - Rate limiting des emails sortants : 3 par heure et par (utilisateur, usage),
   compté sur `security_tokens.created_at` — pas de compteur dédié, pas de Redis,
   et le plafond survit à un redémarrage. /auth/resend-verification, lui, est
-  authentifié : il peut répondre explicitement 429.
+  authentifié : il peut répondre explicitement 429. Ce plafond par COMPTE reste
+  inchangé et silencieux ; les limites par IP de /auth/forgot-password s'y ajoutent
+  (cf. « Limites de débit »).
 
 # Base de données : SQLite (dev) et PostgreSQL (prod)
 - Le MÊME code tourne sur les deux : seule DATABASE_URL change. Tout ce qui
@@ -768,10 +917,23 @@ Frontend (depuis frontend/) :
 - FRONTEND_URL : base des liens emails (défaut http://localhost:5173)
 - BREVO_API_KEY, BREVO_SENDER_EMAIL (adresse validée dans Brevo),
   BREVO_SENDER_NAME (optionnel) — absentes = mode DEV, aucun envoi.
+- TRUSTED_PROXY_COUNT : nombre de proxys entre le client et l'application, pour lire
+  l'IP réelle dans X-Forwarded-For (limites de débit, cf. « Limites de débit »).
+  Défaut 0 = l'en-tête est IGNORÉ (dev, tests). **2 sur Railway** (mesuré). Valeur non
+  entière ou hors 0..10 → échec explicite au démarrage, jamais de repli silencieux.
+- TRUSTED_PROXY_NETWORKS : FACULTATIVE, défaut `100.64.0.0/10`. Réseau(x) d'où
+  viennent les connexions du proxy ; hors de là, l'en-tête est ignoré (accès direct).
+- ⚠ Ne JAMAIS définir FORWARDED_ALLOW_IPS (ni `--forwarded-allow-ips`) : uvicorn
+  lirait la valeur de GAUCHE de X-Forwarded-For, falsifiable (cf. « Limites de débit »).
 - OBLIGATOIRES en production : DATABASE_URL, JWT_SECRET_KEY, CORS_ORIGINS,
-  FRONTEND_URL, BREVO_API_KEY, BREVO_SENDER_EMAIL. Les défauts des trois
-  variables d'URL pointent sur localhost : oubliées, l'app démarre SANS erreur
-  mais le front est bloqué par CORS et les liens emails sont inutilisables.
+  FRONTEND_URL, BREVO_API_KEY, BREVO_SENDER_EMAIL, **TRUSTED_PROXY_COUNT**. Les
+  défauts des trois variables d'URL pointent sur localhost : oubliées, l'app démarre
+  SANS erreur mais le front est bloqué par CORS et les liens emails sont inutilisables.
+  TRUSTED_PROXY_COUNT oubliée : l'app démarre aussi sans erreur, mais l'IP lue est
+  celle du proxy interne : TOUS les utilisateurs partagent quelques compteurs (un par
+  proxy, 100.64.0.x), des utilisateurs légitimes sont bloqués. Aucun contournement
+  possible (repli sûr), mais un blocage visible. La vérification après déploiement
+  (cf. « Limites de débit ») confirme qu'elle est lue.
 
 # Versions des dépendances (figées volontairement)
 - requirements.txt et requirements-dev.txt épinglent des versions EXACTES (`==`),

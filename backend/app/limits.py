@@ -74,6 +74,32 @@ MAX_PASSWORD_INPUT_BYTES = 4096
 MIN_APPLIED_AT = datetime(1900, 1, 1)
 MAX_APPLIED_AT = datetime(2100, 12, 31, 23, 59, 59, 999999)
 
+# ---------------------------------------------------------------------------
+# Limites de débit (app/rate_limit.py), en FENÊTRE GLISSANTE, compteurs en mémoire.
+# Les seuils par IP sont volontairement LARGES : derrière une IP partagée (école,
+# entreprise), des dizaines de personnes légitimes apparaissent comme une seule
+# adresse.
+# ---------------------------------------------------------------------------
+# Connexion : toutes tentatives confondues, par IP.
+LOGIN_MAX_ATTEMPTS_PER_IP = 60
+LOGIN_IP_WINDOW_SECONDS = 60
+# Connexion : ÉCHECS seulement, par COUPLE (IP, email visé) ; une connexion réussie
+# remet le compteur à zéro. Le couple et non l'email seul : sinon n'importe qui
+# bloquerait le compte d'un autre en échouant volontairement sur son adresse.
+LOGIN_MAX_FAILURES_PER_PAIR = 5
+LOGIN_PAIR_WINDOW_SECONDS = 15 * 60
+# Inscription : par IP (chaque inscription fait envoyer un email par Brevo).
+REGISTER_MAX_PER_IP = 20
+REGISTER_IP_WINDOW_SECONDS = 60 * 60
+# Mot de passe oublié : par IP, EN PLUS du plafond de 3 envois par heure et par
+# compte (routers/auth.py, MAX_EMAILS_PER_HOUR), qui reste inchangé et silencieux.
+FORGOT_PASSWORD_MAX_PER_IP = 10
+FORGOT_PASSWORD_IP_WINDOW_SECONDS = 60 * 60
+# Mémoire bornée : nombre maximal de CLÉS suivies par compteur. Atteint avec des
+# clés encore vivantes, la moins récemment active est oubliée (jamais de refus des
+# nouvelles clés : cela permettrait de bloquer tout le monde en remplissant la table).
+RATE_LIMIT_MAX_TRACKED_KEYS = 10_000
+
 # Plus grand identifiant accepté : entier signé 32 bits, le type `integer` de
 # PostgreSQL. Au-delà, la base lève « integer out of range » (500). Les
 # identifiants sont des entiers >= 1 : 0 et les négatifs sont malformés (422).

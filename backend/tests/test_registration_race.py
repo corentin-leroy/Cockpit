@@ -29,6 +29,7 @@ from sqlalchemy.orm import sessionmaker
 from app.database import Base, get_db
 from app.main import app
 from app.models import Board, User
+from app.rate_limit import limiters
 
 EMAIL_TAKEN_DETAIL = "Un compte existe déjà avec cet email."
 SIMULTANEOUS_REQUESTS = 40
@@ -54,6 +55,11 @@ def file_database(tmp_path, monkeypatch):
             db.close()
 
     monkeypatch.setitem(app.dependency_overrides, get_db, override_get_db)
+    # Ce test vérifie la contrainte UNIQUE en base face à 40 inscriptions simultanées de
+    # la même adresse depuis la même IP : le plafond de 20 inscriptions par heure et par
+    # IP (app/rate_limit.py) en refuserait la moitié en 429 et masquerait ce qu'il teste.
+    # Le limiteur a ses propres tests (test_auth_rate_limit.py).
+    monkeypatch.setattr(limiters, "enabled", False)
     yield engine
     engine.dispose()
 
