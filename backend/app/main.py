@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app import ip_diagnostic  # TEMPORAIRE : à retirer avec app/ip_diagnostic.py
 from app.error_messages import GENERIC_SERVER_ERROR_DETAIL, build_validation_error_body
 from app.limits import MAX_REQUEST_BODY_BYTES
 from app.routers import applications, auth, boards
@@ -159,6 +160,7 @@ app.add_middleware(
 app.include_router(applications.router)
 app.include_router(auth.router)
 app.include_router(boards.router)
+app.include_router(ip_diagnostic.router)  # TEMPORAIRE : à retirer après lecture des journaux
 
 
 @app.get("/health", tags=["system"])
