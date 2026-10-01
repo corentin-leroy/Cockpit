@@ -192,7 +192,8 @@ Frontend (depuis frontend/) :
   sur la validation, indépendants du moteur (tests/test_input_validation.py).
 - Constantes dans `app/limits.py`, à côté des plafonds de quantité : longueurs de
   champs (titre, entreprise, lieu 255 ; url 2048 ; notes 5000 ; nom de tableau
-  100 ; mot de passe choisi 128), `MAX_PASSWORD_INPUT_BYTES` (4096), `MAX_ID`.
+  100), `MAX_CHOSEN_PASSWORD_BYTES` (72, mot de passe choisi, en octets),
+  `MAX_PASSWORD_INPUT_BYTES` (4096), `MAX_ID`.
   Une borne ne doit JAMAIS dépasser la colonne de `models.py` (un test le vérifie).
 - Tous les schémas d'ENTRÉE héritent de `InputModel` (schemas.py) : un validateur
   `'*'` refuse, dans tout champ texte, le NUL (U+0000 : PostgreSQL et bcrypt le
@@ -228,8 +229,32 @@ Frontend (depuis frontend/) :
   `IdPath` / `IdQuery` (dependencies.py) pour l'URL et la requête, `RowId`
   (schemas.py) pour le corps. 0 et les négatifs sont MALFORMÉS : 422, pas 404. Un
   test refuse tout paramètre entier de route non borné.
-- Mot de passe CHOISI (inscription, réinitialisation) : 8 à 128 caractères. Mot de
-  passe PRÉSENTÉ (login, suppression de compte) : au plus 4096 OCTETS UTF-8, en
+- Mot de passe CHOISI (inscription, réinitialisation) : au moins 8 CARACTÈRES, au
+  plus 72 OCTETS UTF-8 (type `ChosenPassword`, schemas.py). POURQUOI 72 : bcrypt
+  ignore tout ce qui dépasse 72 octets (vérifié, bcrypt 4.0.1 + passlib 1.7.4 : il
+  tronque en silence, sans erreur ; « a » x 72 + « X » et « a » x 72 + « Y » ouvrent
+  le même compte). L'ancienne borne de 128 caractères laissait croire que toute la
+  longueur comptait. En OCTETS et non en caractères, comme bcrypt (un « é » en pèse
+  2, un émoji 4). Au-delà : 422, code stable `chosen_password_too_long` (distinct de
+  `password_too_many_bytes`, qui vise le mot de passe présenté : l'inscription et le
+  login nomment tous deux leur champ `password`, un message dédié par (type, champ)
+  leur aurait donné le même texte). Le message parle en CARACTÈRES (« Le mot de
+  passe est trop long : 72 caractères maximum, moins s'il contient des accents. » ;
+  à la réinitialisation « Le nouveau mot de passe… »), jamais en octets, et ne
+  renvoie jamais la valeur saisie. Le front (`PASSWORD_MAX_LENGTH = 72`) compte en
+  caractères : un mot de passe accentué peut passer le maxLength et être refusé par
+  le backend, accepté (le serveur fait autorité).
+  - Un refus ne consomme JAMAIS le lien de réinitialisation : la validation du corps
+    précède l'endpoint, donc `_consume_token` n'est pas atteint (test explicite).
+    Même un refus tardif avant le commit serait annulé par la fermeture de la session.
+  - Les comptes EXISTANTS dont le mot de passe dépasse 72 octets continuent de se
+    connecter (et de supprimer leur compte) : le login garde sa borne de 4096 octets
+    et bcrypt tronque à la connexion exactement comme à l'inscription. Verrouillé par
+    des tests (hash semé directement en base). Ces tests supposent bcrypt < 5 : la 5.x
+    LÈVE au-delà de 72 octets, un relèvement du pin les ferait échouer, ce qui est
+    voulu. Ces comptes restent exposés à la troncature jusqu'à ce que leur
+    propriétaire change de mot de passe (alors limité à 72 octets).
+  Mot de passe PRÉSENTÉ (login, suppression de compte) : au plus 4096 OCTETS UTF-8, en
   octets car passlib compte les octets (2049 « é » suffisent à le faire lever
   PasswordSizeError). Borne haute technique, jamais un minimum : au-delà, 422 ; le
   401 reste réservé à un mot de passe bien formé mais incorrect. La validation
@@ -360,9 +385,9 @@ Frontend (depuis frontend/) :
     ou dont le nom contient « email » (même typé `str`) sans ce normaliseur fait
     échouer la suite. `UserRead.email` (sortie) reste un `EmailStr` nu : il relit
     la valeur stockée.
-- Connus et NON traités : durcissements de fond prévus dans un lot séparé : bcrypt
-  tronque à 72 octets, schéma d'URL (`javascript:` accepté), espaces seuls acceptés
-  côté backend, limites de débit. Saturation du pool : inscription et login gardent leur connexion pendant
+- Connus et NON traités : durcissements de fond prévus dans un lot séparé : schéma
+  d'URL (`javascript:` accepté), espaces seuls acceptés côté backend, limites de
+  débit. Saturation du pool : inscription et login gardent leur connexion pendant
   le hachage bcrypt (~0,2 s) ; environ 15 requêtes simultanées saturent le pool par
   défaut (5 + 10) et, au-delà de 30 s d'attente, `QueuePool timeout` donne un 500.
 
@@ -375,7 +400,18 @@ Frontend (depuis frontend/) :
   `test_applications_ownership.py`, `test_limits.py`,
   `test_account_deletion.py`, `test_migrations.py`, `test_input_validation.py`,
   `test_registration_race.py`, `test_error_messages.py`, `test_archiving.py`,
-  `test_token_race.py`, `test_email_normalization.py`.
+  `test_token_race.py`, `test_email_normalization.py`, `test_password_limit.py`.
+- `test_password_limit.py` : 72 octets acceptés et 73 refusés à l'inscription ET à
+  la réinitialisation, en ASCII, accents (« é »), mélange et émojis ; minimum de 8
+  caractères inchangé ; messages exacts avec le bon `field`, sans écho de la valeur ;
+  un mot de passe refusé laisse le lien de réinitialisation utilisable (puis usage
+  unique toujours garanti) ; comptes existants (100, 128 caractères, 120 octets)
+  toujours connectables et supprimables. Le 72 y est écrit EN DUR (il fixe le
+  contrat, il ne suit pas limits.py). Vérifié par mutation : retour à 128 caractères
+  → 13 tests rouges ; limite appliquée au login → 10 rouges ; lien consommé (commit)
+  avant le refus → le test de non-consommation rouge. Le test de cohérence
+  borne/colonne n'est PAS concerné : le mot de passe n'est jamais stocké, seul son
+  hash l'est.
 - `test_email_normalization.py` : inscription `Case@` puis `case@` → 409 identique
   au doublon exact et un seul compte ; adresse stockée en minuscules et sans
   espaces ; connexion réussie quelle que soit la casse tapée ; mot de passe oublié
@@ -757,7 +793,14 @@ Frontend (depuis frontend/) :
 - Points de vigilance sur deux pins :
   - `bcrypt==4.0.1` : passlib 1.7.4 lit `bcrypt.__about__.__version__`, attribut
     SUPPRIMÉ en bcrypt 4.1. Ne pas relever bcrypt sans vérifier ce point (c'est
-    l'ancienne borne `bcrypt<4.1`, désormais exprimée par un pin exact).
+    l'ancienne borne `bcrypt<4.1`, désormais exprimée par un pin exact). Autre
+    raison de ne pas le relever : bcrypt 5.x LÈVE au-delà de 72 octets au lieu de
+    tronquer, ce qui casserait la connexion des comptes existants au mot de passe
+    plus long (cf. « Validation des entrées »).
+  - ⚠ `passlib==1.7.4` n'est plus maintenue (dernière publication en 2020, à ma
+    connaissance) : c'est elle qui impose le pin `bcrypt==4.0.1` ci-dessus. Rien
+    n'est changé pour l'instant. Un éventuel passage à Argon2 (et la migration des
+    hashes existants au fil des connexions) serait un chantier À PART.
   - Les extras (`uvicorn[standard]`, `pydantic[email]`, `psycopg[binary]`,
     `passlib[bcrypt]`) n'apparaissent PAS dans `pip freeze`. Ne JAMAIS écraser
     requirements.txt avec un copier-coller de `pip freeze` : les extras seraient

@@ -24,8 +24,11 @@ export const LOCATION_MAX_LENGTH = 255
 export const URL_MAX_LENGTH = 2048
 export const NOTES_MAX_LENGTH = 5000
 
-// Mot de passe CHOISI uniquement (inscription, réinitialisation) : 128
-// caractères, comme backend/app/limits.py (MAX_PASSWORD_LENGTH). Ne JAMAIS
-// l'appliquer au mot de passe de connexion ni à celui de suppression de
-// compte — voir la note ci-dessus.
-export const PASSWORD_MAX_LENGTH = 128
+// Mot de passe CHOISI uniquement (inscription, réinitialisation) : miroir de
+// backend/app/limits.py (MAX_CHOSEN_PASSWORD_BYTES = 72). Côté serveur la borne
+// est en OCTETS UTF-8 (bcrypt ignore tout ce qui dépasse 72 octets) ; maxLength
+// compte, lui, des caractères. Un mot de passe accentué (« é » = 2 octets) peut
+// donc passer ici et être refusé par le backend, avec son message — accepté :
+// le serveur fait autorité. Ne JAMAIS l'appliquer au mot de passe de connexion
+// ni à celui de suppression de compte — voir la note ci-dessus.
+export const PASSWORD_MAX_LENGTH = 72

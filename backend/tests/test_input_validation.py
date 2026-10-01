@@ -25,7 +25,7 @@ from app.limits import (
     MAX_LOCATION_LENGTH,
     MAX_NOTES_LENGTH,
     MAX_PASSWORD_INPUT_BYTES,
-    MAX_PASSWORD_LENGTH,
+    MAX_CHOSEN_PASSWORD_BYTES,
     MAX_TITLE_LENGTH,
     MAX_URL_LENGTH,
 )
@@ -233,30 +233,32 @@ def test_board_name_bound(ctx):
 
 
 def test_chosen_password_bound(client):
-    """Mot de passe CHOISI : 128 caractères au plus (inscription et réinitialisation).
+    """Mot de passe CHOISI : 72 OCTETS au plus (inscription et réinitialisation).
+    Le détail (accents, émojis, messages, comptes existants) est dans
+    test_password_limit.py ; ici, la borne suit la constante de limits.py.
 
-    Réinitialisation : la validation précède la vérification du jeton, donc 128
-    caractères atteignent le contrôle du jeton (400, jeton inconnu) et 129 sont
-    refusés avant (422)."""
+    Réinitialisation : la validation précède la vérification du jeton, donc 72
+    octets atteignent le contrôle du jeton (400, jeton inconnu) et 73 sont refusés
+    avant (422)."""
     ok = client.post(
         "/auth/register",
-        json={"email": "long@example.com", "password": "x" * MAX_PASSWORD_LENGTH},
+        json={"email": "long@example.com", "password": "x" * MAX_CHOSEN_PASSWORD_BYTES},
     )
     assert ok.status_code == 201
     too_long = client.post(
         "/auth/register",
-        json={"email": "long2@example.com", "password": "x" * (MAX_PASSWORD_LENGTH + 1)},
+        json={"email": "long2@example.com", "password": "x" * (MAX_CHOSEN_PASSWORD_BYTES + 1)},
     )
     assert too_long.status_code == 422
 
     at_limit = client.post(
         "/auth/reset-password",
-        json={"token": "inconnu", "new_password": "x" * MAX_PASSWORD_LENGTH},
+        json={"token": "inconnu", "new_password": "x" * MAX_CHOSEN_PASSWORD_BYTES},
     )
     assert at_limit.status_code == 400
     over = client.post(
         "/auth/reset-password",
-        json={"token": "inconnu", "new_password": "x" * (MAX_PASSWORD_LENGTH + 1)},
+        json={"token": "inconnu", "new_password": "x" * (MAX_CHOSEN_PASSWORD_BYTES + 1)},
     )
     assert over.status_code == 422
 

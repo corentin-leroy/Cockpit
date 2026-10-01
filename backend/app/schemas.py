@@ -28,8 +28,8 @@ from app.limits import (
     MAX_ID,
     MAX_LOCATION_LENGTH,
     MAX_NOTES_LENGTH,
+    MAX_CHOSEN_PASSWORD_BYTES,
     MAX_PASSWORD_INPUT_BYTES,
-    MAX_PASSWORD_LENGTH,
     MAX_TITLE_LENGTH,
     MAX_URL_LENGTH,
     MIN_APPLIED_AT,
@@ -132,6 +132,33 @@ def _normalize_email(value):
 # type : un test (test_email_normalization.py) fait échouer la suite sinon.
 NormalizedEmail = Annotated[EmailStr, BeforeValidator(_normalize_email)]
 
+def _check_chosen_password_size(value: str) -> str:
+    """Refuse un mot de passe CHOISI de plus de MAX_CHOSEN_PASSWORD_BYTES OCTETS.
+
+    En octets, comme bcrypt qui ne lit que les 72 premiers : en caractères, 72 « é »
+    (144 octets) passeraient et leur fin serait ignorée. Le message, lui, parle en
+    caractères (error_messages.py), les octets ne voulant rien dire pour un humain.
+
+    Code distinct de "password_too_many_bytes" (mot de passe PRÉSENTÉ, 4096 octets) :
+    l'inscription et la connexion nomment toutes deux leur champ `password`, un
+    message dédié par (type, champ) leur donnerait le même texte. Le contexte ne porte
+    que la limite, jamais la valeur."""
+    if len(value.encode("utf-8")) > MAX_CHOSEN_PASSWORD_BYTES:
+        raise PydanticCustomError(
+            "chosen_password_too_long",
+            "Le mot de passe dépasse {max_length} octets.",
+            {"max_length": MAX_CHOSEN_PASSWORD_BYTES},
+        )
+    return value
+
+
+# Mot de passe CHOISI (inscription, réinitialisation) : au moins 8 CARACTÈRES, au plus
+# 72 OCTETS. La validation du corps précède la consommation du lien de réinitialisation :
+# un mot de passe refusé ne consomme jamais le lien.
+ChosenPassword = Annotated[
+    str, Field(min_length=8), AfterValidator(_check_chosen_password_size)
+]
+
 # Mot de passe PRÉSENTÉ (login, suppression de compte) : borne haute technique en
 # octets, jamais un minimum ni la politique d'inscription.
 PresentedPassword = Annotated[str, AfterValidator(_check_presented_password_size)]
@@ -160,7 +187,7 @@ class UserCreate(InputModel):
     que le temps de la requête, jamais stocké."""
 
     email: NormalizedEmail
-    password: str = Field(min_length=8, max_length=MAX_PASSWORD_LENGTH)
+    password: ChosenPassword
 
 
 class UserRead(BaseModel):
@@ -187,8 +214,8 @@ class UserLogin(InputModel):
 
     Seule exception, une borne HAUTE technique de 4096 OCTETS : passlib lève
     PasswordSizeError au-delà, ce qui faisait de cet endpoint public un 500. Un
-    mot de passe accepté à l'inscription (128 caractères au plus, soit 512 octets)
-    est très en deçà : la borne ne peut verrouiller aucun compte. Au-delà : 422 —
+    mot de passe accepté à l'inscription (72 octets au plus aujourd'hui, 128
+    caractères avant) est très en deçà : la borne ne peut verrouiller aucun compte. Au-delà : 422 —
     le 401 reste réservé à un mot de passe bien formé mais incorrect."""
 
     email: NormalizedEmail
@@ -215,7 +242,7 @@ class ResetPasswordRequest(InputModel):
     politique de mot de passe ne doit pas être contournable par ce chemin."""
 
     token: str = Field(min_length=1)
-    new_password: str = Field(min_length=8, max_length=MAX_PASSWORD_LENGTH)
+    new_password: ChosenPassword
 
 
 class VerifyEmailRequest(InputModel):

@@ -50,8 +50,13 @@ MAX_BOARD_NAME_LENGTH = 100  # boards.name String(255) : borne API plus stricte
 # colonne ne peuvent plus diverger. La modifier exige une nouvelle migration.
 MAX_NOTES_LENGTH = 5000
 
-# Mot de passe choisi (inscription, réinitialisation), en caractères.
-MAX_PASSWORD_LENGTH = 128
+# Mot de passe CHOISI (inscription, réinitialisation), en OCTETS UTF-8 (un « é » en
+# pèse 2) : bcrypt ignore tout ce qui dépasse 72 octets, donc deux mots de passe qui
+# ne diffèrent qu'après le 72e ouvriraient le même compte. Accepter davantage laisse
+# croire que toute la longueur compte. Le minimum (8 CARACTÈRES) est dans schemas.py.
+# Les comptes existants au mot de passe plus long continuent de se connecter : bcrypt
+# les tronquait déjà de façon identique à l'inscription (cf. MAX_PASSWORD_INPUT_BYTES).
+MAX_CHOSEN_PASSWORD_BYTES = 72
 # Mot de passe PRÉSENTÉ (login, suppression de compte), en OCTETS UTF-8 et non en
 # caractères : passlib compte les octets et lève PasswordSizeError au-delà de 4096.
 # Une borne en caractères laisserait un 500 pour les mots de passe multi-octets

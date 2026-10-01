@@ -167,7 +167,8 @@ export default function LoginPage() {
             />
             {/* PAS de maxLength ici : la borne du mot de passe PRÉSENTÉ est de
                 4096 OCTETS (pas des caractères), et un compte existant peut
-                avoir un mot de passe plus long que 128 caractères — un
+                avoir un mot de passe de plus de 72 octets (limite de
+                l'inscription depuis, 128 caractères avant) — un
                 maxLength empêcherait de s'authentifier avec un mot de passe
                 pourtant valide (cf. constants/limits.js). */}
             {fieldErrors.password && <FieldError>{fieldErrors.password}</FieldError>}

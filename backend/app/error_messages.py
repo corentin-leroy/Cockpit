@@ -94,6 +94,14 @@ GENERIC_TEMPLATES: dict[str, str] = {
     "nul_character": "{label} contient un caractère qui n'est pas autorisé.",
     "surrogate_character": "{label} contient un caractère qui n'est pas autorisé.",
     "null_not_allowed": _REQUIRED_TEMPLATE,
+    # Mot de passe CHOISI trop long (inscription : « Le mot de passe », réinitialisation :
+    # « Le nouveau mot de passe »). La limite est en OCTETS (bcrypt), le message parle en
+    # CARACTÈRES : {max_length} vient du contexte (MAX_CHOSEN_PASSWORD_BYTES), jamais
+    # recopié en dur ici, et la valeur saisie n'y figure jamais.
+    "chosen_password_too_long": (
+        "{label} est trop long : {max_length} caractères maximum, "
+        "moins s'il contient des accents."
+    ),
 }
 
 # ---------------------------------------------------------------------------
