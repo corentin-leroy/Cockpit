@@ -154,6 +154,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Sans cela, un navigateur n'expose pas Retry-After au JavaScript d'une autre
+    # origine : le front ne pourrait pas afficher le temps d'attente d'un 429.
+    expose_headers=["Retry-After"],
 )
 
 app.include_router(applications.router)

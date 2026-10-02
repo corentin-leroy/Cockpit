@@ -456,6 +456,33 @@ def test_without_trusted_proxies_the_header_is_not_a_way_around_the_limit(
 
 
 # ---------------------------------------------------------------------------
+# CORS : le front (autre origine) doit pouvoir LIRE Retry-After
+# ---------------------------------------------------------------------------
+
+
+def test_retry_after_is_exposed_to_the_browser_on_a_cross_origin_429(client, clock, fake_bcrypt):
+    """Un navigateur ne montre au JavaScript d'une autre origine que les en-têtes listés
+    dans Access-Control-Expose-Headers. Sans Retry-After dedans, le front ne peut pas
+    afficher le temps d'attente, et retombe en silence sur « bouton utilisable »."""
+    origin = "http://localhost:5173"  # origine par défaut de CORS_ORIGINS
+    for i in range(60):
+        client.post(
+            "/auth/login", json={"email": f"u{i}@example.com", "password": "x"},
+            headers={"Origin": origin},
+        )
+
+    refused = client.post(
+        "/auth/login", json={"email": "z@example.com", "password": "x"},
+        headers={"Origin": origin},
+    )
+
+    assert refused.status_code == 429
+    assert refused.headers["access-control-allow-origin"] == origin
+    exposed = [h.strip().lower() for h in refused.headers["access-control-expose-headers"].split(",")]
+    assert "retry-after" in exposed
+
+
+# ---------------------------------------------------------------------------
 # Gardes : la limite est bien branchée, les messages sont propres
 # ---------------------------------------------------------------------------
 

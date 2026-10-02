@@ -2,13 +2,42 @@
 // et met à jour l'état. Au succès, redirige vers le kanban.
 
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { splitFormErrors } from '../api/client.js'
 import { useAuth } from '../auth/useAuth.js'
+import { useRateLimitCooldown } from '../auth/useRateLimitCooldown.js'
 import Alert, { FieldError } from '../components/Alert.jsx'
+import { formatClockTime } from '../utils/retryAfter.js'
 
 const FIELD_MAP = { email: 'email', password: 'password' }
+
+/**
+ * Lit l'état transmis par RegisterPage quand l'inscription a réussi mais que la
+ * connexion automatique qui la suit a été refusée en 429 : `{ accountCreated:
+ * { until } }`, `until` étant l'échéance du blocage (ms epoch) ou null si le
+ * serveur n'a donné aucun délai lisible.
+ */
+function readAccountCreated(state) {
+  const created = state?.accountCreated
+  if (!created) return null
+  return { until: typeof created.until === 'number' ? created.until : null }
+}
+
+/**
+ * Texte du message « compte créé ». Il porte une information DURABLE (l'inscription
+ * a réussi) : contrairement aux autres messages de blocage, il ne disparaît pas à
+ * l'échéance, il change de texte.
+ */
+function accountCreatedMessage(until, blocked) {
+  if (until === null) {
+    return 'Votre compte est créé. La connexion est momentanément limitée : réessayez dans quelques minutes.'
+  }
+  if (blocked) {
+    return `Votre compte est créé. Trop de connexions récentes depuis votre réseau : vous pourrez vous connecter à partir de ${formatClockTime(until)}.`
+  }
+  return 'Votre compte est créé, vous pouvez maintenant vous connecter.'
+}
 
 // Valeur que React donne à `key` sur son événement synthétique quand
 // l'événement clavier natif n'en porte aucun. Mesuré sur le remplissage
@@ -18,7 +47,25 @@ const UNIDENTIFIED_KEY = 'Unidentified'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { login, sessionExpired, clearSessionExpired } = useAuth()
+
+  // Arrivée depuis l'inscription (compte créé, connexion automatique bloquée en
+  // 429). Même schéma que `sessionExpired` ci-dessous : recopié dans un état local
+  // au premier rendu, puis l'état de l'historique est effacé (effet suivant), pour
+  // qu'un rechargement reparte vierge — sans rien écrire dans localStorage.
+  const [accountCreated] = useState(() => readAccountCreated(location.state))
+  const [showCreated, setShowCreated] = useState(accountCreated !== null)
+
+  // Blocage après un 429 (message du serveur conservé, bouton désactivé avec le
+  // temps restant). `initialDeadline` reprend celui de l'inscription, le cas échéant.
+  const cooldown = useRateLimitCooldown({ initialDeadline: accountCreated?.until ?? null })
+
+  useEffect(() => {
+    if (location.state?.accountCreated) {
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [location, navigate])
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -82,11 +129,15 @@ export default function LoginPage() {
 
   async function handleSubmit(event) {
     event.preventDefault()
+    // Pendant un blocage, le bouton est désactivé ; ce garde couvre aussi tout
+    // envoi qui le contournerait. Rien n'est effacé : les messages restent.
+    if (cooldown.active) return
     setFormError('')
     setFieldErrors({})
     // Soumettre vaut acquittement, quel que soit le chemin emprunté pour
     // remplir le formulaire (clavier, collage souris, remplissage automatique).
     setShowExpired(false)
+    setShowCreated(false)
 
     if (!email.trim() || !password) {
       setFormError('Renseignez votre email et votre mot de passe.')
@@ -103,6 +154,12 @@ export default function LoginPage() {
       // quel, plus besoin de le reformuler ici. Le seul 422 plausible ici est
       // un mot de passe présenté de plus de 4096 octets (collage), affiché
       // sous le champ via fieldErrors.
+      // 429 : limite de débit (60 tentatives par minute et par IP, ou 5 échecs par
+      // quart d'heure sur ce couple IP/email), identique que le compte existe ou
+      // non. Avec un délai lisible, le blocage partagé garde le message affiché et
+      // désactive le bouton le temps d'attente ; sans délai lisible, le message
+      // s'affiche comme les autres erreurs et le bouton reste utilisable.
+      if (cooldown.handle(err)) return
       const { fieldErrors: apiFieldErrors, generalMessage } = splitFormErrors(err, FIELD_MAP)
       setFieldErrors(apiFieldErrors)
       setFormError(generalMessage)
@@ -122,13 +179,24 @@ export default function LoginPage() {
             incident — et surtout pas une faute de l'utilisateur. Masquée dès
             qu'une erreur de connexion survient, pour ne pas empiler deux
             messages dont un devenu caduc. */}
-        {showExpired && !formError && (
+        {showExpired && !formError && !showCreated && (
           <Alert variant="info" className="stack-gap">
             Votre session a expiré, veuillez vous reconnecter.
           </Alert>
         )}
 
+        {/* Compte tout juste créé (la connexion automatique a été bloquée) : message
+            durable, il change de texte à l'échéance au lieu de disparaître. */}
+        {showCreated && accountCreated && (
+          <Alert variant={cooldown.active ? 'info' : 'success'} className="stack-gap">
+            {accountCreatedMessage(accountCreated.until, cooldown.active)}
+          </Alert>
+        )}
+
         {formError && <Alert className="stack-gap">{formError}</Alert>}
+        {cooldown.active && cooldown.message && (
+          <Alert className="stack-gap">{cooldown.message}</Alert>
+        )}
 
         <form onSubmit={handleSubmit} noValidate>
           <div className="field">
@@ -176,10 +244,10 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || cooldown.active}
             className="btn btn--primary btn--block"
           >
-            {loading ? 'Connexion…' : 'Se connecter'}
+            {loading ? 'Connexion…' : cooldown.active ? cooldown.buttonLabel : 'Se connecter'}
           </button>
         </form>
 

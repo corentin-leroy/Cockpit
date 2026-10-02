@@ -214,10 +214,12 @@ Frontend (depuis frontend/) :
   256 bits non devinables) ; DELETE /auth/me (vérifie un mot de passe avec bcrypt mais
   exige un jeton de session valide) ; la concurrence GLOBALE de hachages (un attaquant
   disposant de nombreuses adresses n'est pas borné, cf. « Saturation du pool »).
-- CORS : `Retry-After` n'est PAS dans `expose_headers` : un navigateur (front sur un
-  autre domaine) ne peut pas le lire. Sans conséquence aujourd'hui (messages
-  statiques, aucun décompte affiché) ; à ajouter le jour où un client voudrait un
-  compte à rebours.
+- CORS : `Retry-After` est dans `expose_headers` (main.py). Sans cela, un navigateur
+  ne le montre pas au JavaScript d'une autre origine (front sur un autre domaine que
+  l'API) : le front ne pourrait pas afficher le temps d'attente et retomberait EN
+  SILENCE sur « bouton utilisable ». Gardé par un test
+  (`test_retry_after_is_exposed_to_the_browser_on_a_cross_origin_429`). Affichage côté
+  front : cf. « Architecture frontend », blocage après un 429.
 - VÉRIFICATION APRÈS DÉPLOIEMENT (sans route de diagnostic) :
   1. AVANT de déployer : variable `TRUSTED_PROXY_COUNT=2` posée sur le service Railway,
      `FORWARDED_ALLOW_IPS` absente, réplicas = 1. Un déploiement qui démarre prouve que
@@ -233,8 +235,12 @@ Frontend (depuis frontend/) :
   4. Un X-Forwarded-For forgé, différent à chaque requête, ne retarde pas le 429.
   5. Journaux Railway : aucun WARNING « Lecture de l'IP du client » (sinon la
      topologie diffère : repli sur l'adresse TCP).
-  6. Une connexion normale depuis le navigateur fonctionne, et le message du 429
-     s'affiche dans le formulaire.
+  6. Une connexion normale depuis le navigateur fonctionne. Après 5 échecs sur un
+     même compte (couple IP et email), le 6e envoi affiche le message du 429 dans le
+     formulaire ET désactive le bouton avec le temps restant (« Réessayer dans 14
+     min ») : cela prouve aussi que `Retry-After` est lisible depuis le front déployé.
+     Un mot de passe de test sur un compte jetable évite de se bloquer soi-même
+     (le blocage ne vise que cette IP et cet email, pendant 15 minutes).
 
 # Archivage des candidatures
 - `Application.archived_at` (DateTime nullable, migration 0003) : NULL = active,
@@ -1047,6 +1053,49 @@ Frontend (depuis frontend/) :
   vers l'offre (stopPropagation), sans style de lien. Le drag & drop
   (@dnd-kit) est pointeur uniquement : vérifier qu'un ajout d'élément
   interactif sur une carte ne le perturbe pas.
+- Blocage après un 429 (limites de débit, cf. « Limites de débit ») : connexion,
+  inscription et mot de passe oublié partagent UNE logique, pas trois copies.
+  - `ApiError.retryAfter` (api/client.js) : délai du serveur en SECONDES ENTIÈRES lu
+    dans l'en-tête `Retry-After`, ou `null`. `utils/retryAfter.js` (fonctions pures,
+    sans React ni Vite) : seul le format « secondes entières » est accepté, plafonné à
+    24 h ; une date HTTP, du texte, 0, un négatif ou une valeur démesurée donnent
+    `null`. Aucune date n'est interprétée : la comparer à l'horloge du poste
+    produirait une durée fausse sur un poste déréglé.
+  - `auth/useRateLimitCooldown.js` : le hook. `handle(err)` renvoie true si c'est un
+    429 AVEC un délai lisible ; le message du serveur reste alors affiché pendant tout
+    le blocage (même si l'utilisateur modifie les champs), le bouton est désactivé et
+    indique le temps restant arrondi à la minute SUPÉRIEURE (« Réessayer dans 14
+    min »), mis à jour chaque minute par UN `setTimeout` calé sur le prochain
+    changement de minute (pas de `setInterval`, pas de compte à la seconde). À
+    l'échéance, le message disparaît et le bouton redevient actif. `handleSubmit`
+    refuse aussi d'envoyer pendant le blocage. L'heure courante vit dans un état
+    (jamais lue pendant le rendu : règles du compilateur React du lint). Un onglet
+    masqué voit ses minuteurs ralentis par le navigateur : `visibilitychange`
+    recalcule au retour.
+  - SANS délai lisible (en-tête absent ou illisible), `handle` renvoie false : la page
+    traite le 429 comme une erreur ordinaire (message affiché, bouton utilisable). On
+    ne bloque jamais l'utilisateur sur une durée inventée ; le serveur continue de
+    refuser tant qu'il le faut.
+  - AUCUNE mémorisation, aucun accès à localStorage : un rechargement oublie le blocage,
+    la tentative suivante renvoie un 429 avec le délai à jour.
+  - Inscription réussie puis connexion automatique refusée en 429 : le compte EXISTE.
+    RegisterPage redirige vers /login avec `state: { accountCreated: { until } }` ;
+    LoginPage affiche « Votre compte est créé. … vous pourrez vous connecter à partir
+    de HH:MM » (heure d'échéance arrondie à la minute supérieure) et désactive le
+    bouton. Contrairement aux autres messages de blocage, celui-ci porte une
+    information durable : à l'échéance il NE disparaît PAS, il devient « Votre compte
+    est créé, vous pouvez maintenant vous connecter. » (variante succès) et ne
+    disparaît qu'à l'envoi suivant. Sans délai lisible : « …connexion momentanément
+    limitée : réessayez dans quelques minutes », bouton actif. L'état de navigation
+    est recopié dans un état local puis effacé de l'historique (même schéma que
+    `sessionExpired`) : un rechargement repart vierge.
+  - Vérifié dans le navigateur (backend local aux fenêtres raccourcies, Vite sur un
+    autre port, donc en cross-origin réel) : message conservé pendant la saisie,
+    bouton et libellé « 2 min » puis « 1 min », levée à l'échéance, envoi forcé sans
+    appel réseau, `Retry-After` absent ou en date HTTP (bouton utilisable), inscription
+    puis connexion bloquée, 429 sur l'inscription et sur /forgot-password. Le frontend
+    n'a pas de lanceur de tests : les fonctions pures ont été vérifiées par un script
+    node jetable, pas par un test du dépôt.
 - URL du backend : `VITE_API_BASE_URL` (cf. frontend/.env.example), lue dans
   api/client.js avec repli `http://127.0.0.1:8000`. Le « / » final est retiré,
   les endpoints étant concaténés directement.

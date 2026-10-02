@@ -6,6 +6,7 @@
 
 import { emitSessionExpired } from '../auth/authEvents.js'
 import { getToken, removeToken } from '../auth/token.js'
+import { parseRetryAfterSeconds } from '../utils/retryAfter.js'
 
 // Le « / » final est retiré : les endpoints commencent tous par « / » et sont
 // concaténés directement (`${API_BASE_URL}${endpoint}`). Une valeur saisie
@@ -20,13 +21,20 @@ export const API_BASE_URL = (
 /**
  * Erreur d'API exploitable : expose le code HTTP (`status`) pour permettre à
  * l'appelant de réagir finement — typiquement détecter un 401.
+ *
+ * `retryAfter` : délai d'attente demandé par le serveur, en SECONDES ENTIÈRES, lu
+ * dans l'en-tête Retry-After (un 429 en porte un). `null` s'il est absent ou
+ * illisible (cf. utils/retryAfter.js) : l'appelant n'affiche alors aucune durée.
+ * Le navigateur ne le montre au JavaScript que si le backend l'expose en CORS
+ * (`expose_headers` de main.py).
  */
 export class ApiError extends Error {
-  constructor(message, status, data) {
+  constructor(message, status, data, retryAfter = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.data = data
+    this.retryAfter = retryAfter
   }
 }
 
@@ -91,7 +99,8 @@ export async function apiFetch(endpoint, options = {}) {
     // (chaîne dans tous les cas, y compris un 422 — cf. app/error_messages.py
     // côté backend). Fallback sur le texte de statut si le corps est illisible.
     const message = data?.detail || response.statusText || 'Erreur API'
-    throw new ApiError(message, response.status, data)
+    const retryAfter = parseRetryAfterSeconds(response.headers.get('Retry-After'))
+    throw new ApiError(message, response.status, data, retryAfter)
   }
 
   return data
