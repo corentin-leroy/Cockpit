@@ -1053,6 +1053,40 @@ Frontend (depuis frontend/) :
   vers l'offre (stopPropagation), sans style de lien. Le drag & drop
   (@dnd-kit) est pointeur uniquement : vérifier qu'un ajout d'élément
   interactif sur une carte ne le perturbe pas.
+- Landing page (`pages/LandingPage.jsx`, `styles/landing.css`, route `/` derrière
+  GuestRoute). Règles de style : section « Landing page » de DESIGN.md.
+  - Le hero réutilise `KanbanColumn` et `ApplicationCard` tels quels, avec des
+    candidatures FICTIVES codées en dur (`DEMO_APPLICATIONS`). Leurs dates sont
+    calculées à partir d'aujourd'hui (`daysAgo`, ISO naïf UTC comme le backend) : l'âge
+    affiché reste plausible à chaque visite.
+  - Démo déplaçable à titre d'exemple : un `DragDropProvider` LOCAL, l'état dans un
+    `useState`, `onDragEnd` qui ne fait que changer le statut. AUCUN appel API, rien
+    de stocké : un rechargement remet les cartes à leur place. Pas de zone
+    d'archivage. Sans `DragDropProvider`, `useDraggable`/`useDroppable` créent des
+    instances inertes (dnd-kit : `useInstance` tolère un manager absent) : c'est ce
+    qui permet de réutiliser les composants du kanban hors de `BoardPage`.
+  - Cartes HORS de l'ordre de tabulation : dnd-kit pose `tabindex="0"` sur chaque
+    carte (seulement si l'attribut est absent, et de façon différée). La landing force
+    `tabindex="-1"` avec un `MutationObserver` local plutôt que de modifier les
+    composants partagés pour un besoin propre à une page.
+  - ⚠ Tester la démo dans un navigateur AU PREMIER PLAN : dnd-kit met à jour la
+    position par `requestAnimationFrame`, qui ne s'exécute pas dans un onglet masqué
+    (ni dans un navigateur piloté en arrière-plan). La carte reste alors figée et le
+    dépôt retombe sur la colonne d'origine, sans erreur.
+  - SECTION CONFIANCE (« Ce que Cockpit fait de vos données ») : chaque phrase a été
+    vérifiée dans le code, et DOIT être revérifiée si l'extension change (permissions,
+    extraction, authentification). Ce qui la fonde : l'extension n'a que `activeTab`,
+    `scripting` et `storage` ; l'extraction n'a lieu qu'à l'ouverture de la popup, sur
+    l'onglet courant, et rien n'est envoyé avant la validation du formulaire ; le seul
+    mot de passe demandé est celui de Cockpit (aucun mot de passe de site d'emploi) ;
+    DELETE /auth/me efface le compte et, par cascade, ses tableaux et candidatures.
+    Ne JAMAIS écrire « aucun scraping » : l'extension lit bien le contenu de la page
+    d'offre visitée, à la demande de l'utilisateur.
+  - Pas de promesse sur l'avenir : la page décrit ce qui existe. La mention « Gratuit,
+    sans carte bancaire », ajoutée un temps près du bouton, a été retirée à la
+    demande du propriétaire (« fait un peu trop ») : ne pas la réintroduire sans
+    accord. Le public est TOUS les types de contrat (alternance, CDI, CDD, stage) : le
+    nom du dépôt est un héritage.
 - Blocage après un 429 (limites de débit, cf. « Limites de débit ») : connexion,
   inscription et mot de passe oublié partagent UNE logique, pas trois copies.
   - `ApiError.retryAfter` (api/client.js) : délai du serveur en SECONDES ENTIÈRES lu
@@ -1151,7 +1185,10 @@ Frontend (depuis frontend/) :
 6. Design du site (en cours)
    - [fait] DESIGN.md : direction visuelle, échelle typo, espacements, couleur
    - [fait] Refonte du kanban : densité, carte cliquable, tokens, contrastes
-   - [à faire] Reste de l'application (landing, formulaires, page compte)
+   - [fait] Refonte de la landing page : slogan en titre, vrai kanban de démonstration
+     déplaçable (sans persistance), section confiance, extension présentée une fois,
+     tous types de contrat, anciens styles `.landing-*` supprimés de components.css
+   - [à faire] Reste de l'application (formulaires, page compte)
 7. Mot de passe oublié + vérification d'email (Brevo)
    - [fait] Backend : app/email.py, SecurityToken, 4 endpoints, rate limiting
    - [fait] Front : écrans /forgot-password, /reset-password, /verify-email

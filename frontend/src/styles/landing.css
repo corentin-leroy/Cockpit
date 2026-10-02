@@ -1,0 +1,241 @@
+/* Landing page (LandingPage.jsx).
+ *
+ * N'utilise QUE les tokens : aucune couleur ni valeur d'espacement en dur,
+ * échelle 4/8/12/16/24/32 (pas de 48px : l'air entre deux sections vient de
+ * deux paddings de 32px).
+ *
+ * Écarts assumés, signalés plutôt que silencieux :
+ *  - le hero et l'appel final sont CENTRÉS, les sections intermédiaires gardent
+ *    un titre à gauche au-dessus d'une grille qui occupe TOUTE la largeur, la même
+ *    que le kanban de démonstration : aucun bloc n'est plus large que les autres ;
+ *  - le h1 de la landing est à 30px (exception déjà documentée), les h2 à 20px.
+ */
+
+.landing {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Largeur : 1448px = cinq colonnes de 280px + quatre espaces de 12px (la largeur
+ * naturelle du kanban) + les deux marges. Le texte, lui, est borné par ses
+ * propres max-width : il reste à gauche, sur le même axe que le kanban. */
+.landing-container {
+  width: 100%;
+  max-width: 1496px;
+  margin: 0 auto;
+  padding: 0 var(--space-5);
+}
+
+/* ------------------------------------------------------------------ */
+/* En-tête                                                             */
+/* ------------------------------------------------------------------ */
+
+.landing-topbar {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.landing-topbar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.landing-topbar__brand {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.landing-topbar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ------------------------------------------------------------------ */
+/* Hero                                                                */
+/* ------------------------------------------------------------------ */
+
+.landing-hero {
+  padding: var(--space-6) 0;
+}
+
+.landing-hero__intro {
+  text-align: center;
+}
+
+.landing-hero__title {
+  max-width: 24ch;
+  margin: 0 auto;
+}
+
+.landing-hero__lead {
+  max-width: 56ch;
+  margin: var(--space-3) auto 0;
+  color: var(--color-text-secondary);
+}
+
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+/* Kanban de démonstration : les composants réels, déplaçables à titre
+ * d'exemple (curseur « grab » et retour de glisser de .app-card inchangés). */
+.landing-board {
+  margin: var(--space-6) 0 0;
+}
+
+.landing-board__scroll {
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+}
+
+/* .kanban défile déjà seul dans l'application ; ici le conteneur parent s'en
+ * charge (il porte le focus clavier), donc le kanban déborde sans clipper. */
+.landing-board__kanban {
+  overflow: visible;
+  padding-bottom: 0;
+  min-width: max-content;
+}
+
+.landing-board__caption {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* Sections                                                            */
+/* ------------------------------------------------------------------ */
+
+.landing-section {
+  padding: var(--space-6) 0;
+}
+
+.landing-section__title {
+  max-width: 36ch;
+  margin-bottom: var(--space-5);
+  font-size: var(--text-lg);
+}
+
+.landing-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-6);
+}
+
+.landing-feature p {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Extension : présentation + étapes. L'<ol> est une vraie séquence, d'où la
+ * numérotation (cf. consigne frontend-design : pas de numéros décoratifs). */
+.landing-extension {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-6);
+  margin: 0;
+  padding: 0;
+}
+
+.landing-extension__intro .landing-section__title {
+  margin-bottom: var(--space-2);
+}
+
+.landing-extension__intro p {
+  max-width: 44ch;
+  color: var(--color-text-secondary);
+}
+
+.landing-extension__intro .btn {
+  margin-top: var(--space-4);
+}
+
+.landing-steps {
+  /* Colonnes 2 et 3 : s'aligne sur la deuxième colonne des grilles voisines. */
+  grid-column: 2 / span 2;
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+.landing-steps li + li {
+  margin-top: var(--space-3);
+}
+
+.landing-steps li::marker {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+/* Confiance : un fond de surface suffit à la détacher, sans bordure. */
+.landing-trust {
+  background: var(--color-surface-2);
+}
+
+/* Appel final : même bouton que le hero, jamais en concurrence avec un autre. */
+.landing-closing {
+  text-align: center;
+}
+
+.landing-closing__text {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.landing-closing .landing-actions {
+  margin-top: var(--space-3);
+}
+
+/* ------------------------------------------------------------------ */
+/* Pied de page                                                        */
+/* ------------------------------------------------------------------ */
+
+.landing-footer {
+  margin-top: auto;
+  padding: var(--space-5) 0;
+  font-size: var(--text-sm);
+}
+
+.landing-footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+
+/* Neutre : l'accent n'est pas pour les liens de pied de page (DESIGN.md). */
+.landing-footer a {
+  color: var(--color-text-muted);
+  text-decoration-color: var(--color-border-strong);
+}
+
+.landing-footer a:hover {
+  color: var(--color-text);
+}
+
+/* ------------------------------------------------------------------ */
+/* Fenêtre étroite                                                     */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 640px) {
+  .landing-container {
+    padding: 0 var(--space-4);
+  }
+
+  .landing-extension {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .landing-steps {
+    grid-column: auto;
+  }
+}

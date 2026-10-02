@@ -23,7 +23,8 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Une seule famille, celle déjà en place. Pas de police décorative.
 - Échelle : 12 / 14 / 16 / 20 / 28px. Aucune valeur hors échelle.
 - Exception : la landing page dispose d'un palier supplémentaire à 30px pour son titre
-  principal. L'application (kanban, formulaires, modales) plafonne à 28px.
+  principal (le `h1`, qui porte le slogan). L'application (kanban, formulaires, modales)
+  plafonne à 28px. Les titres de section de la landing (`h2`) restent à 20px.
 - Les glyphes et icônes (croix de fermeture, pictogrammes) ne consomment pas de token
   typographique : leur taille relève de l'icône, pas du texte.
 - Titre de carte : 14px, poids 500, couleur de texte principale.
@@ -60,6 +61,42 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Le titre reste un lien vers l'offre, mais sans style de lien : couleur de texte
   principale, pas de soulignement, `cursor: pointer`.
 - Bordure 1px, rayon 6px, pas d'ombre portée.
+
+## Landing page
+Fichiers : `pages/LandingPage.jsx`, `styles/landing.css` (classes préfixées `landing-`).
+Elle suit toutes les règles de ce document ; ce qui suit précise les points propres à
+une page de présentation.
+- Le hero montre le PRODUIT : le vrai kanban (`KanbanColumn` et `ApplicationCard`), pas
+  un dessin. Candidatures fictives, entreprises inventées, les quatre types de contrat
+  mélangés (alternance, CDI, CDD, stage). Aucun style propre aux cartes ici : toute
+  évolution du kanban se répercute d'elle-même sur la landing.
+- Largeur unique : tous les blocs occupent la largeur du kanban (cinq colonnes de 280px
+  et quatre espaces de 12px, soit 1448px, plus les marges ; conteneur de 1496px au
+  plus). Aucun bloc n'est nettement plus large ou plus étroit que les autres.
+- Alignement : le hero et l'appel final sont CENTRÉS. Les sections intermédiaires ont
+  leur titre à gauche, au-dessus d'une grille de trois colonnes qui occupe toute la
+  largeur (la section extension s'y cale : intro en colonne 1, étapes dès la colonne 2).
+  Le kanban de démonstration reste aligné à gauche, comme dans l'application.
+- Pas de bordure ni d'ombre sur les blocs de contenu : les fonctionnalités sont du texte
+  séparé par l'espace ; la section confiance se détache par un fond de surface
+  (`--color-surface-2`).
+- Teal : un seul bouton, « Créer un compte », répété une fois en fin de page (jamais
+  visible en même temps que le premier). « Installer l'extension » est un bouton
+  secondaire, pour ne jamais concurrencer l'action principale. Les liens du pied de page
+  sont neutres (texte discret, survol en couleur de texte), jamais en accent.
+- Espacements dans l'échelle : l'air entre deux sections vient de deux paddings de 32px.
+  Pas de 48px.
+- La numérotation n'apparaît que pour une vraie séquence (les trois étapes de
+  l'extension). Pas de numéros ni d'icônes décoratifs.
+- Démonstration interactive : les cartes se déplacent d'une colonne à l'autre, mais rien
+  n'est enregistré (un rechargement remet tout en place) et il n'y a pas de zone
+  d'archivage. La légende sous le tableau le dit. Comme dans l'application, le
+  glisser-déposer est une interaction au POINTEUR ; les cartes sont hors de l'ordre de
+  tabulation (neuf arrêts sans action utile), seul le conteneur du tableau est
+  focusable pour le défilement horizontal en fenêtre étroite.
+- Contenu : la page décrit ce qui existe. Aucune promesse sur l'avenir (fonctionnalité
+  à venir, durée de gratuité, offre payante). Chaque affirmation de la section
+  « Ce que Cockpit fait de vos données » doit rester exacte (cf. CLAUDE.md).
 
 ## Interaction et périmètre
 - Cible : desktop, pointeur. Le tactile est hors périmètre pour l'instant.
