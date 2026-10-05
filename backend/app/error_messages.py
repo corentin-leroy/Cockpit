@@ -37,6 +37,7 @@ FIELD_LABELS: dict[str, str] = {
     "board_id": "Le tableau",
     "application_id": "La candidature",
     "status_filter": "Le filtre de statut",
+    "position": "La position",
     # Ces trois champs n'utilisent normalement PAS le gabarit générique (ils ont
     # un message dédié, ci-dessous) : gardés ici en filet de sécurité, au cas où
     # un type d'erreur non prévu les toucherait un jour.

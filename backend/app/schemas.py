@@ -22,6 +22,7 @@ from pydantic import (
 from pydantic_core import PydanticCustomError
 
 from app.limits import (
+    MAX_APPLICATIONS_PER_USER,
     MAX_BOARD_NAME_LENGTH,
     MAX_APPLIED_AT,
     MAX_COMPANY_LENGTH,
@@ -414,8 +415,34 @@ class ApplicationUpdate(InputModel):
         return value
 
 
+# Rang visé dans une colonne du kanban (0 = en haut). Une colonne compte au plus
+# MAX_APPLICATIONS_PER_USER cartes : au-delà, aucun rang n'a de sens. Un rang
+# au-delà de la fin RÉELLE de la colonne est ramené en fin de colonne par le serveur
+# (onglet dont l'affichage est en retard) : ce n'est pas une erreur.
+ColumnPosition = Annotated[int, Field(ge=0, le=MAX_APPLICATIONS_PER_USER - 1)]
+
+
+class ApplicationMove(InputModel):
+    """Glisser-déposer d'une carte : colonne d'arrivée (statut, dans le MÊME tableau)
+    et rang visé dans cette colonne, compté sans la carte déplacée (l'index où elle
+    doit se trouver une fois déposée).
+
+    Endpoint dédié (POST /applications/{id}/move) plutôt qu'un champ du PATCH : un
+    PATCH POSE des valeurs, alors qu'un rang implique de décaler les voisines ; et
+    `PATCH {status}` (arrivée en haut) et `PATCH {status, position}` auraient deux
+    placements implicites différents. Le changement de tableau reste dans le PATCH
+    (arrivée en haut de la colonne de même statut)."""
+
+    status: ApplicationStatus
+    position: ColumnPosition
+
+
 class ApplicationRead(BaseModel):
-    """Ce que l'API renvoie au client."""
+    """Ce que l'API renvoie au client.
+
+    `position` n'est volontairement PAS exposée : le contrat, c'est l'ORDRE de la
+    liste (GET /applications). Un rang exposé deviendrait faux dans l'état d'un
+    client dès son premier déplacement local."""
 
     model_config = ConfigDict(from_attributes=True)  # lecture depuis l'objet ORM
 

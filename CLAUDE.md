@@ -56,11 +56,81 @@ Frontend (depuis frontend/) :
   d'un user est refusée (409). Supprimer un board supprime ses candidatures.
 - Créer une candidature exige un board_id ; le serveur vérifie qu'il appartient
   au current_user (sinon 404). GET /applications filtre par ?board_id=,
-  ?status_filter= et/ou ?archived= (cf. « Archivage des candidatures »).
+  ?status_filter= et/ou ?archived= (cf. « Archivage des candidatures »). Les
+  actives sont renvoyées dans l'ORDRE DU KANBAN (cf. « Ordre des cartes du
+  kanban »), plus par date de modification.
 - Le statut d'une candidature n'est PAS modifiable à la création (démarre
-  toujours en "saved"/Repérée). Il évolue ensuite par PATCH, via deux chemins :
-  le drag & drop entre colonnes, et le champ « statut » du formulaire, affiché
-  UNIQUEMENT en mode édition (jamais à la création).
+  toujours en "saved"/Repérée). Il évolue ensuite par deux chemins : le
+  glisser-déposer (POST /applications/{id}/move, qui choisit aussi le RANG dans
+  la colonne) et le champ « statut » du formulaire (PATCH, arrivée EN HAUT de la
+  colonne), affiché UNIQUEMENT en mode édition (jamais à la création).
+
+# Ordre des cartes du kanban (colonne `position`, migration 0005)
+- `Application.position` (INTEGER, nullable) : rang de la carte dans sa COLONNE
+  = les candidatures ACTIVES d'un même tableau ayant le même statut. Dans chaque
+  colonne, les positions valent exactement 0..n-1 (0 = EN HAUT), sans trou ni
+  doublon. Une ARCHIVÉE a toujours `position = NULL` (elle n'est dans aucune
+  colonne). Écrite UNIQUEMENT par routers/applications.py, jamais reçue du client ;
+  NON exposée dans `ApplicationRead` : le contrat, c'est l'ORDRE de la liste.
+- TRI de GET /applications (actives) : `position ASC NULLS FIRST, updated_at DESC,
+  id DESC`. Les NULL en tête = lignes créées par l'ANCIENNE version du code pendant
+  un déploiement (arrivées, donc en haut) ; à rang égal (doublon de même origine),
+  la plus récemment modifiée d'abord. Liste des archivées : inchangée (updated_at
+  décroissant ; la page d'archives trie elle-même). Avant ce lot, le tri était
+  `updated_at DESC` : modifier une note faisait remonter la carte.
+- RÈGLE D'ARRIVÉE, unique : toute carte qui entre dans une colonne AUTREMENT que
+  par POST /move arrive EN HAUT (rang 0) : création (formulaire ET extension),
+  PATCH qui change RÉELLEMENT le statut ou le tableau (modale, dépôt sur un tableau
+  de la sidebar), désarchivage. Seul POST /move choisit un autre rang.
+  ⚠ Le PATCH compare aux valeurs STOCKÉES, pas à la présence du champ : le
+  formulaire d'édition renvoie TOUJOURS `status` et `board_id`, même inchangés, et
+  ce n'est pas une arrivée (test : `test_patch_resending_the_same_status_and_board_
+  does_not_move_the_card`).
+- QUITTER une colonne (déplacement, archivage, suppression d'une active) la
+  compacte. Un PATCH sur une ARCHIVÉE (correction depuis la page d'archives, statut
+  ou tableau compris) ne touche à aucune position ; au désarchivage, elle arrive en
+  haut de la colonne de son statut et de son tableau ACTUELS.
+- POST /applications/{id}/move, corps `{status, position}` (`ApplicationMove`,
+  `position` entre 0 et 299) : place la carte au rang `position` de la colonne
+  `status` de SON tableau, compté sans la carte déplacée. Rang au-delà de la fin →
+  ramené en fin de colonne (onglet en retard ; décision validée, pas un 422).
+  Rang déjà occupé par la carte → 200 sans effet (placement absolu, pas une
+  bascule). Archivée → 409. Aucun contrôle de plafond (déplacer ne change aucun
+  total). Changer de TABLEAU reste un PATCH board_id. Endpoint DÉDIÉ plutôt qu'un
+  champ du PATCH : un PATCH pose des valeurs, un rang implique de décaler les
+  voisines, et `PATCH {status}` / `PATCH {status, position}` auraient eu deux
+  placements implicites différents.
+- RENUMÉROTATION : toute écriture qui fait entrer ou sortir une carte d'une colonne
+  relit la colonne DANS L'ORDRE AFFICHÉ et la renumérote ENTIÈREMENT (seules les
+  lignes dont le rang change sont réécrites ; au plus 300 cartes). Elle SE RÉPARE
+  donc d'elle-même : un NULL, un doublon ou un trou (ancien code pendant un
+  déploiement, SQL manuel, insertion directe en test) disparaît à la prochaine
+  écriture dans la colonne. Les voisines sont réécrites par la TABLE (Core) avec
+  `updated_at` reposé à sa propre valeur : décaler une carte n'est pas la modifier
+  (la carte déplacée, elle, voit son updated_at changer).
+- CONCURRENCE (deux onglets, double clic) : chaque endpoint qui écrit une position
+  (création, PATCH, /move, archivage, désarchivage, suppression) appelle d'abord
+  `_lock_positions_of`, AVANT toute lecture : `UPDATE users SET id = id WHERE id =
+  :uid`, même SQL sur les deux moteurs (comme `_consume_token`). PostgreSQL : verrou
+  de ligne jusqu'au commit, la requête suivante relit l'état commité (READ
+  COMMITTED). SQLite : première ÉCRITURE de la transaction, qui prend le verrou
+  d'écriture avant toute lecture (`FOR UPDATE` y serait ignoré). Par UTILISATEUR,
+  pas par tableau : un déplacement vers un autre tableau en touche deux, deux
+  requêtes pourraient les verrouiller dans des ordres opposés. Effet de bord : les
+  comptages des plafonds (300/2000), faits après le verrou, ne sont plus
+  dépassables par des créations simultanées.
+  MESURÉ sur PostgreSQL 18.6 jetable (10 manches de 40 écritures simultanées
+  mêlées) : avec le verrou, 0 incohérence et 0 erreur ; SANS, 10 manches sur 10
+  incohérentes (doublons `[0, 0, 1…]`, archivées numérotées) et 12 à 25
+  `DeadlockDetected` (500) par manche.
+- AUCUNE CONTRAINTE en base (ni NOT NULL, ni CHECK « archivée ⟺ NULL », ni
+  unicité), décision validée : l'ancienne version du code, qui sert encore pendant
+  un déploiement, crée sans position et change des statuts sans renuméroter ; une
+  contrainte ferait échouer ses écritures. L'unicité de (tableau, statut, position)
+  ne serait de toute façon pas déclarable : PostgreSQL et SQLite la vérifient ligne
+  par ligne, une renumérotation la violerait en cours d'instruction. Pas de 0006
+  prévue : avec une numérotation qui se répare à chaque écriture, son intérêt est
+  faible ; à reconsidérer seulement si une incohérence apparaît.
 
 # Cascade de suppression (schéma + ORM)
 - Déclarée à DEUX niveaux, complémentaires et non redondants :
@@ -526,7 +596,34 @@ Frontend (depuis frontend/) :
   `test_account_deletion.py`, `test_migrations.py`, `test_input_validation.py`,
   `test_registration_race.py`, `test_error_messages.py`, `test_archiving.py`,
   `test_token_race.py`, `test_email_normalization.py`, `test_password_limit.py`,
-  `test_rate_limit.py`, `test_client_ip.py`, `test_auth_rate_limit.py`.
+  `test_rate_limit.py`, `test_client_ip.py`, `test_auth_rate_limit.py`,
+  `test_positions.py`, `test_position_race.py`.
+- `test_positions.py` (ordre du kanban) : arrivée en haut sur chaque chemin
+  (création formulaire et extension, PATCH statut, PATCH tableau, désarchivage) ;
+  PATCH qui renvoie le MÊME statut et le MÊME tableau (comme le formulaire) ou ne
+  touche que d'autres champs : la carte ne bouge pas ; /move dans une colonne
+  (vers le haut, vers le bas), vers une autre colonne à un rang donné, vers une
+  colonne vide, au-delà de la fin (ramené en fin), à sa propre place ; voisines
+  sans changement d'updated_at ; colonnes des autres tableaux et utilisateurs
+  intactes ; 409 sur une archivée, 404 chez autrui, 401 anonyme, 422 sur les corps
+  malformés (message nommant « La position ») ; `position` ignorée par le PATCH et
+  absente des réponses ; lignes NULL listées en tête puis réparées, avec doublons et
+  trous, à la prochaine écriture ; tri qui ne dépend plus d'updated_at. Chaque test
+  vérifie l'INVARIANT sur l'état stocké (0..n-1 par colonne active, NULL pour les
+  archivées). Les insertions directes de `test_limits.py` et `test_archiving.py`
+  (sans position) restent valides : elles exercent la réparation.
+- `test_position_race.py` : 5 manches de 40 écritures simultanées tirées au hasard
+  (graine fixe) parmi /move, PATCH statut et tableau, archivage, désarchivage,
+  création, suppression, sur une base SQLite FICHIER (comme test_token_race.py) ;
+  après chaque manche, invariant vérifié en base et aucun 500 (codes admis : 2xx,
+  404 d'une carte supprimée en parallèle, 409). ~8 s.
+  Vérifié par 15 mutations, toutes détectées : verrou retiré, verrou pris APRÈS la
+  lecture, PATCH comparant la présence du champ, updated_at des voisines non
+  préservé, tri revenu à updated_at, NULL en fin, rang non ramené en fin,
+  archivage sans compacter, archivage sans NULL, suppression sans compacter, PATCH
+  d'une archivée renuméroté, et quatre mutations de la migration 0005 (ordre
+  croissant, égalités par id croissant, archivées numérotées, partition sans le
+  tableau).
 - Limites de débit (tests) : `conftest.py` remet les compteurs à zéro AVANT chaque
   test (fixture autouse `_reset_rate_limiting`) et fournit une horloge factice
   (`clock`, fenêtres testées sans attendre). Sans la remise à zéro, les centaines
@@ -880,6 +977,23 @@ Frontend (depuis frontend/) :
   Compatible avec la version précédente du code (elle n'écrit déjà que des notes
   de 5000 caractères au plus) : si le déploiement échoue, l'ancienne version
   continue de servir sur le schéma migré.
+- Révision 0005 (« application positions ») : ajoute `applications.position`
+  (INTEGER nullable, SANS contrainte, cf. « Ordre des cartes du kanban ») et
+  numérote chaque colonne active par `ROW_NUMBER() OVER (PARTITION BY board_id,
+  status ORDER BY updated_at DESC, id DESC) - 1` : exactement l'ancien ordre
+  affiché, rien ne bouge à l'écran au déploiement (`id DESC` ne fait que départager
+  des updated_at égaux, que l'ancien tri laissait au hasard). Archivées à NULL ;
+  updated_at intact (SQL brut). `LOCK TABLE ... ACCESS EXCLUSIVE` sous PostgreSQL,
+  une transaction. `UPDATE ... FROM` : SQLite >= 3.33. Downgrade : DROP COLUMN, rien
+  d'autre n'est touché (seul l'ordre choisi est perdu). VÉRIFIÉ, sur une copie de
+  cockpit.db, un SQLite jetable et un PostgreSQL 18.6 jetable peuplés de 900
+  candidatures (8 tableaux, 40 colonnes, égalités d'updated_at, ~30 % d'archivées) :
+  ordre identique à l'ancienne requête, empreinte md5 des autres colonnes
+  identique après upgrade, après downgrade et après re-upgrade, positions
+  identiques au second passage, `alembic check` propre. MESURÉ sur PostgreSQL 18.6,
+  50 900 lignes : ~350 ms sous verrou exclusif (1,3 s commande alembic comprise).
+  Compatible avec la version précédente du code : elle ignore la colonne ; ses
+  créations (NULL) s'affichent en haut et se réparent ensuite.
 - Enums : SQLAlchemy stocke les NOMS des membres (`APPLIED`), pas les valeurs
   (`applied`) — à retenir pour toute requête SQL manuelle. Sous PostgreSQL ce
   sont des types natifs (`applicationstatus`, `tokenpurpose`) : on n'y retire
@@ -1053,6 +1167,40 @@ Frontend (depuis frontend/) :
   vers l'offre (stopPropagation), sans style de lien. Le drag & drop
   (@dnd-kit) est pointeur uniquement : vérifier qu'un ajout d'élément
   interactif sur une carte ne le perturbe pas.
+- Réordonnancement par glisser-déposer (cf. « Ordre des cartes du kanban ») : les
+  cartes sont TRIABLES (`useSortable`, `group` = statut, `index` = rang) ; la
+  colonne garde un `useDroppable` (id = statut, `accept: 'card'`,
+  `collisionPriority` basse) pour les colonnes vides. Logique partagée par le
+  kanban et la landing : `kanban/useKanbanDrag.js` (hook) et `utils/kanbanOrder.js`
+  (fonctions pures). Deux pièges, vérifiés dans le navigateur :
+  - dnd-kit fournit un TRI OPTIMISTE qui déplace LUI-MÊME les nœuds DOM pendant le
+    glisser. Une carte ainsi glissée dans une autre colonne puis déposée sur la
+    zone d'archivage (ou un tableau) est retirée de l'état : React tente de la
+    retirer de son parent d'ORIGINE → `NotFoundError: removeChild`, et TOUTE
+    l'application se démonte (écran blanc). Reproduit en neutralisant notre
+    onDragOver. Parade : l'ÉTAT suit le survol (`move` de @dnd-kit/helpers dans
+    onDragOver) ET `event.preventDefault()` y désactive le plugin ; React reste seul
+    à déplacer les nœuds. (Sans le preventDefault mais avec l'état, pas d'erreur :
+    le plugin s'abstient quand React a déjà réordonné ; les deux protections sont
+    gardées.)
+  - dnd-kit exécute onDragOver dans un `startTransition` (rendu différé) mais émet
+    dragend IMMÉDIATEMENT : au dépôt, l'état React peut refléter un survol
+    précédent. L'ordre en cours de glisser est donc tenu dans une REF, mise à jour
+    de façon synchrone ; la place finale est lue dans la ref, jamais dans l'état.
+  Dépôt : sur une carte, une colonne ou HORS de toute cible → la carte va là où
+  l'emplacement d'insertion la montrait (POST /move si sa place a changé) ; sur un
+  tableau de la sidebar ou sur l'archive → seule compte la place d'ORIGINE (une
+  colonne traversée ne change pas le statut envoyé). Optimiste ; en cas d'échec la
+  carte revient à sa place d'origine (`restoreCard`), message dans `actionError`.
+  Échap annule (vraie touche : un KeyboardEvent synthétique n'est pas reconnu).
+  Modale : statut changé → la carte passe EN HAUT de sa nouvelle colonne
+  localement (comme le serveur) ; statut inchangé → elle reste à sa place.
+  Emplacement d'insertion : le placeholder de dnd-kit (`[data-dnd-placeholder]`,
+  masqué par défaut) rendu visible en creux pointillé (components.css), qui suit la
+  carte de rang en rang. Sémantique standard d'une liste triable : un
+  réordonnancement n'a lieu qu'au CHANGEMENT de carte survolée (venir d'en dessous
+  d'une carte place la carte glissée après elle) ; l'emplacement affiché est
+  toujours celui du dépôt.
 - Landing page (`pages/LandingPage.jsx`, `styles/landing.css`, route `/` derrière
   GuestRoute). Règles de style : section « Landing page » de DESIGN.md.
   - Le hero réutilise `KanbanColumn` et `ApplicationCard` tels quels, avec des
@@ -1060,9 +1208,11 @@ Frontend (depuis frontend/) :
     calculées à partir d'aujourd'hui (`daysAgo`, ISO naïf UTC comme le backend) : l'âge
     affiché reste plausible à chaque visite.
   - Démo déplaçable à titre d'exemple : un `DragDropProvider` LOCAL, l'état dans un
-    `useState`, `onDragEnd` qui ne fait que changer le statut. AUCUN appel API, rien
-    de stocké : un rechargement remet les cartes à leur place. Pas de zone
-    d'archivage. Sans `DragDropProvider`, `useDraggable`/`useDroppable` créent des
+    `useState`, le MÊME réordonnancement que le kanban (`useKanbanDrag`, à
+    n'importe quel rang, dans sa colonne ou vers une autre) ; `onDragEnd` ne fait
+    que rétablir la carte sur Échap. AUCUN appel API, rien de stocké (vérifié : aucun
+    fetch pendant les glisser) : un rechargement remet les cartes à leur place. Pas
+    de zone d'archivage. Sans `DragDropProvider`, `useDraggable`/`useDroppable` créent des
     instances inertes (dnd-kit : `useInstance` tolère un manager absent) : c'est ce
     qui permet de réutiliser les composants du kanban hors de `BoardPage`.
   - Cartes HORS de l'ordre de tabulation : dnd-kit pose `tabindex="0"` sur chaque
@@ -1236,6 +1386,10 @@ Frontend (depuis frontend/) :
       texte. Garde-fou explicite si une note dépasse déjà 5000 caractères,
       jamais de troncature. Testée sur PostgreSQL 18.6 jetable (aller-retour avec
       données, échec du garde-fou, échec de conversion sans troncature)
+11. [fait, NON committé, NON déployé] Réordonnancement des cartes du kanban
+    (colonne `position`, migration 0005, POST /applications/{id}/move, règle
+    d'arrivée en haut, verrou par utilisateur, tri réordonnable côté front et sur
+    la landing). Extension non modifiée (elle crée par POST : arrivée en haut).
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
 - Formulaire de correction dans l'extension → V2

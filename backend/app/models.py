@@ -221,6 +221,18 @@ class Application(Base):
     # dépend.
     archived_at: Mapped[datetime | None] = mapped_column(DateTime)
 
+    # --- Ordre dans le kanban ---
+    # Rang de la carte dans sa COLONNE (même tableau, même statut, active) : 0 = en
+    # haut, puis 1..n-1, sans trou ni doublon. NULL pour une archivée, qui n'est
+    # dans aucune colonne. Écrite UNIQUEMENT par routers/applications.py, jamais
+    # reçue du client (POST /applications/{id}/move choisit un rang, le serveur
+    # renumérote la colonne).
+    # Nullable, sans contrainte : la version PRÉCÉDENTE du code, qui sert encore
+    # pendant un déploiement, crée des candidatures sans position. La liste trie
+    # alors les NULL en tête (règle d'arrivée en haut) et la prochaine écriture dans
+    # la colonne la renumérote entièrement : la numérotation se répare d'elle-même.
+    position: Mapped[int | None] = mapped_column(Integer)
+
     # --- Rattachement ---
     # Une candidature appartient à un tableau (obligatoire). Le propriétaire n'est
     # PLUS stocké ici : on le retrouve via board.user_id (chaîne d'ownership).

@@ -188,6 +188,137 @@ def test_migration_0004_keeps_every_note_in_both_directions(migration_engine):
         assert _stored_notes(connection) == notes
 
 
+# Jeu de données de la 0005, au niveau de schéma 0004 (SQL brut) :
+# (tableau, statut, updated_at, archivée). Deux tableaux, plusieurs statuts, des
+# updated_at dans le désordre de l'id, une ÉGALITÉ d'updated_at et des archivées.
+_ROWS_0005 = [
+    (1, "SAVED", "2026-03-01 10:00:00", False),       # id 1
+    (1, "SAVED", "2026-03-05 10:00:00", False),       # id 2
+    (1, "SAVED", "2026-03-03 10:00:00", False),       # id 3
+    (1, "SAVED", "2026-03-04 10:00:00", True),        # id 4 (archivée)
+    (1, "APPLIED", "2026-03-02 10:00:00", False),     # id 5
+    (1, "APPLIED", "2026-03-02 10:00:00", False),     # id 6 (égalité avec 5)
+    (2, "SAVED", "2026-03-09 10:00:00", False),       # id 7
+    (2, "SAVED", "2026-03-08 10:00:00", False),       # id 8
+    (1, "SAVED", "2026-03-02 10:00:00", False),       # id 9
+    (2, "INTERVIEW", "2026-03-01 10:00:00", True),    # id 10 (archivée)
+]
+
+
+def _seed_rows_0005(connection) -> None:
+    now = "2026-01-01 00:00:00"
+    connection.execute(
+        text(
+            "INSERT INTO users (email, hashed_password, is_verified, created_at) "
+            f"VALUES ('seed@example.com', 'x', 1, '{now}')"
+        )
+    )
+    for name in ("B1", "B2"):
+        connection.execute(
+            text(
+                "INSERT INTO boards (name, user_id, created_at, updated_at) "
+                f"VALUES ('{name}', 1, '{now}', '{now}')"
+            )
+        )
+    for index, (board, status, updated_at, archived) in enumerate(_ROWS_0005, start=1):
+        connection.execute(
+            text(
+                "INSERT INTO applications (title, company, source, status, board_id, "
+                "archived_at, created_at, updated_at) VALUES (:t, 'c', 'manual', :s, :b, "
+                ":a, :now, :u)"
+            ),
+            {
+                "t": f"t{index}",
+                "s": status,
+                "b": board,
+                "a": "2026-04-01 00:00:00" if archived else None,
+                "now": now,
+                "u": updated_at,
+            },
+        )
+
+
+def _ordered_like_before_0005(connection) -> list[tuple]:
+    """L'ordre affiché AVANT la 0005 : la requête de l'ancien list_applications
+    (updated_at décroissant, actives seulement), regroupée par colonne. `id DESC`
+    départage les égalités, que l'ancien tri laissait au hasard du moteur."""
+    rows = connection.execute(
+        text(
+            "SELECT board_id, status, id FROM applications WHERE archived_at IS NULL "
+            "ORDER BY board_id, status, updated_at DESC, id DESC"
+        )
+    )
+    return [tuple(row) for row in rows]
+
+
+def test_migration_0005_numbers_each_column_in_the_order_displayed_before(migration_engine):
+    """Au déploiement, rien ne bouge à l'écran : dans chaque colonne (tableau,
+    statut), les positions 0..n-1 suivent exactement l'ancien tri (updated_at
+    décroissant, égalités départagées par id décroissant). Les archivées restent
+    à NULL. Aucune autre colonne n'est modifiée (updated_at compris)."""
+    with migration_engine.connect() as connection:
+        config = _alembic_config(connection)
+        command.upgrade(config, "0004")
+        _seed_rows_0005(connection)
+        expected_order = _ordered_like_before_0005(connection)
+        before = connection.execute(text("SELECT * FROM applications ORDER BY id")).all()
+
+        command.upgrade(config, "0005")
+
+        rows = connection.execute(
+            text(
+                "SELECT board_id, status, id, position, archived_at FROM applications "
+                "ORDER BY board_id, status, position"
+            )
+        ).all()
+        active = [(r.board_id, r.status, r.id) for r in rows if r.archived_at is None]
+        assert active == expected_order
+        # Valeurs exactes, écrites en dur (indépendantes de la requête ci-dessus).
+        positions = {r.id: r.position for r in rows}
+        assert positions == {
+            2: 0, 4: None, 3: 1, 9: 2, 1: 3,   # B1 SAVED (4 archivée)
+            6: 0, 5: 1,                        # B1 APPLIED, égalité → id décroissant
+            7: 0, 8: 1,                        # B2 SAVED
+            10: None,                          # B2 INTERVIEW archivée
+        }
+        after = connection.execute(
+            text(
+                "SELECT id, title, company, location, url, source, status, notes, "
+                "applied_at, archived_at, board_id, created_at, updated_at "
+                "FROM applications ORDER BY id"
+            )
+        ).all()
+        assert [tuple(r) for r in after] == [
+            tuple(getattr(r, c) for c in (
+                "id", "title", "company", "location", "url", "source", "status",
+                "notes", "applied_at", "archived_at", "board_id", "created_at",
+                "updated_at",
+            ))
+            for r in before
+        ]
+
+
+def test_migration_0005_downgrade_keeps_every_row(migration_engine):
+    """Aller-retour : le downgrade retire la colonne (l'ordre choisi est perdu, c'est
+    inhérent) sans perdre ni modifier aucune ligne ; la remontée renumérote."""
+    with migration_engine.connect() as connection:
+        config = _alembic_config(connection)
+        command.upgrade(config, "0004")
+        _seed_rows_0005(connection)
+        before = connection.execute(text("SELECT * FROM applications ORDER BY id")).all()
+
+        command.upgrade(config, "0005")
+        command.downgrade(config, "0004")
+        assert "position" not in {c["name"] for c in inspect(connection).get_columns("applications")}
+        assert connection.execute(text("SELECT * FROM applications ORDER BY id")).all() == before
+
+        command.upgrade(config, "0005")
+        numbered = connection.execute(
+            text("SELECT count(*) FROM applications WHERE position IS NOT NULL")
+        ).scalar_one()
+        assert numbered == 8
+
+
 def test_migrations_can_be_fully_downgraded(migration_engine):
     """Toute migration doit être réversible : `downgrade base` ne laisse aucune
     table applicative (seule la table de suivi d'Alembic subsiste)."""
