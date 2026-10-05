@@ -7,10 +7,11 @@
 //
 // Le hero montre le VRAI kanban : KanbanColumn et ApplicationCard, les mêmes
 // composants que l'application, nourris de candidatures d'exemple codées en dur.
-// Un DragDropProvider les rend déplaçables d'une colonne à l'autre, à titre de
-// démonstration : l'état vit dans un useState, aucun appel à l'API, aucune
-// persistance (un rechargement remet les cartes à leur place d'origine). Pas de
-// zone d'archivage ici : la démo se limite au déplacement entre colonnes.
+// Un DragDropProvider les rend déplaçables à n'importe quel rang, dans leur colonne
+// comme vers une autre, à titre de démonstration : même logique que le kanban
+// (kanban/useKanbanDrag.js), mais l'état vit dans un useState, aucun appel à l'API,
+// aucune persistance (un rechargement remet les cartes à leur place d'origine). Pas
+// de zone d'archivage ni de sidebar ici.
 // Aucun `onEdit` n'est fourni : ApplicationCard n'ouvre aucune modale.
 //
 // Les styles vivent dans landing.css (préfixe `landing-`), importé ci-dessous.
@@ -22,6 +23,7 @@ import { Link } from 'react-router-dom'
 import KanbanColumn from '../components/KanbanColumn.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
+import { useKanbanDrag } from '../kanban/useKanbanDrag.js'
 import '../styles/landing.css'
 
 const EXTENSION_URL =
@@ -91,24 +93,14 @@ export default function LandingPage() {
   const [applications, setApplications] = useState(DEMO_APPLICATIONS)
   const kanbanRef = useRef(null)
 
-  // Fin d'un glisser-déposer : la seule cible possible est une colonne (id = clé
-  // de statut). Même logique que BoardPage, sans l'appel API ni le rollback.
+  // Même réordonnancement que BoardPage : la carte se déplace dans l'état pendant
+  // le survol. À la fin, rien à enregistrer ; seule une annulation (Échap) la
+  // remet à sa place d'origine.
+  const kanbanDrag = useKanbanDrag(applications, setApplications)
+
   function handleDragEnd(event) {
-    const { operation, canceled } = event
-    if (canceled) return
-
-    const { source, target } = operation
-    if (!source || !target) return
-
-    const applicationId = source.id
-    const newStatus = target.id
-    setApplications((previous) =>
-      previous.map((item) =>
-        item.id === applicationId && item.status !== newStatus
-          ? { ...item, status: newStatus }
-          : item,
-      ),
-    )
+    const drag = kanbanDrag.endDrag()
+    if (drag && event.canceled) drag.restore()
   }
 
   // Cartes HORS de l'ordre de tabulation : le déplacement est une interaction
@@ -181,7 +173,11 @@ export default function LandingPage() {
                 role="region"
                 aria-label="Tableau d’exemple, défilement horizontal"
               >
-                <DragDropProvider onDragEnd={handleDragEnd}>
+                <DragDropProvider
+                  onDragStart={kanbanDrag.onDragStart}
+                  onDragOver={kanbanDrag.onDragOver}
+                  onDragEnd={handleDragEnd}
+                >
                   <div
                     ref={kanbanRef}
                     className="kanban landing-board__kanban"

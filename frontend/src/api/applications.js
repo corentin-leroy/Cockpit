@@ -45,6 +45,24 @@ export function updateApplication(id, data) {
 }
 
 /**
+ * Déplace une carte par glisser-déposer. POST /applications/{id}/move.
+ * Le serveur la place au rang `position` (0 = en haut) de la colonne `status` de
+ * SON tableau et renumérote les autres ; un rang au-delà de la fin est ramené en
+ * fin de colonne. 409 si la candidature est archivée. Seul ce chemin choisit un
+ * rang : toute autre arrivée dans une colonne (création, changement de statut ou
+ * de tableau par PATCH, désarchivage) place la carte EN HAUT.
+ * @param {number} id  identifiant de la candidature.
+ * @param {{status: string, position: number}} target  colonne et rang visés.
+ * @returns {Promise<Object>} la candidature à jour.
+ */
+export function moveApplication(id, { status, position }) {
+  return apiFetch(`/applications/${id}/move`, {
+    method: 'POST',
+    body: JSON.stringify({ status, position }),
+  })
+}
+
+/**
  * Supprime une candidature. DELETE /applications/{id} → 204 (apiFetch renvoie null).
  * @param {number} id  identifiant de la candidature.
  * @returns {Promise<null>}

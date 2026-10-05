@@ -1,21 +1,27 @@
-// Carte d'une candidature dans le kanban. Draggable (@dnd-kit/react) pour changer
-// de statut en la glissant vers une autre colonne. La carte entière ouvre la
-// modale d'édition au clic ou au clavier (Entrée/Espace) ; le lien vers l'offre
-// (titre) coexiste avec ce clic global via stopPropagation.
+// Carte d'une candidature dans le kanban. Triable (@dnd-kit/react/sortable) : on la
+// glisse à n'importe quel rang de sa colonne ou d'une autre colonne. La carte
+// entière ouvre la modale d'édition au clic ou au clavier (Entrée/Espace) ; le lien
+// vers l'offre (titre) coexiste avec ce clic global via stopPropagation.
 
-import { useDraggable } from '@dnd-kit/react'
+import { useSortable } from '@dnd-kit/react/sortable'
 
 import { formatApplicationAge } from '../utils/dates.js'
 
-export default function ApplicationCard({ application, onEdit }) {
+export default function ApplicationCard({ application, index, onEdit }) {
   const { title, company, location, url, created_at: createdAt } = application
   const age = formatApplicationAge(createdAt)
 
-  // Identifiant draggable = id de la candidature. On mémorise le statut courant
-  // dans `data` : il sert de « colonne d'origine » pour détecter un no-op au drop.
-  const { ref, isDragging } = useDraggable({
+  // Identifiant = id de la candidature ; `group` = sa colonne (statut), `index` =
+  // son rang dans la colonne. `type`/`accept` : une carte ne se trie qu'avec
+  // d'autres cartes. L'ordre lui-même vit dans l'état de la page, réordonné pendant
+  // le survol (utils/kanbanOrder.js explique pourquoi dnd-kit ne doit pas déplacer
+  // le DOM lui-même).
+  const { ref, isDragging } = useSortable({
     id: application.id,
-    data: { status: application.status },
+    index,
+    group: application.status,
+    type: 'card',
+    accept: 'card',
   })
 
   // Équivalent clavier du clic sur la carte (Entrée/Espace). `target !==

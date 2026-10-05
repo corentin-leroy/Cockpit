@@ -11,8 +11,11 @@ import {
   updateApplication,
   deleteApplication,
   archiveApplication,
+  moveApplication,
 } from '../api/applications.js'
 import { useBoards } from '../boards/useBoards.js'
+import { useKanbanDrag } from '../kanban/useKanbanDrag.js'
+import { placeCard } from '../utils/kanbanOrder.js'
 import Navbar from '../components/Navbar.jsx'
 import VerificationBanner from '../components/VerificationBanner.jsx'
 import Sidebar from '../components/Sidebar.jsx'
@@ -137,101 +140,82 @@ export default function BoardPage() {
     setModal(null)
   }
 
-  // Fin d'un glisser-déposer. La carte (source) porte l'id de la candidature.
-  // Deux familles de cibles partagent le MÊME contexte de drag & drop :
-  //  - une COLONNE du kanban → change le statut (KanbanColumn, id = clé de statut,
-  //    sans data.type) ;
-  //  - un TABLEAU de la sidebar → déplace la candidature (BoardRow, data.type
-  //    « board » + boardId).
-  // On distingue les deux par `target.data.type` : le seul discriminant explicite,
-  // posé uniquement par les tableaux ; toute cible sans ce marqueur est une colonne.
+  // Glisser-déposer : début, survol et fin (kanban/useKanbanDrag.js). Pendant le
+  // survol, la liste est réordonnée et la carte se déplace réellement dans les
+  // colonnes ; le placeholder de dnd-kit montre où elle va s'insérer.
+  const kanbanDrag = useKanbanDrag(applications, setApplications)
+
+  // Fin d'un glisser-déposer. Trois familles de cibles partagent le MÊME contexte :
+  //  - un TABLEAU de la sidebar (BoardRow, data.type « board » + boardId) →
+  //    déplacement vers ce tableau ;
+  //  - la ZONE D'ARCHIVAGE (data.type « archive ») → archivage ;
+  //  - tout le reste (une carte, une colonne, ou aucune cible : relâchée hors de
+  //    tout) → la carte va là où le placeholder la montrait au moment du dépôt.
+  // Pour les deux premières, seule compte la place d'ORIGINE (`drag.original`) : une
+  // colonne traversée pendant le survol ne change ni le statut envoyé ni le rang de
+  // retour en cas d'échec.
   function handleDragEnd(event) {
+    const drag = kanbanDrag.endDrag()
+    if (!drag) return
+
     const { operation, canceled } = event
-    // Drag annulé (Échap) ou relâché hors d'une cible valide : rien à faire.
-    if (canceled) return
+    // Annulé (Échap) : la carte revient à sa place d'origine.
+    if (canceled) {
+      drag.restore()
+      return
+    }
 
-    const source = operation.source
     const target = operation.target
-    if (!source || !target) return
-
-    const applicationId = source.id // id de la candidature (nombre)
-
-    if (target.data?.type === 'board') {
-      moveApplicationToBoard(applicationId, target.data.boardId)
+    if (target?.data?.type === 'board') {
+      moveApplicationToBoard(drag, target.data.boardId)
+      return
+    }
+    if (target?.data?.type === 'archive') {
+      archiveViaDrag(drag)
       return
     }
 
-    if (target.data?.type === 'archive') {
-      archiveViaDrag(applicationId)
-      return
-    }
+    // Réordonnancement, dans la colonne ou vers une autre. Reposée à sa place
+    // d'origine → aucun appel.
+    const { from, to } = drag
+    if (from.status === to.status && from.index === to.index) return
 
-    // Cible « colonne » : changement de statut (comportement existant, inchangé).
-    const newStatus = target.id // clé du statut de la colonne cible (chaîne)
-
-    // Statut d'origine mémorisé sur la carte (data.status), qui sert à la fois à
-    // détecter un dépôt sans changement et de valeur de rollback en cas d'échec.
-    const previousStatus = source.data?.status
-
-    // Reposée dans sa colonne d'origine → aucun PATCH.
-    if (previousStatus === newStatus) return
-
-    // Mise à jour optimiste immédiate (la carte change de colonne avant la réponse
-    // de l'API), via une mise à jour fonctionnelle ciblée sur la carte.
+    // Mise à jour optimiste : l'état montre déjà la carte à sa nouvelle place
+    // (survol). POST /move en arrière-plan ; retour ciblé en cas d'échec (seule
+    // cette carte revient à sa place d'origine : les autres modifications
+    // survenues entre-temps sont conservées).
     setActionError('')
-    setApplications((prev) =>
-      prev.map((item) =>
-        item.id === applicationId ? { ...item, status: newStatus } : item,
-      ),
+    moveApplication(drag.applicationId, { status: to.status, position: to.index }).catch(
+      (err) => {
+        drag.restore()
+        setActionError(
+          err.message || 'Le déplacement de la carte a échoué. Elle a été replacée.',
+        )
+      },
     )
-
-    // PATCH en arrière-plan ; rollback ciblé si l'appel échoue. On ne restaure QUE
-    // le statut de cette carte (à previousStatus) plutôt qu'un snapshot complet du
-    // tableau : la mise à jour fonctionnelle se compose ainsi proprement avec
-    // d'éventuelles autres modifications survenues entre-temps.
-    updateApplication(applicationId, { status: newStatus }).catch((err) => {
-      setApplications((prev) =>
-        prev.map((item) =>
-          item.id === applicationId ? { ...item, status: previousStatus } : item,
-        ),
-      )
-      setActionError(
-        err.message ||
-          'Le changement de statut a échoué. La carte a été replacée.',
-      )
-    })
   }
 
-  // Déplacement d'une candidature vers un AUTRE tableau, via le même chemin que la
-  // modale d'édition (updateApplication avec board_id). Réutilisée par le drag vers
-  // la sidebar.
-  function moveApplicationToBoard(applicationId, targetBoardId) {
+  // Déplacement d'une candidature vers un AUTRE tableau par dépôt sur la sidebar,
+  // via le même chemin que la modale d'édition (updateApplication avec board_id) :
+  // le serveur la place EN HAUT de la colonne de même statut dans ce tableau.
+  function moveApplicationToBoard(drag, targetBoardId) {
     // Lâchée sur le tableau courant : la candidature y est déjà (le droppable du
-    // tableau courant est `disabled`, mais on reste défensif). Aucun PATCH.
-    if (targetBoardId === currentBoardId) return
-
-    // Mémorise la carte ET sa position pour un rollback fidèle en cas d'échec :
-    // contrairement au changement de statut (une seule propriété à restaurer), un
-    // déplacement RETIRE la carte de la vue courante et doit pouvoir la réinsérer.
-    const index = applications.findIndex((item) => item.id === applicationId)
-    if (index === -1) return
-    const moved = applications[index]
+    // tableau courant est `disabled`, mais on reste défensif) : elle revient à sa
+    // place d'origine, aucun PATCH.
+    if (targetBoardId === currentBoardId) {
+      drag.restore()
+      return
+    }
 
     // Optimiste : la carte quitte le tableau courant → elle disparaît de la vue
     // (on n'affiche que les candidatures du tableau courant). Les compteurs de
     // colonnes se recalculent seuls (byStatus dérivé de `applications`).
     setActionError('')
-    setApplications((prev) => prev.filter((item) => item.id !== applicationId))
+    setApplications((prev) => prev.filter((item) => item.id !== drag.applicationId))
 
-    updateApplication(applicationId, { board_id: targetBoardId }).catch((err) => {
-      // Rollback : on réinsère la carte à sa position d'origine (si elle n'y est
-      // pas déjà revenue entre-temps).
-      setApplications((prev) => {
-        if (prev.some((item) => item.id === applicationId)) return prev
-        const next = [...prev]
-        next.splice(Math.min(index, next.length), 0, moved)
-        return next
-      })
+    updateApplication(drag.applicationId, { board_id: targetBoardId }).catch((err) => {
+      // Retour : la carte réapparaît à sa place d'origine.
+      drag.restore()
       setActionError(
         err.message ||
           'Le déplacement vers le tableau a échoué. La carte a été restaurée.',
@@ -241,24 +225,15 @@ export default function BoardPage() {
 
   // Archivage par glisser-déposer sur ArchiveDropZone : même chemin optimiste
   // que moveApplicationToBoard (la carte disparaît immédiatement, la vue
-  // courante ne montrant que les candidatures ACTIVES). Rollback ciblé si le
+  // courante ne montrant que les candidatures ACTIVES). Retour ciblé si le
   // serveur refuse (409, plafond de 2000 archivées, ou déjà archivée) ;
   // l'erreur va dans la bannière actionError, comme les autres échecs de drag.
-  function archiveViaDrag(applicationId) {
-    const index = applications.findIndex((item) => item.id === applicationId)
-    if (index === -1) return
-    const archived = applications[index]
-
+  function archiveViaDrag(drag) {
     setActionError('')
-    setApplications((prev) => prev.filter((item) => item.id !== applicationId))
+    setApplications((prev) => prev.filter((item) => item.id !== drag.applicationId))
 
-    archiveApplication(applicationId).catch((err) => {
-      setApplications((prev) => {
-        if (prev.some((item) => item.id === applicationId)) return prev
-        const next = [...prev]
-        next.splice(Math.min(index, next.length), 0, archived)
-        return next
-      })
+    archiveApplication(drag.applicationId).catch((err) => {
+      drag.restore()
       setActionError(
         err.message || "L'archivage a échoué. La carte a été restaurée.",
       )
@@ -272,25 +247,34 @@ export default function BoardPage() {
   async function handleCreate(data) {
     const created = await createApplication(data)
     if (created.board_id === currentBoardId) {
-      // Préfixée à la liste (le backend trie par updated_at décroissant) → elle
-      // apparaît en tête de la colonne « Repérée » sans rechargement.
+      // Préfixée à la liste → elle apparaît EN HAUT de la colonne « Repérée », là
+      // où le serveur l'a placée (règle d'arrivée en haut).
       setApplications((prev) => [created, ...prev])
     }
     closeModal()
   }
 
-  // Édition : la version à jour est renvoyée par l'API. Deux cas selon le tableau
-  // de destination :
-  //  - restée dans le tableau courant → on remplace la carte sur place ;
+  // Édition : la version à jour est renvoyée par l'API. Trois cas :
+  //  - restée dans le tableau courant, même statut → remplacée sur place ;
+  //  - restée dans le tableau courant, statut CHANGÉ → EN HAUT de sa nouvelle
+  //    colonne, comme le serveur l'a placée (règle d'arrivée en haut) : l'affichage
+  //    ne change pas au rechargement ;
   //  - déplacée vers un AUTRE tableau → elle sort de la vue courante (on ne montre
   //    que les candidatures du tableau affiché), donc on la retire de la liste.
+  // Le formulaire renvoie toujours le statut, même inchangé : on compare au statut
+  // d'avant, comme le serveur.
   async function handleUpdate(data) {
+    const previousStatus = modal.application.status
     const updated = await updateApplication(modal.application.id, data)
-    setApplications((prev) =>
-      updated.board_id === currentBoardId
-        ? prev.map((item) => (item.id === updated.id ? updated : item))
-        : prev.filter((item) => item.id !== updated.id),
-    )
+    setApplications((prev) => {
+      if (updated.board_id !== currentBoardId) {
+        return prev.filter((item) => item.id !== updated.id)
+      }
+      const replaced = prev.map((item) => (item.id === updated.id ? updated : item))
+      return updated.status === previousStatus
+        ? replaced
+        : placeCard(replaced, updated.id, { status: updated.status, index: 0 })
+    })
     closeModal()
   }
 
@@ -389,7 +373,11 @@ export default function BoardPage() {
         // drop pour qu'une carte puisse être déposée sur un tableau. (Il était
         // auparavant limité au kanban ; il remonte ici sans changer le drag entre
         // colonnes, qui reste géré par le même onDragEnd.)
-        <DragDropProvider onDragEnd={handleDragEnd}>
+        <DragDropProvider
+          onDragStart={kanbanDrag.onDragStart}
+          onDragOver={kanbanDrag.onDragOver}
+          onDragEnd={handleDragEnd}
+        >
         <div className="board-layout">
           <Sidebar
             boards={boards}

@@ -531,6 +531,25 @@
   cursor: grabbing;
 }
 
+/* Emplacement d'insertion pendant un glisser-déposer. dnd-kit laisse dans la liste
+ * un double de la carte (attribut data-dnd-placeholder, masqué par défaut) là où
+ * elle sera déposée ; l'état étant réordonné au survol, ce double suit la carte de
+ * rang en rang et de colonne en colonne. On le rend visible : un creux de la
+ * hauteur exacte de la carte, bordé de pointillés, sans contenu. Forme ET bordure,
+ * jamais la couleur seule ; pas de teal (réservé à l'action principale et au
+ * focus) ; pas d'animation (DESIGN.md). Trois sélecteurs : plus spécifique que la
+ * règle « visibility: hidden » injectée par dnd-kit. Vaut aussi pour la landing. */
+.kanban-column__list .app-card[data-dnd-placeholder] {
+  visibility: visible;
+  opacity: 1;
+  background: var(--color-surface-3);
+  border: 1px dashed var(--color-border-hover);
+}
+
+.kanban-column__list .app-card[data-dnd-placeholder] > * {
+  visibility: hidden;
+}
+
 /* Titre borné à 2 lignes : un intitulé d'offre très long ne doit pas faire
  * exploser la hauteur de la carte (objectif : 10 cartes sans scroll).
  * overflow-wrap:anywhere évite qu'un mot sans espace (URL, mot composé) déborde
