@@ -1238,7 +1238,6 @@ Frontend (depuis frontend/) :
       données, échec du garde-fou, échec de conversion sans troncature)
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
-- Agrégation API officielles (La Bonne Alternance, France Travail) → V1.5
 - Formulaire de correction dans l'extension → V2
 - Alertes email, statistiques, paiement → V2
 - Connexion Google, refresh tokens, UUID → V3

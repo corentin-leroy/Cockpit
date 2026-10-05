@@ -112,7 +112,11 @@ async function startExtraction() {
     showMessage(`Extraction impossible : ${err.message}`, "error");
   }
 
-  currentOffer = offer;
+  // `notice` (adaptateurs) ne sert qu'à CE message : on ne la garde pas dans
+  // currentOffer, qui est fusionné dans ce que l'on envoie à l'API.
+  const { notice, ...extractedOffer } = offer;
+  currentOffer = extractedOffer;
+  offer = extractedOffer;
   titleEl.value = offer.title ?? "";
   companyEl.value = offer.company ?? "";
   locationEl.value = offer.location ?? "";
@@ -125,6 +129,15 @@ async function startExtraction() {
   // souhaite.
   if (offer.urlTooLong) {
     showMessage("Lien trop long : collez-le manuellement dans le champ ci-dessus si besoin.");
+  }
+
+  // Rien à lire (adaptateur) : formulaire vide, message neutre — ni « error » ni ⚠,
+  // ce n'est pas un échec de l'extension. Champs vides plutôt que préremplis avec
+  // le titre d'une liste : ce serait enregistrer de fausses données.
+  if (notice === "not-an-offer") {
+    showMessage("Ouvrez une offre pour l'ajouter.");
+  } else if (notice === "timeout") {
+    showMessage("L'offre n'a pas fini de s'afficher : rouvrez l'extension dans un instant.");
   }
 
   extractStatusEl.style.display = "none";

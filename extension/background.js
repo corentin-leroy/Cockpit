@@ -10,6 +10,7 @@
 // Pourquoi passer par le service worker plutôt que la page ? L'injection et le
 // POST se font depuis le contexte de l'extension → pas soumis à la CSP du site.
 
+import { findAdapter } from "./adapters/index.js";
 import { getBoards, createApplication } from "./api.js";
 import { URL_MAX_LENGTH } from "./limits.js";
 import { stripTrackingParams } from "./urlCleanup.js";
@@ -17,6 +18,8 @@ import { stripTrackingParams } from "./urlCleanup.js";
 // --- La fonction injectée dans la page ---
 // ATTENTION : cette fonction est sérialisée puis exécutée DANS la page.
 // Elle ne peut donc utiliser aucune variable extérieure.
+// Extraction GÉNÉRIQUE : utilisée sur tout site sans adaptateur dédié (cf.
+// adapters/index.js, qui choisit l'extracteur d'après l'hôte de l'onglet).
 function extractOffer() {
   // Ordre de fallback (inchangé) : JSON-LD JobPosting d'abord, repli générique
   // sur le titre de page ensuite. Ce résultat n'est plus posté tel quel : il
@@ -123,11 +126,17 @@ async function handleExtractOffer() {
       return { ok: false, error: "Aucun onglet actif." };
     }
 
+    // Extracteur selon le site (cf. adapters/index.js) : un adaptateur dédié si
+    // l'hôte de l'onglet en a un, sinon extractOffer, INCHANGÉE. activeTab donne
+    // accès à tab.url ; sans lui, findAdapter(undefined) renvoie null → générique.
+    const extract = findAdapter(tab.url)?.extract ?? extractOffer;
+
     // activeTab (accordé à l'ouverture de la popup par clic) autorise l'injection
-    // dans l'onglet courant sans host_permission sur chaque site.
+    // dans l'onglet courant sans host_permission sur chaque site. Une fonction
+    // asynchrone est attendue par executeScript (adaptateur France Travail).
     const [{ result: offer }] = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: extractOffer,
+      func: extract,
     });
     // Hors du contexte sandboxé (contrairement à extractOffer ci-dessus) : peut
     // importer librement, d'où le nettoyage ICI plutôt que dans extractOffer.

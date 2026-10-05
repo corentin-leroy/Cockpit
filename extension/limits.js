@@ -8,10 +8,10 @@
 // même passe.
 //
 // N'inclut PAS la borne appliquée à l'EXTRACTION (title/company/location coupés
-// à 255 dans background.js, fonction extractOffer) : ce code est SÉRIALISÉ puis
-// exécuté dans la page visitée et ne peut importer aucun module — ces valeurs y
-// restent nécessairement dupliquées en dur, au même endroit que le reste de
-// cette fonction.
+// à 255 dans background.js, fonction extractOffer, et dans chaque adaptateur de
+// adapters/) : ce code est SÉRIALISÉ puis exécuté dans la page visitée et ne peut
+// importer aucun module — ces valeurs y restent nécessairement dupliquées en dur,
+// au même endroit que le reste de chaque fonction.
 
 export const TITLE_MAX_LENGTH = 255
 export const COMPANY_MAX_LENGTH = 255
