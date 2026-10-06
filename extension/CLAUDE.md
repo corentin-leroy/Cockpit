@@ -13,6 +13,10 @@
   `prefers-color-scheme: dark`. La popup n'a pas de bascule de thème manuelle.
 - Toute modification de la palette dans `tokens.css` doit être reportée ici dans la même
   passe. Signale-le-moi explicitement quand tu touches aux couleurs.
+- Seule exception, VOLONTAIRE : `--color-surface-band` n'est PAS dans la popup. Il ne
+  sert qu'aux bandes de section de la landing, et la popup n'en a pas : son absence
+  n'est pas un oubli de synchronisation (cf. DESIGN.md, « Duplication à surveiller »).
+  À ajouter le jour où la popup en aurait l'usage.
 
 ## Messages de la popup
 - Un seul conteneur, `<p id="message">`, présent dans le HTML initial et partagé entre
@@ -92,10 +96,10 @@
   accepte 5 à 12 caractères alphanumériques.
 - ⚠ N'APPELER JAMAIS l'API interne du site (`/api-descriptifoffre/…`) : ni documentée
   ni prévue pour un usage externe. L'adaptateur ne lit que la page.
-- Point à confirmer à la main : l'adaptateur s'exécute dans le monde ISOLÉ de
-  l'extension (défaut d'`executeScript`) ; un Shadow DOM OUVERT y reste lisible, mais
-  ce n'est pas vérifiable hors extension chargée. Si la procédure de test montre un
-  `shadowRoot` nul, utiliser `chrome.dom.openOrClosedShadowRoot(element)` (dans
+- Vérifié à la main dans l'extension chargée : l'adaptateur s'exécute dans le monde
+  ISOLÉ de l'extension (défaut d'`executeScript`) et le Shadow DOM OUVERT y est bien
+  lisible. Si un relevé futur montrait un `shadowRoot` nul (le site passerait en Shadow
+  DOM fermé), utiliser `chrome.dom.openOrClosedShadowRoot(element)` (dans
   l'adaptateur) ou injecter avec `world: "MAIN"`.
 
 ### Indeed (`adapters/indeed.js`, hôte `fr.indeed.com` uniquement)
@@ -141,9 +145,9 @@
   navigations répétées déclenchent une vérification anti-robot (ne jamais la
   résoudre). Pour un relevé, cliquer comme un humain et naviguer peu. L'extension,
   elle, ne clique jamais : elle lit l'offre que l'utilisateur a ouverte.
-- Testé par injection dans la page (même code), PAS encore dans l'extension chargée :
-  la page seule (`/viewjob`) n'a pu être relue avec la version finale (vérification
-  anti-robot) ; à confirmer à la main avec l'extension rechargée.
+- Testé d'abord par injection dans la page (même code ; la page seule `/viewjob`
+  n'avait pu être relue avec la version finale, vérification anti-robot), puis
+  vérifié à la main dans l'extension chargée.
 
 ## Comportements volontaires — ne pas « corriger »
 - La popup se ferme automatiquement 900 ms après un ajout réussi. C'est un choix assumé :
