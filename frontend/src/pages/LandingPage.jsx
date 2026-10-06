@@ -220,7 +220,10 @@ export default function LandingPage() {
           connecte sans remonter. « Créer un compte » y est en style SECONDAIRE :
           en haut de page il est visible en même temps que celui du hero, et
           l'action principale (teal) doit rester unique à l'écran. Il n'apparaît
-          d'ailleurs qu'une fois celui du hero sorti de l'écran (effet ci-dessus). */}
+          d'ailleurs qu'une fois celui du hero sorti de l'écran (effet ci-dessus),
+          dans un emplacement de largeur nulle jusque-là, qui s'élargit en
+          glissant (landing.css) : en haut de page, rien ne réserve de place vide
+          à droite de « Se connecter ». */}
       <header ref={headerRef} className="landing-topbar">
         <div className="landing-container landing-topbar__inner">
           {/* Le favicon sert de marque : alt vide, le nom est écrit juste à côté
@@ -240,12 +243,14 @@ export default function LandingPage() {
             <Link to="/login" className="btn btn--ghost btn--sm">
               Se connecter
             </Link>
-            <Link
-              to="/register"
-              className="btn btn--secondary btn--sm landing-topbar__signup"
-            >
-              Créer un compte
-            </Link>
+            <span className="landing-topbar__signup-slot">
+              <Link
+                to="/register"
+                className="btn btn--secondary btn--sm landing-topbar__signup"
+              >
+                Créer un compte
+              </Link>
+            </span>
           </div>
         </div>
       </header>

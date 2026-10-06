@@ -9,14 +9,78 @@
   - « Créer un compte » de la barre n'apparaît qu'une fois celui du HERO entièrement
     sorti de l'écran, barre comprise. `IntersectionObserver` sur le bouton du hero
     (marge haute négative = hauteur de la barre), recréé par un `ResizeObserver` quand
-    cette hauteur change (63px, 55px à 768px et moins). Aucun écouteur de défilement,
+    cette hauteur change (57px, 49px à 768px et moins). Aucun écouteur de défilement,
     aucun état React : un attribut `data-signup` sur l'en-tête, lu par le CSS.
-    Emplacement réservé (`opacity` + `visibility`), fondu de 180ms instantané sous
-    `prefers-reduced-motion` (règle explicite : base.css ne réduit pas les délais),
-    gardé visible tant qu'il a le focus. Premier calcul dans un `useLayoutEffect`
-    (rien n'apparaît puis disparaît au chargement) ; transitions activées après le
-    premier verdict de l'observateur (pas de fondu sur une page rechargée déjà
-    défilée). REPLI SÛR : sans observateur ou avant tout calcul, il est VISIBLE.
+    Emplacement de largeur NULLE en haut de page, qui s'élargit en glissant (180ms)
+    quand le bouton apparaît en fondu (`opacity` + `visibility`) ; le tout instantané
+    sous `prefers-reduced-motion` (règle explicite : base.css ne réduit pas les
+    délais), gardé visible, emplacement ouvert, tant qu'il a le focus. Premier calcul
+    dans un `useLayoutEffect` (rien n'apparaît puis disparaît au chargement) ;
+    transitions activées après le premier verdict de l'observateur (ni fondu ni
+    glissement sur une page rechargée déjà défilée). REPLI SÛR : sans observateur ou
+    avant tout calcul, il est VISIBLE.
+  - Glissement de la barre (2026-10-06). AVANT : emplacement réservé en permanence,
+    bouton seulement rendu invisible ; en haut de page, un vide à droite de « Se
+    connecter » le faisait paraître mal aligné (logo collé à gauche, lui non).
+    APRÈS : `.landing-topbar__signup-slot` (LandingPage.jsx, un `<span>` autour du
+    lien, aucune logique ajoutée), grille `minmax(0, 0fr)` ↔ `minmax(0, 1fr)` pilotée
+    par le même attribut `data-signup`. Écart à DESIGN.md (animation de mise en
+    page), inscrit dans ses « Interdits ». Précautions, toutes nécessaires :
+    - `white-space: nowrap` sur le bouton : passé sur deux lignes dans l'emplacement
+      étroit, il ferait grandir la barre (décalage de toute la page, et le
+      ResizeObserver recréerait l'observateur en pleine animation).
+    - Plancher `minmax(0, …)` : `0fr` seul ne descend pas sous le padding et la
+      bordure du bouton. MESURÉ avant correction : 26px restaient (12 + 12 + 1 + 1),
+      « Se connecter » à 50px du bord droit contre 24px pour le logo.
+    - `justify-content: end` : une fraction inférieure à 1 s'applique deux fois
+      (largeur du conteneur, puis de la colonne) ; la colonne, plus étroite que
+      l'emplacement pendant l'animation, calée à gauche, faisait RECULER le bouton
+      de 33px avant de le ramener au bord (mesuré image par image). Corrigé : bord
+      droit du bouton constant à chaque image, à l'aller comme au retour.
+    - `justify-self: unsafe end` : le bouton garde sa pleine largeur et déborde à
+      gauche, rogné par `overflow: clip` (pas `hidden`, qui ferait de l'emplacement
+      une zone défilable à la prise de focus).
+    - Padding de 4px compensé par une marge négative : l'anneau de focus (2px + 2px)
+      n'est pas rogné (vérifié visuellement, focus clavier sur le bouton).
+    - `--topbar-gap` replié avec l'emplacement (marge gauche animée) : sinon l'écart
+      de 8px (4px à 768px et moins) restait devant un emplacement vide.
+    - `pointer-events: none` sur l'emplacement, rétabli sur le bouton : masqué, il
+      chevauche la fin de « Se connecter » et lui volerait des clics.
+    VÉRIFIÉ dans Chrome (thèmes clair et sombre) : symétrie en haut de page (24px de
+    chaque côté ; 16px à 390 et 768px), barre sur une ligne dans les deux états
+    (63px ; 55px à 390 et 768px, hauteurs de l'époque : 57 et 49px depuis les
+    boutons-icônes carrés de 32px, cf. plus bas), aucun débordement horizontal ; glissement de
+    ~175ms dans les deux sens ; aucun décalage enregistré au chargement, en haut
+    comme sur une page rechargée à 700px ; tabulation qui saute le bouton masqué,
+    absent de l'arbre d'accessibilité ; bouton gardé visible et emplacement ouvert
+    sous le focus clavier, refermés au Maj+Tab ; mouvement réduit simulé (règles du
+    bloc `@media` injectées hors condition, l'extension ne pouvant pas émuler la
+    préférence) : bascule en une image, sans délai de visibilité. 390 et 768px testés
+    dans des iframes de cette largeur (Chrome refuse une fenêtre aussi étroite).
+    COÛT EN STABILITÉ (CLS) : le défilement n'excuse pas un décalage
+    (`hadRecentInput` faux), ce glissement compte donc chez les vrais utilisateurs.
+    MESURÉ par l'API `layout-shift` pendant un défilement réel à la molette, par
+    apparition ou disparition : ~0,00033 à 1920px, ~0,0018 à 768px, ~0,0037 à 390px
+    (seuil « bon » : 0,1). Sources : le bloc d'actions de la barre uniquement. Un
+    audit Lighthouse classique ne le verrait pas (il ne fait pas défiler la page).
+    Seule une animation par `transform` (technique FLIP, en JavaScript) y
+    échapperait.
+  - Boutons-icônes carrés (2026-10-06), barre de la landing ET navbar de l'app
+    (même composant ThemeToggle, même règle CSS que le repli de la sidebar).
+    AVANT : glyphes Unicode ☾ / ☀ / ☰, dessinés par des polices de secours ; MESURÉ,
+    le bouton de thème faisait 29,4 x 38px en clair et 34,9 x 38px en sombre (il
+    décalait ses voisins à chaque bascule) et imposait seul la hauteur des barres
+    (63px ; 55px à 768px et moins). APRÈS : icônes SVG Phosphor (Sun, Moon, List),
+    16px, dans un carré fixe de 32px ; barres à 57px (49px à 768px et moins).
+    `aria-pressed` retiré de la bascule de thème : avec un libellé qui change, il
+    produisait une annonce contradictoire. VÉRIFIÉ dans Chrome : 32 x 32px dans les
+    deux thèmes, icône centrée au pixel, « Se connecter » immobile à la bascule ;
+    déclenchement de « Créer un compte » exact au pixel (masqué tant que le bouton
+    du hero dépasse de 2px sous la barre, affiché dès qu'il y est caché de 2px) en
+    bureau, à 768 et à 390px ; barre sur une ligne et symétrique à 390px ; navbar
+    de l'app à 57px. COÛT au build : exactement 3 icônes dans le bundle (SunIcon,
+    MoonIcon, ListIcon, sur 1512 que compte la bibliothèque), +8 831 octets bruts,
+    +2,55 kB compressés (chaque icône embarque ses six graisses).
   - Focus jamais masqué par la barre : `scroll-margin-top` sur le CONTENU (`main`,
     pied de page). JAMAIS `scroll-padding-top` sur `<html>` : chaque tabulation vers
     un élément de la barre ferait remonter la page (mesuré : de 1500 à 1047px).

@@ -88,23 +88,92 @@
 /* « Créer un compte » de la barre : masqué tant que celui du hero est visible
  * (attribut data-signup posé par LandingPage.jsx ; SANS attribut, il est
  * visible : c'est le repli sûr).
- *  - opacity + visibility, jamais display: none : le bouton garde sa place, le
- *    logo, le thème et « Se connecter » ne bougent jamais.
- *  - visibility: hidden le rend à la fois non cliquable, hors tabulation et
- *    ignoré des lecteurs d'écran (rien à synchroniser en JavaScript).
- *  - :not(:focus) : s'il a le focus clavier quand il devrait disparaître (Tab
- *    jusqu'à lui puis remontée au clavier), il reste visible jusqu'à ce que le
- *    focus le quitte. Sinon le focus serait perdu et renvoyé au début de la page. */
+ *
+ * EMPLACEMENT (.landing-topbar__signup-slot) : de largeur NULLE quand le bouton
+ * est masqué, pour que « Se connecter » touche le bord droit, symétrique du logo
+ * (un emplacement réservé vide passait pour un défaut d'alignement). Il
+ * s'élargit à l'apparition, ce qui fait glisser le thème et « Se connecter » vers
+ * la gauche ; le bouton, lui, reste immobile au bord droit et apparaît en fondu.
+ * Écart à DESIGN.md (animation de mise en page), documenté dans sa section
+ * « Landing page ».
+ *  - Grille d'une colonne qui passe de 1fr (largeur du bouton) à 0fr : la
+ *    largeur s'interpole exactement entre 0 et celle du bouton, sans la coder en
+ *    dur (max-width l'imposerait et déformerait la courbe). Plancher EXPLICITE
+ *    de 0 (minmax) : une colonne `0fr` seule ne descend pas sous le minimum de
+ *    son contenu, et une boîte ne rétrécit jamais sous son padding et sa
+ *    bordure (mesuré : 26px restaient, « Se connecter » à 50px du bord contre
+ *    24px pour le logo). justify-content: end : pendant l'animation, une
+ *    fraction inférieure à 1 s'applique deux fois (au conteneur, puis à la
+ *    colonne), la colonne est donc plus étroite que l'emplacement ; calée à
+ *    gauche, elle faisait reculer le bouton de 33px avant de le ramener au bord
+ *    (mesuré image par image). Calée à droite, le bouton reste immobile.
+ *  - overflow: clip ROGNE le bouton pendant l'élargissement : il garde sa pleine
+ *    largeur, calé à droite, et serait sinon peint sur « Se connecter » (ou hors
+ *    de l'écran à 390px). clip et non hidden : hidden ferait de l'emplacement une
+ *    zone défilable, que le navigateur pourrait faire défiler à la prise de focus.
+ *  - padding de --space-1 compensé par une marge négative : place de l'anneau de
+ *    focus (2px + 2px de décalage), que le rognage couperait sinon. La mise en
+ *    page n'en est pas changée.
+ *  - L'écart de la barre (--topbar-gap) resterait présent avant un emplacement
+ *    vide : masqué, une marge gauche négative l'annule, et elle s'anime avec la
+ *    largeur pour que l'espace avant le bouton s'ouvre progressivement.
+ *  - pointer-events: none : masqué, l'emplacement chevauche la fin de « Se
+ *    connecter » (marge négative) et lui volerait des clics. Rétabli sur le bouton.
+ *  - :not(:focus-within) : même raison que le :not(:focus) du bouton ci-dessous,
+ *    l'emplacement ne se referme pas sous un bouton qui a le focus. */
+.landing-topbar__signup-slot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: end;
+  overflow: clip;
+  padding: var(--space-1);
+  margin: calc(-1 * var(--space-1));
+  pointer-events: none;
+}
+
+.landing-topbar[data-signup='hidden'] .landing-topbar__signup-slot:not(:focus-within) {
+  grid-template-columns: minmax(0, 0fr);
+  margin-left: calc(-1 * (var(--topbar-gap) + var(--space-1)));
+}
+
+/* Le bouton dans son emplacement :
+ *  - calé à DROITE ; `unsafe` : plus large que la colonne pendant l'animation, il
+ *    doit déborder à GAUCHE (rogné), pas être recalé au début. La première
+ *    déclaration sert de repli aux navigateurs qui ignorent `unsafe`.
+ *  - nowrap (déjà dans .btn, répété ici car l'animation en dépend) : un libellé
+ *    passé sur deux lignes dans l'emplacement étroit ferait grandir la barre et
+ *    décalerait toute la page. */
+.landing-topbar__signup {
+  justify-self: end;
+  justify-self: unsafe end;
+  white-space: nowrap;
+  pointer-events: auto;
+}
+
+/* Masqué : opacity + visibility. visibility: hidden le rend à la fois non
+ * cliquable, hors tabulation et ignoré des lecteurs d'écran (rien à synchroniser
+ * en JavaScript). :not(:focus) : s'il a le focus clavier quand il devrait
+ * disparaître (Tab jusqu'à lui puis remontée au clavier), il reste visible
+ * jusqu'à ce que le focus le quitte. Sinon le focus serait perdu et renvoyé au
+ * début de la page. */
 .landing-topbar[data-signup='hidden'] .landing-topbar__signup:not(:focus) {
   opacity: 0;
   visibility: hidden;
 }
 
-/* Fondu de 180ms sur l'opacité (DESIGN.md), activé seulement après le premier
- * verdict (data-signup-ready). À l'apparition, visibility bascule tout de suite ;
- * à la disparition, à la FIN du fondu (délai de 180ms). Les transitions de .btn
- * (fond, bordure, couleur, ombre) sont reprises : une déclaration `transition`
- * les remplace toutes. */
+/* Transitions de 180ms (DESIGN.md), activées seulement après le premier verdict
+ * (data-signup-ready) : rien ne fond ni ne glisse au chargement, même sur une
+ * page rechargée déjà défilée. L'emplacement (largeur, marge) et le fondu du
+ * bouton ont la même durée et la même courbe : ils jouent ensemble. */
+.landing-topbar[data-signup-ready] .landing-topbar__signup-slot {
+  transition:
+    grid-template-columns var(--transition-base),
+    margin-left var(--transition-base);
+}
+
+/* À l'apparition, visibility bascule tout de suite ; à la disparition, à la FIN
+ * du fondu (délai de 180ms). Les transitions de .btn (fond, bordure, couleur,
+ * ombre) sont reprises : une déclaration `transition` les remplace toutes. */
 .landing-topbar[data-signup-ready] .landing-topbar__signup {
   transition:
     opacity var(--transition-base),
@@ -125,10 +194,12 @@
     box-shadow var(--transition-fast);
 }
 
-/* Mouvement réduit : bascule INSTANTANÉE. La règle globale de base.css ne réduit
- * que les DURÉES, pas les délais : sans ceci, le délai de 180ms sur visibility
- * survivrait (bouton invisible mais encore cliquable pendant ce délai). */
+/* Mouvement réduit : bascule INSTANTANÉE, glissement compris. La règle globale de
+ * base.css ne réduit que les DURÉES, pas les délais : sans ceci, le délai de
+ * 180ms sur visibility survivrait (bouton invisible mais encore cliquable pendant
+ * ce délai). L'emplacement est nommé explicitement, sans dépendre d'elle. */
 @media (prefers-reduced-motion: reduce) {
+  .landing-topbar[data-signup-ready] .landing-topbar__signup-slot,
   .landing-topbar[data-signup-ready] .landing-topbar__signup,
   .landing-topbar[data-signup-ready][data-signup='hidden'] .landing-topbar__signup:not(:focus) {
     transition: none;
@@ -136,9 +207,11 @@
 }
 
 /* Focus jamais masqué par la barre : quand le navigateur fait défiler la page
- * vers un élément (tabulation, ancre), il le place SOUS la barre. 72px = hauteur
- * de la barre sur écran large (~63px, imposée par le bouton de thème) plus la
- * place de l'anneau de focus.
+ * vers un élément (tabulation, ancre), il le place SOUS la barre. 72px couvre la
+ * hauteur de la barre sur écran large (57px depuis les boutons-icônes carrés de
+ * 32px ; 63px auparavant, quand le glyphe du bouton de thème l'imposait) plus la
+ * place de l'anneau de focus (4px), avec de la marge. Valeur conservée lors du
+ * passage à 57px : toujours suffisante.
  * Posé sur le CONTENU (main, pied de page), PAS en scroll-padding sur <html> :
  * avec scroll-padding, les éléments de la barre elle-même (toujours dans les
  * 72px du haut) passaient pour masqués, et chaque tabulation vers « Se
@@ -170,10 +243,13 @@
   display: block;
 }
 
+/* --topbar-gap : l'écart entre les commandes, nommé parce que l'emplacement de
+ * « Créer un compte » doit l'annuler quand il est vide (cf. plus haut). */
 .landing-topbar__actions {
+  --topbar-gap: var(--space-2);
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--topbar-gap);
 }
 
 /* ------------------------------------------------------------------ */
@@ -523,7 +599,7 @@
   }
 
   .landing-topbar__actions {
-    gap: var(--space-1);
+    --topbar-gap: var(--space-1);
   }
 }
 

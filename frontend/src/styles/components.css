@@ -172,13 +172,18 @@
   font-weight: 600;
 }
 
-/* Bascule de thème et bouton de repli de la sidebar : boutons-icônes de la
- * navbar, même gabarit. Icône décorative, libellé accessible en aria-label. */
+/* Bascule de thème et bouton de repli de la sidebar : boutons-icônes des barres
+ * (navbar de l'app, barre de la landing), même gabarit. Icône SVG Phosphor de
+ * 16px, décorative ; libellé accessible en aria-label.
+ * CARRÉ FIXE de 32px (--space-6) : la taille ne dépend plus de l'icône. Avec les
+ * anciens glyphes Unicode, le bouton de thème mesurait 29 x 38px en clair et
+ * 35 x 38px en sombre (soleil plus large que la lune), décalait ses voisins à
+ * chaque bascule et imposait seul la hauteur des barres. */
 .theme-toggle,
 .sidebar-toggle {
-  font-size: var(--text-lg);
-  line-height: 1;
-  padding: var(--space-2);
+  width: var(--space-6);
+  height: var(--space-6);
+  padding: 0;
 }
 
 /* ================================================================== */

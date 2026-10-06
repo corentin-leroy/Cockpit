@@ -1,6 +1,7 @@
 // Barre de navigation minimale des pages protégées : le titre de l'app, l'accès
 // au compte, la bascule de thème et un bouton de déconnexion.
 
+import { List } from '@phosphor-icons/react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth.js'
@@ -44,9 +45,11 @@ export default function Navbar({ withSidebarToggle = false }) {
           donc ouvrable dans un nouvel onglet et annonçable comme lien. */}
       <div className="navbar__start">
         {/* Dans la navbar et NON dans la sidebar : sidebar repliée, elle
-            disparaît entièrement, le bouton doit rester atteignable. Le glyphe
-            est constant ; c'est le libellé (et aria-expanded) qui porte l'état,
-            jamais le pictogramme ni la couleur seuls. */}
+            disparaît entièrement, le bouton doit rester atteignable. L'icône
+            est constante ; c'est le libellé (et aria-expanded) qui porte l'état,
+            jamais le pictogramme ni la couleur seuls. Icône SVG Phosphor (List,
+            l'équivalent de ☰), comme la bascule de thème voisine : la barre ne
+            mélange pas SVG et caractère Unicode. */}
         {withSidebarToggle && (
           <button
             type="button"
@@ -57,7 +60,7 @@ export default function Navbar({ withSidebarToggle = false }) {
             aria-label={collapsed ? 'Afficher les tableaux' : 'Replier les tableaux'}
             title={collapsed ? 'Afficher les tableaux' : 'Replier les tableaux'}
           >
-            <span aria-hidden="true">☰</span>
+            <List size={16} aria-hidden="true" />
           </button>
         )}
 

@@ -26,6 +26,12 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
   section « Landing page »). L'application (kanban, formulaires, modales) plafonne à 28px.
 - Les glyphes et icônes (croix de fermeture, pictogrammes) ne consomment pas de token
   typographique : leur taille relève de l'icône, pas du texte.
+- Icônes : bibliothèque Phosphor (`@phosphor-icons/react`), graisse normale, 16px dans
+  les boutons-icônes des barres. Les boutons-icônes des barres (bascule de thème, repli
+  de la sidebar) sont des CARRÉS FIXES de 32px (`--space-6`) : leur taille ne dépend
+  jamais de l'icône. Jamais de SVG et de caractère Unicode mêlés dans une même barre.
+  Le reste de l'application utilise encore des caractères Unicode (dont deux emoji,
+  contraires aux interdits) : leur passage à Phosphor est un lot d'harmonisation prévu.
 - Titre de carte : 14px, poids 500, couleur de texte principale.
 - Métadonnées (entreprise, lieu) : 12px, couleur de texte secondaire.
 - Titre de colonne : 12px, poids 600, majuscules, couleur secondaire.
@@ -153,8 +159,8 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
   (`position: sticky`, sans JavaScript), fond opaque `--color-bg`, filet en bas, au-dessus
   du panneau du kanban (z-index 2 contre 1 ; ce sont les deux seuls calques de la page).
 - Contenu : logo et « Cockpit », changement de thème, « Se connecter » (fantôme),
-  « Créer un compte » (SECONDAIRE, jamais teal). Compacte à 768px et moins (55px au lieu
-  de 63px). Sous 480px, le nom est masqué visuellement (toujours lu par les lecteurs
+  « Créer un compte » (SECONDAIRE, jamais teal). Compacte à 768px et moins (49px au lieu
+  de 57px). Sous 480px, le nom est masqué visuellement (toujours lu par les lecteurs
   d'écran) pour que la barre tienne sur une ligne.
 - « Créer un compte » de la barre n'apparaît qu'une fois celui du hero ENTIÈREMENT sorti
   de l'écran, y compris caché derrière la barre ; il disparaît quand on remonte.
@@ -162,14 +168,27 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
     barre), recréé par un `ResizeObserver` quand cette hauteur change (le seuil de
     768px, traversé en faisant pivoter une tablette). Aucun écouteur de défilement,
     aucun état React (un attribut `data-signup` sur l'en-tête).
-  - Emplacement réservé en permanence (`opacity` + `visibility`, jamais
-    `display: none`) : rien ne bouge dans la barre.
+  - ÉCART VOLONTAIRE (animation de mise en page, cf. « Interdits ») : en haut de page,
+    l'emplacement du bouton a une largeur NULLE, et « Se connecter » touche le bord
+    droit, symétrique du logo. Un emplacement réservé vide (l'ancien comportement)
+    passait pour un défaut d'alignement aux yeux d'un visiteur qui ne sait pas qu'un
+    bouton va apparaître. Quand le bouton du hero sort de l'écran, l'emplacement
+    s'élargit en 180ms : le thème et « Se connecter » GLISSENT vers la gauche, le
+    bouton reste immobile au bord droit et apparaît en fondu ; mouvement inverse en
+    remontant. C'est le seul déplacement d'éléments de la barre, et il est voulu :
+    rien d'autre n'y bouge, ni n'y saute (la hauteur de la barre ne change jamais).
+  - Technique, CSS seul : grille d'une colonne, `minmax(0, 0fr)` ↔ `minmax(0, 1fr)`,
+    l'écart de la barre replié avec elle ; le bouton, qui ne passe jamais à la ligne,
+    est rogné (`overflow: clip`) pendant l'élargissement, anneau de focus préservé.
+    Détail et mesures : `dev-docs/landing-page.md`.
   - Masqué : ni cliquable, ni atteignable au clavier, ni annoncé (`visibility: hidden`).
-    Il reste affiché tant qu'il a le focus clavier, sinon le focus serait perdu.
-  - Fondu de 180ms sur l'opacité, activé seulement après le premier verdict (pas de
-    fondu au chargement, même sur une page rechargée déjà défilée). Instantané sous
-    `prefers-reduced-motion`, par une règle EXPLICITE : la règle globale de `base.css`
-    réduit les durées, pas les délais (celui de `visibility` aurait survécu).
+    Il reste affiché, emplacement ouvert, tant qu'il a le focus clavier, sinon le focus
+    serait perdu.
+  - Glissement et fondu de 180ms, activés seulement après le premier verdict (ni
+    fondu ni glissement au chargement, même sur une page rechargée déjà défilée).
+    Instantanés sous `prefers-reduced-motion`, par une règle EXPLICITE : la règle
+    globale de `base.css` réduit les durées, pas les délais (celui de `visibility`
+    aurait survécu).
   - Repli sûr : sans observateur, ou avant le premier calcul, il est VISIBLE.
     L'inscription n'est jamais inaccessible au milieu de la page.
 - Focus jamais masqué par la barre : `scroll-margin-top` de 72px sur le CONTENU (`main`,
@@ -179,8 +198,9 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
 
 ### Mouvement
 - Aucune animation d'entrée ni d'apparition au défilement : le kanban déplaçable est
-  l'élément animé de la page, rien ne doit lui faire concurrence. Seule exception : le
-  fondu du bouton d'inscription de la barre.
+  l'élément animé de la page, rien ne doit lui faire concurrence. Seules exceptions,
+  toutes deux dans la barre : le fondu du bouton d'inscription et le glissement qui lui
+  fait place (cf. « Barre du haut » et « Interdits »).
 - Une bibliothèque d'animation (Motion) n'est envisageable que pour un effet que le CSS
   ne sait pas produire proprement (ressort physique, réorganisation animée), chargée
   sur la landing seulement, et après accord. Fondus, survols et apparitions restent en
@@ -222,13 +242,18 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
   page »).
 - Pas d'emoji dans l'interface.
 - Pas d'animation au-delà de 180ms, et uniquement sur opacité, fond et couleur.
-  EXCEPTION UNIQUE, écrite et limitée à ce seul cas : le repli de la sidebar des
-  tableaux (`.sidebar`, propriété `margin-left`, propriété de mise en page).
-  180ms au maximum (`--sidebar-slide`, components.css), jamais davantage. Sous
-  `prefers-reduced-motion: reduce`, le basculement est INSTANTANÉ (aucune
-  transition, délai de visibilité compris). Aucun autre élément ne peut
-  invoquer cette exception : toute autre animation de mise en page reste
-  interdite.
+  DEUX EXCEPTIONS, écrites et limitées chacune à son seul élément, toutes deux à
+  180ms au maximum et INSTANTANÉES sous `prefers-reduced-motion: reduce` (aucune
+  transition, délai de visibilité compris) :
+  - le repli de la sidebar des tableaux (`.sidebar`, propriété `margin-left`,
+    `--sidebar-slide`, components.css) ;
+  - l'emplacement du bouton « Créer un compte » de la barre de la landing
+    (`.landing-topbar__signup-slot`, `grid-template-columns` et `margin-left`,
+    `--transition-base`, landing.css), pour éviter l'asymétrie de la barre en haut de
+    page (cf. « Landing page », « Barre du haut »).
+  Aucun autre élément ne peut se réclamer de ces exceptions : toute autre animation
+  de mise en page reste interdite, et toute nouvelle exige une décision explicite,
+  inscrite ici.
 - Pas de bordure quand un espace suffit à séparer.
 - **Jamais `display: flex` ni `display: -webkit-box` directement sur un `<td>`.**
   Un `<td>` doit garder son `display: table-cell` implicite pour participer au
