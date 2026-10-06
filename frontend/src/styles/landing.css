@@ -1,28 +1,63 @@
-/* Landing page (LandingPage.jsx).
+/* Landing page (LandingPage.jsx, route "/"). Règles et écarts documentés dans la
+ * section « Landing page » de DESIGN.md.
  *
- * N'utilise QUE les tokens : aucune couleur ni valeur d'espacement en dur,
- * échelle 4/8/12/16/24/32 (pas de 48px : l'air entre deux sections vient de
- * deux paddings de 32px).
+ * Classes préfixées `landing-` : une feuille importée par Vite s'applique à toute
+ * l'application, ce préfixe ne doit servir nulle part ailleurs.
  *
- * Écarts assumés, signalés plutôt que silencieux :
- *  - le hero et l'appel final sont CENTRÉS, les sections intermédiaires gardent
- *    un titre à gauche au-dessus d'une grille qui occupe TOUTE la largeur, la même
- *    que le kanban de démonstration : aucun bloc n'est plus large que les autres ;
- *  - le h1 de la landing est à 30px (exception déjà documentée), les h2 à 20px.
+ * Couleurs : UNIQUEMENT les tokens de tokens.css.
+ *
+ * Écarts à DESIGN.md, propres à la landing :
+ *  - deux tailles d'affichage hors échelle (56px pour le h1, 40px pour la phrase
+ *    finale et les numéros d'étapes), titres de section à 28px, graisse 700 ;
+ *  - espacements de section au-delà de 32px (48px, 64px, 96px, 128px : multiples
+ *    de l'échelle) ;
+ *  - fonds de section alternés : bande teal pâle (--color-accent-soft) et bande
+ *    neutre (--color-surface-band, 1,20:1 contre le fond dans les deux thèmes) ;
+ *  - ombre portée (--shadow-lg) sur le panneau du kanban, objet posé sur la page ;
+ *  - teal comme couleur d'identité : mots du h1, bande teal pâle, filets de la
+ *    vue d'ensemble, numéros d'étapes. Il ne porte jamais seul une information ;
+ *  - logo (favicon) dans l'en-tête ;
+ *  - en-tête COLLÉ en haut pendant le défilement (CSS seul), avec « Créer un
+ *    compte » en style secondaire : le teal reste unique à l'écran.
+ * Aucune animation d'entrée ni au défilement : le kanban déplaçable reste
+ * l'élément animé de la page. Seule exception, le fondu du bouton d'inscription
+ * de la barre (180ms, opacité).
+ *
+ * Contrastes MESURÉS (WCAG, clair / sombre) des couples introduits ici :
+ *  - accent-text sur bg (mots du h1, numéros)       6,87 / 9,06
+ *  - text sur accent-soft (titres de la bande)      12,29 / 9,84
+ *  - text-secondary sur accent-soft (textes, légende) 7,90 / 6,43
+ *  - text sur surface-band (titres de la confiance) 11,25 / 11,35
+ *  - text-secondary sur surface-band                7,23 / 7,42
+ *  - accent (bouton) sur bg                         5,20 / 7,62 (forme, >= 3:1)
+ * text-muted n'est JAMAIS posé sur la bande teal : 4,23:1 en sombre, sous AA.
+ * Filets DÉCORATIFS, sous 3:1 comme --color-border partout dans l'application :
+ * accent-border sur accent-soft 1,49 / 1,94, border-strong sur surface-band
+ * 1,29 / 1,59. Ils ne portent aucune information : l'espace et les titres
+ * séparent déjà les blocs.
  */
 
 .landing {
+  /* Tailles d'affichage : plancher en fenêtre étroite, plafond sur grand écran. */
+  --landing-display-1: clamp(36px, 4.4vw, 56px);
+  --landing-display-2: clamp(28px, 3.2vw, 40px);
+  /* Rythme vertical : l'air ENTRE deux sections (96px) est nettement supérieur
+   * à l'air À L'INTÉRIEUR d'une section (24 à 48px). */
+  --landing-section-pad: calc(var(--space-6) * 3);
+  /* Hauteur sur laquelle le panneau du kanban déborde dans la bande teal. */
+  --landing-overlap: calc(var(--space-6) * 5);
+
   flex: 1;
   display: flex;
   flex-direction: column;
 }
 
-/* Largeur : 1448px = cinq colonnes de 280px + quatre espaces de 12px (la largeur
- * naturelle du kanban) + les deux marges. Le texte, lui, est borné par ses
- * propres max-width : il reste à gauche, sur le même axe que le kanban. */
+/* Largeur unique pour tous les blocs : celle du panneau du kanban, soit cinq
+ * colonnes de 280px et quatre espaces de 12px (1448px), plus le padding (2 x 12px)
+ * et la bordure (2 x 1px) du panneau, plus les deux marges latérales de 24px. */
 .landing-container {
   width: 100%;
-  max-width: 1496px;
+  max-width: 1522px;
   margin: 0 auto;
   padding: 0 var(--space-5);
 }
@@ -31,9 +66,87 @@
 /* En-tête                                                             */
 /* ------------------------------------------------------------------ */
 
+/* Collée en haut pendant le défilement (sticky : sans JavaScript, et elle garde
+ * sa place dans le flux, rien ne saute au chargement).
+ *  - Fond OPAQUE (--color-bg, celui de la page) + filet : le contenu qui défile
+ *    dessous ne transparaît jamais.
+ *  - z-index 2 : au-dessus de la scène du kanban (z-index 1, surélevée pour son
+ *    chevauchement), seul autre calque de la page. Les deux sont dans le même
+ *    contexte d'empilement (aucun ancêtre n'en crée), la comparaison vaut donc.
+ *  - Même fondu que body au changement de thème, sinon la barre basculerait
+ *    d'un coup pendant que la page fond. */
 .landing-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   padding: var(--space-3) 0;
+  background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
+  transition: background-color var(--transition-base);
+}
+
+/* « Créer un compte » de la barre : masqué tant que celui du hero est visible
+ * (attribut data-signup posé par LandingPage.jsx ; SANS attribut, il est
+ * visible : c'est le repli sûr).
+ *  - opacity + visibility, jamais display: none : le bouton garde sa place, le
+ *    logo, le thème et « Se connecter » ne bougent jamais.
+ *  - visibility: hidden le rend à la fois non cliquable, hors tabulation et
+ *    ignoré des lecteurs d'écran (rien à synchroniser en JavaScript).
+ *  - :not(:focus) : s'il a le focus clavier quand il devrait disparaître (Tab
+ *    jusqu'à lui puis remontée au clavier), il reste visible jusqu'à ce que le
+ *    focus le quitte. Sinon le focus serait perdu et renvoyé au début de la page. */
+.landing-topbar[data-signup='hidden'] .landing-topbar__signup:not(:focus) {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Fondu de 180ms sur l'opacité (DESIGN.md), activé seulement après le premier
+ * verdict (data-signup-ready). À l'apparition, visibility bascule tout de suite ;
+ * à la disparition, à la FIN du fondu (délai de 180ms). Les transitions de .btn
+ * (fond, bordure, couleur, ombre) sont reprises : une déclaration `transition`
+ * les remplace toutes. */
+.landing-topbar[data-signup-ready] .landing-topbar__signup {
+  transition:
+    opacity var(--transition-base),
+    visibility 0s,
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.landing-topbar[data-signup-ready][data-signup='hidden'] .landing-topbar__signup:not(:focus) {
+  transition:
+    opacity var(--transition-base),
+    visibility 0s var(--transition-base),
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+/* Mouvement réduit : bascule INSTANTANÉE. La règle globale de base.css ne réduit
+ * que les DURÉES, pas les délais : sans ceci, le délai de 180ms sur visibility
+ * survivrait (bouton invisible mais encore cliquable pendant ce délai). */
+@media (prefers-reduced-motion: reduce) {
+  .landing-topbar[data-signup-ready] .landing-topbar__signup,
+  .landing-topbar[data-signup-ready][data-signup='hidden'] .landing-topbar__signup:not(:focus) {
+    transition: none;
+  }
+}
+
+/* Focus jamais masqué par la barre : quand le navigateur fait défiler la page
+ * vers un élément (tabulation, ancre), il le place SOUS la barre. 72px = hauteur
+ * de la barre sur écran large (~63px, imposée par le bouton de thème) plus la
+ * place de l'anneau de focus.
+ * Posé sur le CONTENU (main, pied de page), PAS en scroll-padding sur <html> :
+ * avec scroll-padding, les éléments de la barre elle-même (toujours dans les
+ * 72px du haut) passaient pour masqués, et chaque tabulation vers « Se
+ * connecter », le thème ou « Créer un compte » faisait remonter la page
+ * (mesuré : de 1500 à 1047px). Sans marge, la barre ne fait jamais défiler. */
+.landing main *,
+.landing-footer * {
+  scroll-margin-top: calc(var(--space-6) * 2 + var(--space-2));
 }
 
 .landing-topbar__inner {
@@ -44,8 +157,17 @@
 }
 
 .landing-topbar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-lg);
   font-weight: 600;
+  letter-spacing: -0.2px;
   color: var(--color-text);
+}
+
+.landing-topbar__logo {
+  display: block;
 }
 
 .landing-topbar__actions {
@@ -59,56 +181,100 @@
 /* ------------------------------------------------------------------ */
 
 .landing-hero {
-  padding: var(--space-6) 0;
+  padding-top: calc(var(--space-6) * 2);
 }
 
 .landing-hero__intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
 }
 
+/* 24ch : le slogan tient sur deux lignes à 56px, sans mot isolé. */
 .landing-hero__title {
   max-width: 24ch;
-  margin: 0 auto;
+  font-size: var(--landing-display-1);
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+/* Le concept qui donne son nom au produit. Emphase de couleur seule : le
+ * sens de la phrase ne dépend pas de la teinte (6,87:1 clair, 9,06:1 sombre). */
+.landing-hero__accent {
+  color: var(--color-accent-text);
 }
 
 .landing-hero__lead {
-  max-width: 56ch;
-  margin: var(--space-3) auto 0;
+  max-width: 52ch;
+  margin-top: var(--space-5);
+  font-size: var(--text-lg);
+  line-height: 1.5;
   color: var(--color-text-secondary);
 }
 
-.landing-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
+/* Bouton principal agrandi pour la landing : variante LOCALE (le .btn partagé
+ * n'est pas modifié). Double classe : l'emporte sur .btn quel que soit l'ordre
+ * de chargement des feuilles. */
+.btn.landing-cta {
+  margin-top: var(--space-6);
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-md);
+  font-weight: 600;
 }
 
-/* Kanban de démonstration : les composants réels, déplaçables à titre
- * d'exemple (curseur « grab » et retour de glisser de .app-card inchangés). */
+/* ------------------------------------------------------------------ */
+/* Scène du kanban                                                     */
+/* ------------------------------------------------------------------ */
+
+/* Le panneau déborde sur la section suivante : marge négative ici, padding
+ * compensé dans .landing-features. position + z-index : sans eux, le fond de
+ * la section suivante (peint après dans l'ordre du document) recouvrirait le
+ * panneau. */
+.landing-stage {
+  position: relative;
+  z-index: 1;
+  margin-top: var(--space-7);
+  margin-bottom: calc(-1 * var(--landing-overlap));
+}
+
 .landing-board {
-  margin: var(--space-6) 0 0;
+  margin: 0;
 }
 
-.landing-board__scroll {
+/* Le panneau : fond de surface, bordure, ombre. Rayon emboîté : celui des
+ * colonnes (--radius-lg) plus le padding qui les sépare du bord, pour des
+ * arrondis concentriques. */
+.landing-board__panel {
   overflow-x: auto;
-  padding-bottom: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius-lg) + var(--space-3));
+  box-shadow: var(--shadow-lg);
 }
 
-/* .kanban défile déjà seul dans l'application ; ici le conteneur parent s'en
- * charge (il porte le focus clavier), donc le kanban déborde sans clipper. */
+/* base.css impose --radius-sm à tout :focus-visible ; le panneau garde sa forme
+ * quand le clavier y entre pour le faire défiler. */
+.landing-board__panel:focus-visible {
+  border-radius: calc(var(--radius-lg) + var(--space-3));
+}
+
+/* .kanban défile déjà seul dans l'application ; ici le panneau s'en charge (il
+ * porte le focus clavier), donc le kanban déborde sans être rogné. */
 .landing-board__kanban {
   overflow: visible;
   padding-bottom: 0;
   min-width: max-content;
 }
 
+/* Posée sur la bande teal : text-secondary (7,90 / 6,43), JAMAIS text-muted
+ * (4,23:1 en sombre sur accent-soft, sous AA). */
 .landing-board__caption {
-  margin-top: var(--space-2);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
 }
 
 /* ------------------------------------------------------------------ */
@@ -116,84 +282,156 @@
 /* ------------------------------------------------------------------ */
 
 .landing-section {
-  padding: var(--space-6) 0;
+  padding: var(--landing-section-pad) 0;
 }
 
 .landing-section__title {
-  max-width: 36ch;
-  margin-bottom: var(--space-5);
-  font-size: var(--text-lg);
+  max-width: 32ch;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
 }
 
+/* --- Vue d'ensemble : bande teal pâle, qui commence SOUS le panneau. --- */
+
+/* padding-top : la hauteur de débordement du panneau, puis le même air qu'entre
+ * deux sections, mesuré depuis la légende. */
 .landing-features {
+  padding-top: calc(var(--landing-overlap) + var(--landing-section-pad));
+  background: var(--color-accent-soft);
+}
+
+.landing-features__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+/* Filet teal au-dessus de chaque bloc : décoratif (les blocs sont déjà séparés
+ * par l'espace et portés par leur titre), il donne sa couleur à la bande. */
+.landing-feature {
+  padding-top: var(--space-4);
+  border-top: 2px solid var(--color-accent-border);
+}
+
+.landing-feature h3 {
+  font-size: var(--text-lg);
+  line-height: 1.3;
 }
 
 .landing-feature p {
+  max-width: 48ch;
   margin-top: var(--space-2);
-  font-size: var(--text-sm);
   color: var(--color-text-secondary);
 }
 
-/* Extension : présentation + étapes. L'<ol> est une vraie séquence, d'où la
- * numérotation (cf. consigne frontend-design : pas de numéros décoratifs). */
+/* --- Extension : introduction à gauche, étapes numérotées à droite. --- */
+
 .landing-extension {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-6);
-  margin: 0;
-  padding: 0;
-}
-
-.landing-extension__intro .landing-section__title {
-  margin-bottom: var(--space-2);
+  align-items: start;
 }
 
 .landing-extension__intro p {
   max-width: 44ch;
+  margin-top: var(--space-4);
   color: var(--color-text-secondary);
 }
 
 .landing-extension__intro .btn {
-  margin-top: var(--space-4);
+  margin-top: var(--space-5);
 }
 
+/* La seule vraie séquence de la page : numéros grands et teal. Le rang est aussi
+ * porté par l'ordre et par l'<ol>, jamais par la couleur seule. */
 .landing-steps {
-  /* Colonnes 2 et 3 : s'aligne sur la deuxième colonne des grilles voisines. */
   grid-column: 2 / span 2;
   margin: 0;
-  padding-left: var(--space-5);
+  padding: 0;
+  list-style: none;
 }
 
-.landing-steps li + li {
-  margin-top: var(--space-3);
+.landing-step {
+  display: grid;
+  grid-template-columns: calc(var(--space-6) * 2) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--color-border);
 }
 
-.landing-steps li::marker {
-  font-weight: 600;
-  color: var(--color-text-muted);
+.landing-step:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 
-/* Confiance : un fond de surface suffit à la détacher, sans bordure. */
-.landing-trust {
-  background: var(--color-surface-2);
+.landing-step__number {
+  font-size: var(--landing-display-2);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-accent-text);
 }
 
-/* Appel final : même bouton que le hero, jamais en concurrence avec un autre. */
-.landing-closing {
-  text-align: center;
-}
-
-.landing-closing__text {
+.landing-step__text {
   font-size: var(--text-lg);
-  font-weight: 600;
+  line-height: 1.45;
   color: var(--color-text);
 }
 
-.landing-closing .landing-actions {
-  margin-top: var(--space-3);
+/* --- Confiance : bande neutre, points en LIGNES (titre | explication). --- */
+
+.landing-trust {
+  background: var(--color-surface-band);
+}
+
+.landing-trust__rows {
+  margin-top: var(--space-6);
+}
+
+.landing-trust__row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-6);
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--color-border-strong);
+}
+
+.landing-trust__row h3 {
+  font-size: var(--text-lg);
+  line-height: 1.3;
+}
+
+.landing-trust__row p {
+  grid-column: 2 / span 2;
+  max-width: 64ch;
+  color: var(--color-text-secondary);
+}
+
+/* --- Appel final : la phrase devient un titre, beaucoup d'air autour. --- */
+
+.landing-closing {
+  padding: calc(var(--landing-section-pad) + var(--space-6)) 0;
+  text-align: center;
+}
+
+.landing-closing .landing-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 30ch : la phrase tient en deux lignes à 40px (à 22ch elle en prenait trois). */
+.landing-closing__title {
+  max-width: 30ch;
+  font-size: var(--landing-display-2);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
 /* ------------------------------------------------------------------ */
@@ -203,6 +441,7 @@
 .landing-footer {
   margin-top: auto;
   padding: var(--space-5) 0;
+  border-top: 1px solid var(--color-border);
   font-size: var(--text-sm);
 }
 
@@ -223,19 +462,94 @@
 }
 
 /* ------------------------------------------------------------------ */
-/* Fenêtre étroite                                                     */
+/* Largeurs intermédiaires                                             */
 /* ------------------------------------------------------------------ */
 
-@media (max-width: 640px) {
-  .landing-container {
-    padding: 0 var(--space-4);
-  }
-
+/* Sous 1024px, une colonne d'un tiers devient trop étroite pour l'introduction
+ * de l'extension : elle passe AU-DESSUS des étapes. */
+@media (max-width: 1024px) {
   .landing-extension {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .landing-steps {
     grid-column: auto;
+    max-width: 72ch;
+  }
+}
+
+/* Sous 900px, trois colonnes de fonctionnalités tombent sous ~200px chacune
+ * (titres coupés, texte en colonne de journal) : elles s'empilent. */
+@media (max-width: 900px) {
+  .landing-features__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Fenêtre étroite                                                     */
+/* ------------------------------------------------------------------ */
+
+@media (max-width: 768px) {
+  .landing {
+    --landing-section-pad: calc(var(--space-6) * 2);
+    --landing-overlap: calc(var(--space-6) * 3);
+  }
+
+  .landing-container {
+    padding: 0 var(--space-4);
+  }
+
+  .landing-hero {
+    padding-top: var(--space-7);
+  }
+
+  .landing-hero__lead {
+    font-size: var(--text-md);
+  }
+
+  .landing-trust__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .landing-trust__row p {
+    grid-column: auto;
+  }
+
+  /* Barre compacte : chaque pixel de hauteur compte pour la lecture. */
+  .landing-topbar {
+    padding: var(--space-2) 0;
+  }
+
+  .landing-topbar__actions {
+    gap: var(--space-1);
+  }
+}
+
+/* Sous 480px, logo + nom + trois commandes ne tiennent plus sur une ligne
+ * (~377px pour 358px disponibles à 390px de large) : le NOM est masqué
+ * visuellement, le logo reste. Il est toujours lu par les lecteurs d'écran
+ * (technique « visually hidden », pas display: none), le logo ayant un alt vide. */
+@media (max-width: 480px) {
+  .landing-topbar__name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .landing-step {
+    grid-template-columns: var(--space-7) minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .landing-step__text {
+    font-size: var(--text-md);
   }
 }

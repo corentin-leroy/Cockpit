@@ -36,7 +36,12 @@ Frontend (depuis frontend/) :
   densité : Notion). La couleur et l'espace signalent, ils ne décorent pas.
 - Les tokens (couleurs, espacements, typo) sont dupliqués dans le bloc `<style>`
   de `extension/popup.html` : toute modification de `tokens.css` doit y être
-  répercutée dans la même passe.
+  répercutée dans la même passe. Seule exception, VOLONTAIRE : `--color-surface-band`
+  (bandes de section de la landing), absent de la popup qui n'en a pas l'usage
+  (cf. DESIGN.md, « Duplication à surveiller »).
+- La landing page a une zone de liberté propre (échelle typographique, fonds de
+  section alternés, ombre, teal d'identité), limitée aux écarts listés dans la
+  section « Landing page » de DESIGN.md. L'application plafonne à 28px.
 
 # Architecture backend
 - `app/models.py` = tables SQLAlchemy ; `app/schemas.py` = contrats Pydantic.
@@ -1201,8 +1206,27 @@ Frontend (depuis frontend/) :
   réordonnancement n'a lieu qu'au CHANGEMENT de carte survolée (venir d'en dessous
   d'une carte place la carte glissée après elle) ; l'emplacement affiché est
   toujours celui du dépôt.
-- Landing page (`pages/LandingPage.jsx`, `styles/landing.css`, route `/` derrière
-  GuestRoute). Règles de style : section « Landing page » de DESIGN.md.
+- Landing page (`pages/LandingPage.jsx`, `styles/landing.css`, classes préfixées
+  `landing-`, route `/` derrière GuestRoute). Règles de style et écarts au reste de
+  l'application : section « Landing page » de DESIGN.md.
+  - Barre du haut PROPRE à la landing (pas `Navbar.jsx`), collée en haut pendant le
+    défilement (`position: sticky`, CSS seul), fond opaque, au-dessus du panneau du
+    kanban (z-index 2 contre 1). Contenu : logo, thème, « Se connecter », « Créer un
+    compte » en style SECONDAIRE (le teal reste unique à l'écran).
+  - « Créer un compte » de la barre n'apparaît qu'une fois celui du HERO entièrement
+    sorti de l'écran, barre comprise. `IntersectionObserver` sur le bouton du hero
+    (marge haute négative = hauteur de la barre), recréé par un `ResizeObserver` quand
+    cette hauteur change (63px, 55px à 768px et moins). Aucun écouteur de défilement,
+    aucun état React : un attribut `data-signup` sur l'en-tête, lu par le CSS.
+    Emplacement réservé (`opacity` + `visibility`), fondu de 180ms instantané sous
+    `prefers-reduced-motion` (règle explicite : base.css ne réduit pas les délais),
+    gardé visible tant qu'il a le focus. Premier calcul dans un `useLayoutEffect`
+    (rien n'apparaît puis disparaît au chargement) ; transitions activées après le
+    premier verdict de l'observateur (pas de fondu sur une page rechargée déjà
+    défilée). REPLI SÛR : sans observateur ou avant tout calcul, il est VISIBLE.
+  - Focus jamais masqué par la barre : `scroll-margin-top` sur le CONTENU (`main`,
+    pied de page). JAMAIS `scroll-padding-top` sur `<html>` : chaque tabulation vers
+    un élément de la barre ferait remonter la page (mesuré : de 1500 à 1047px).
   - Le hero réutilise `KanbanColumn` et `ApplicationCard` tels quels, avec des
     candidatures FICTIVES codées en dur (`DEMO_APPLICATIONS`). Leurs dates sont
     calculées à partir d'aujourd'hui (`daysAgo`, ISO naïf UTC comme le backend) : l'âge
@@ -1338,6 +1362,13 @@ Frontend (depuis frontend/) :
    - [fait] Refonte de la landing page : slogan en titre, vrai kanban de démonstration
      déplaçable (sans persistance), section confiance, extension présentée une fois,
      tous types de contrat, anciens styles `.landing-*` supprimés de components.css
+   - [fait, NON committé] Rythme visuel de la landing : échelle d'affichage (h1 de 36
+     à 56px), fonds de section alternés (token `--color-surface-band` créé), kanban
+     posé dans un panneau ombré qui chevauche la bande suivante, teal d'identité,
+     sections aux dispositions toutes différentes, barre collée avec bouton
+     d'inscription différé. Écarts documentés dans DESIGN.md (section « Landing
+     page »). Palier typographique de 30px (`--text-2xl`) supprimé : le h1 par défaut
+     passe à 28px (titres de Mon compte et Archives, qui dépassaient la règle)
    - [à faire] Reste de l'application (formulaires, page compte)
 7. Mot de passe oublié + vérification d'email (Brevo)
    - [fait] Backend : app/email.py, SecurityToken, 4 endpoints, rate limiting
@@ -1386,7 +1417,8 @@ Frontend (depuis frontend/) :
       texte. Garde-fou explicite si une note dépasse déjà 5000 caractères,
       jamais de troncature. Testée sur PostgreSQL 18.6 jetable (aller-retour avec
       données, échec du garde-fou, échec de conversion sans troncature)
-11. [fait, NON committé, NON déployé] Réordonnancement des cartes du kanban
+11. [fait, committé (6f9548b, a02a1c4), déploiement à confirmer] Réordonnancement
+    des cartes du kanban
     (colonne `position`, migration 0005, POST /applications/{id}/move, règle
     d'arrivée en haut, verrou par utilisateur, tri réordonnable côté front et sur
     la landing). Extension non modifiée (elle crée par POST : arrivée en haut).

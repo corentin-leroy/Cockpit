@@ -47,10 +47,9 @@
   --text-sm: 14px;
   --text-md: 16px;
   --text-lg: 20px;
+  /* Plafond de l'application. La landing a ses propres tailles d'affichage,
+   * au-delà, en variables locales de landing.css (cf. DESIGN.md). */
   --text-xl: 28px;
-  /* Exception documentée dans DESIGN.md : palier réservé au titre principal
-   * de la landing page, au-dessus du plafond de 28px de l'application. */
-  --text-2xl: 30px;
   /* Interligne du texte courant (posé sur html, base.css). Aussi lu par .input
    * pour égaliser la hauteur d'un <select> et d'un <input>. */
   --leading-body: 1.55;
@@ -68,6 +67,13 @@
   --color-surface: #ffffff; /* cartes, modales, navbar */
   --color-surface-2: #f2f0ec; /* colonnes du kanban, zones creuses */
   --color-surface-3: #e9e6e1; /* survol, éléments enfoncés */
+  /* Bande de section (landing) : se distingue du fond de page de façon COMPARABLE
+   * dans les deux thèmes, ~1,2:1 (1,20 ici, 1,20 en sombre). Aucune surface
+   * existante ne le permet : surface-2 est plus sombre que le fond en clair mais
+   * plus claire en sombre, à peine visible (1,08 / 1,05). Textes posés dessus :
+   * text 11,3:1, text-secondary 7,2:1, text-muted 4,6:1. Absent de la popup de
+   * l'extension, volontairement (cf. DESIGN.md, « Duplication à surveiller »). */
+  --color-surface-band: #e8e4df;
 
   /* Bordures */
   --color-border: #e2ded8;
@@ -119,6 +125,9 @@
   --color-surface: #23252d;
   --color-surface-2: #1f2128;
   --color-surface-3: #2c2f38;
+  /* Bande de section : 1,20:1 contre le fond (cf. thème clair). Textes : text
+   * 11,4:1, text-secondary 7,4:1, text-muted 4,9:1. */
+  --color-surface-band: #292b34;
 
   --color-border: #343843;
   --color-border-strong: #454a57;
@@ -164,6 +173,7 @@
     --color-surface: #23252d;
     --color-surface-2: #1f2128;
     --color-surface-3: #2c2f38;
+    --color-surface-band: #292b34;
 
     --color-border: #343843;
     --color-border-strong: #454a57;

@@ -9,15 +9,21 @@
 // Ajouter un site : écrire un fichier dans adapters/ qui exporte une fonction
 // SANS dépendance extérieure (elle est sérialisée, cf. francetravail.js), puis
 // l'ajouter à ADAPTERS avec les noms d'hôte EXACTS qu'elle couvre.
-// Indeed reste volontairement exclu (raisons légales).
 
 import { extractFranceTravailOffer } from "./francetravail.js";
+import { extractIndeedOffer } from "./indeed.js";
 
 const ADAPTERS = [
   {
     // Les pages de détail d'offre ne vivent que sur ce sous-domaine.
     hostnames: ["candidat.francetravail.fr"],
     extract: extractFranceTravailOffer,
+  },
+  {
+    // Indeed France uniquement : seul domaine relevé (les autres pays ne sont
+    // pas vérifiés, l'extraction générique continue de s'y appliquer).
+    hostnames: ["fr.indeed.com"],
+    extract: extractIndeedOffer,
   },
 ];
 

@@ -228,8 +228,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  /* DESIGN.md : « Titre de page : 28px » — le h1 nu hérite de --text-2xl (30px,
-   * réservé à la landing), d'où cette dérogation dédiée au titre du tableau. */
+  /* DESIGN.md : « Titre de page : 28px ». Même valeur que le h1 par défaut
+   * (base.css), posée ici explicitement pour le titre du tableau. */
   font-size: var(--text-xl);
 }
 

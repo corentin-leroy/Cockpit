@@ -45,7 +45,6 @@
   actif (`adapters/index.js`, `findAdapter(tab.url)` ; `tab.url` vient du droit
   `activeTab`). Hôte inconnu ou URL absente → générique. Aucune permission à
   ajouter, aucune régression possible sur les autres sites par construction.
-  Indeed reste volontairement exclu (raisons légales).
 - Un adaptateur renvoie le même objet qu'`extractOffer` ; il peut ajouter un champ
   `notice` quand il n'y a rien à lire. La popup l'affiche puis le RETIRE
   (`currentOffer` est fusionné dans ce qui part vers l'API) : ne jamais le laisser
@@ -98,6 +97,53 @@
   ce n'est pas vérifiable hors extension chargée. Si la procédure de test montre un
   `shadowRoot` nul, utiliser `chrome.dom.openOrClosedShadowRoot(element)` (dans
   l'adaptateur) ou injecter avec `world: "MAIN"`.
+
+### Indeed (`adapters/indeed.js`, hôte `fr.indeed.com` uniquement)
+- Pourquoi la générique échoue (diagnostiqué sur de vraies offres, 2026-10-05) : en
+  page seule (`/viewjob?jk=<id>`), un JSON-LD JobPosting existe et la générique
+  fonctionnerait ; mais en mode PANNEAU (offre ouverte à droite d'une liste,
+  `/jobs?…&vjk=<id>` ou `/?vjk=<id>` sur l'accueil), aucun JSON-LD et
+  `document.title` est celui de la RECHERCHE : la générique enregistrait une fausse
+  donnée. Les deux modes partagent le même en-tête d'offre : UN seul chemin de
+  lecture (l'en-tête), pas de JSON-LD.
+- Sélecteurs : `data-testid` UNIQUEMENT (les classes CSS sont générées, `css-g5y9jx
+  r-…`). Tout est lu DANS `desktop-job-header` : titre `vj-job-title` ; entreprise =
+  texte du lien `a[href*="fromjk="]` de `company-info-metadata` (le nom seul, sans la
+  note « · 3.7 ») ; lieu = premier texte du rang qui ne contient pas ce lien (le rang
+  peut valoir « <lieu> • Télétravail partiel »). ⚠ Les testids `company-name` et
+  `text-location` appartiennent aux CARTES de la liste, jamais à l'offre ouverte : ne
+  jamais les lire.
+- ⚠ GARDE ANTI-OFFRE-PÉRIMÉE, ne jamais l'assouplir : on ne lit que si le `fromjk` du
+  lien entreprise est ÉGAL à l'identifiant de l'URL (`jk` en page seule, `vjk`
+  ailleurs). Mesuré (MutationObserver) au changement d'offre : Indeed vide le panneau
+  puis remplit URL et contenu dans la même mutation, aucun mélange observé ; la garde
+  rend ce comportement indifférent. Vérifié sur de vraies pages : URL désignant une
+  autre offre → expiration ; `fromjk` falsifié → expiration ; valeurs restaurées →
+  lecture. Lien `fromjk` présent sur 19 offres sur 19 relevées (CFA, grands groupes, et
+  petits employeurs : bar, restaurant) ; s'il manquait un jour, l'offre expire au lieu
+  d'être lue.
+- Pas d'identifiant dans l'URL → `notice: "not-an-offer"` IMMÉDIAT, même si le panneau
+  montre l'offre PAR DÉFAUT (première de la liste) : au chargement de l'accueil ou
+  d'une recherche, elle s'affiche sans `vjk` (sur une recherche, `vjk` arrive < 2 s
+  après, onglet visible ; sur l'accueil, seulement au premier clic). DÉCISION du
+  propriétaire (2026-10-05) : ne pas lire cette offre sur la foi du seul en-tête ;
+  l'utilisateur clique l'offre (ce qui ajoute `vjk`) puis rouvre la popup.
+- Attente : 100 ms, 10 s au plus (`TIMEOUT_MS`), comme France Travail. Passé le délai :
+  champs vides + lien canonique + `notice: "timeout"`.
+- Lien enregistré : `https://fr.indeed.com/viewjob?jk=<id>`, jamais `location.href`
+  (en mode panneau, il rouvrirait la recherche et dépasse souvent 2048 caractères).
+  Vérifié : la page s'ouvre seule à cette adresse.
+- Identifiant : 16 caractères hexadécimaux (tous ceux observés).
+- Autres pays Indeed (`www.indeed.com`, `be.indeed.com`…) : NON couverts, extraction
+  générique. Les ajouter exige un relevé sur de vraies offres de ces domaines.
+- ⚠ PIÈGE pour les relevés : un clic PROGRAMMATIQUE (`element.click()`) sur une carte
+  sans lien envoie vers `viewjob?jk=abcdef0123456789` (« Page introuvable ») ; des
+  navigations répétées déclenchent une vérification anti-robot (ne jamais la
+  résoudre). Pour un relevé, cliquer comme un humain et naviguer peu. L'extension,
+  elle, ne clique jamais : elle lit l'offre que l'utilisateur a ouverte.
+- Testé par injection dans la page (même code), PAS encore dans l'extension chargée :
+  la page seule (`/viewjob`) n'a pu être relue avec la version finale (vérification
+  anti-robot) ; à confirmer à la main avec l'extension rechargée.
 
 ## Comportements volontaires — ne pas « corriger »
 - La popup se ferme automatiquement 900 ms après un ajout réussi. C'est un choix assumé :

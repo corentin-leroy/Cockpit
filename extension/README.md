@@ -87,8 +87,9 @@ du Web Store comme par n'importe qui.
 - `adapters/` — extracteurs spécifiques à un site, injectés à la place de
   l'extraction générique (`extractOffer`, background.js). `index.js` choisit
   l'adaptateur d'après l'hôte de l'onglet ; `francetravail.js` lit les offres de
-  `candidat.francetravail.fr` (mode panneau et page seule). Sur tout autre site, rien
-  ne change. Détails : CLAUDE.md de l'extension.
+  `candidat.francetravail.fr` (mode panneau et page seule), `indeed.js` celles de
+  `fr.indeed.com` (idem). Sur tout autre site, rien ne change. Détails : CLAUDE.md de
+  l'extension.
 - `limits.js` — miroir des bornes de validation du backend (cf. CLAUDE.md de
   l'extension), appliqué aux champs du formulaire de correction.
 - `urlCleanup.js` — nettoyage d'une URL d'offre trop longue (> 2048
@@ -99,6 +100,7 @@ du Web Store comme par n'importe qui.
 ## Pistes d'amélioration
 
 - Extracteurs spécifiques par site (WTTJ, HelloWork) quand le JSON-LD est absent
-  (France Travail en a un : `adapters/francetravail.js`)
+  (France Travail et Indeed en ont un : `adapters/francetravail.js`,
+  `adapters/indeed.js`)
 
 *URL de l'API configurable : écartée volontairement, cf. section ci-dessus.*

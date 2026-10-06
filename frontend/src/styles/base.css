@@ -40,8 +40,10 @@ h3 {
   line-height: 1.25;
 }
 
+/* 28px : le plafond de l'application (DESIGN.md, « Titre de page »). La landing
+ * pose sa propre taille d'affichage sur son h1 (landing.css). */
 h1 {
-  font-size: var(--text-2xl);
+  font-size: var(--text-xl);
   letter-spacing: -0.4px;
 }
 
