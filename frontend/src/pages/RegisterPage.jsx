@@ -10,7 +10,9 @@ import { splitFormErrors } from '../api/client.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useRateLimitCooldown } from '../auth/useRateLimitCooldown.js'
 import Alert, { FieldError } from '../components/Alert.jsx'
+import AuthLayout from '../components/AuthLayout.jsx'
 import { PASSWORD_MAX_LENGTH } from '../constants/limits.js'
+import { PRIVACY_URL } from '../constants/links.js'
 
 const FIELD_MAP = { email: 'email', password: 'password' }
 
@@ -94,58 +96,75 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h1 className="auth-card__title">Créer un compte</h1>
+    <AuthLayout>
+      <h1 className="auth-card__title">Créer un compte</h1>
 
-        {formError && <Alert className="stack-gap">{formError}</Alert>}
-        {cooldown.active && <Alert className="stack-gap">{cooldown.message}</Alert>}
+      {formError && <Alert className="stack-gap">{formError}</Alert>}
+      {cooldown.active && <Alert className="stack-gap">{cooldown.message}</Alert>}
 
-        <form onSubmit={handleSubmit} noValidate>
-          <div className="field">
-            <label className="field__label" htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              className="input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              aria-invalid={Boolean(fieldErrors.email)}
-            />
-            {fieldErrors.email && <FieldError>{fieldErrors.email}</FieldError>}
-          </div>
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="field">
+          <label className="field__label" htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            className="input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            aria-invalid={Boolean(fieldErrors.email)}
+          />
+          {fieldErrors.email && <FieldError>{fieldErrors.email}</FieldError>}
+        </div>
 
-          <div className="field">
-            <label className="field__label" htmlFor="password">Mot de passe</label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="new-password"
-              className="input"
-              maxLength={PASSWORD_MAX_LENGTH}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              aria-invalid={Boolean(fieldErrors.password)}
-            />
-            {fieldErrors.password && (
-              <FieldError>{fieldErrors.password}</FieldError>
-            )}
-          </div>
+        <div className="field">
+          <label className="field__label" htmlFor="password">Mot de passe</label>
+          <input
+            id="password"
+            type="password"
+            autoComplete="new-password"
+            className="input"
+            maxLength={PASSWORD_MAX_LENGTH}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            aria-invalid={Boolean(fieldErrors.password)}
+            aria-describedby={fieldErrors.password ? undefined : 'register-password-hint'}
+          />
+          {/* La règle est annoncée AVANT la saisie, pas seulement par l'erreur.
+              L'erreur la remplace quand elle s'affiche : les deux à la suite
+              répéteraient la même consigne. */}
+          {fieldErrors.password ? (
+            <FieldError>{fieldErrors.password}</FieldError>
+          ) : (
+            <span id="register-password-hint" className="field__hint">
+              8 caractères minimum.
+            </span>
+          )}
+        </div>
 
-          <button
-            type="submit"
-            disabled={loading || cooldown.active}
-            className="btn btn--primary btn--block"
-          >
-            {loading ? 'Création…' : cooldown.active ? cooldown.buttonLabel : 'Créer mon compte'}
-          </button>
-        </form>
+        <button
+          type="submit"
+          disabled={loading || cooldown.active}
+          className="btn btn--primary btn--block"
+        >
+          {loading ? 'Création…' : cooldown.active ? cooldown.buttonLabel : 'Créer mon compte'}
+        </button>
+      </form>
 
-        <p className="auth-card__footer">
-          Déjà un compte ? <Link to="/login">Se connecter</Link>
-        </p>
-      </div>
-    </div>
+      {/* Information, pas consentement : aucune formule du type « vous
+          acceptez ». Le pied de page porte aussi ce lien ; il est répété ici,
+          au moment où l'adresse est confiée. */}
+      <p className="auth-card__legal">
+        Ce que Cockpit fait de vos données :{' '}
+        <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer">
+          politique de confidentialité
+        </a>
+        .
+      </p>
+
+      <p className="auth-card__footer">
+        Déjà un compte ? <Link to="/login">Se connecter</Link>
+      </p>
+    </AuthLayout>
   )
 }

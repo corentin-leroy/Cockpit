@@ -11,6 +11,7 @@ import { resetPassword } from '../api/auth.js'
 import { splitFormErrors } from '../api/client.js'
 import { useAuth } from '../auth/useAuth.js'
 import Alert, { FieldError } from '../components/Alert.jsx'
+import AuthLayout from '../components/AuthLayout.jsx'
 import { PASSWORD_MAX_LENGTH } from '../constants/limits.js'
 
 // Délai avant la redirection automatique vers /login : laisse le temps de lire
@@ -100,91 +101,89 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h1 className="auth-card__title">Nouveau mot de passe</h1>
+    <AuthLayout>
+      <h1 className="auth-card__title">Nouveau mot de passe</h1>
 
-        {success && (
-          <>
-            <Alert variant="success">
-              Votre mot de passe a été mis à jour. Vous pouvez vous connecter.
-            </Alert>
-            <p className="auth-card__footer">
-              Redirection en cours… <Link to="/login">Aller à la connexion</Link>
-            </p>
-          </>
-        )}
+      {success && (
+        <>
+          <Alert variant="success">
+            Votre mot de passe a été mis à jour. Vous pouvez vous connecter.
+          </Alert>
+          <p className="auth-card__footer">
+            Redirection en cours… <Link to="/login">Aller à la connexion</Link>
+          </p>
+        </>
+      )}
 
-        {!success && linkInvalid && (
-          <>
-            <Alert>
-              Ce lien est invalide, expiré ou a déjà été utilisé. Les liens de
-              réinitialisation ne sont valables qu’une heure et ne servent qu’une
-              fois.
-            </Alert>
-            <p className="auth-card__footer">
-              <Link to="/forgot-password">Demander un nouveau lien</Link>
-            </p>
-          </>
-        )}
+      {!success && linkInvalid && (
+        <>
+          <Alert>
+            Ce lien est invalide, expiré ou a déjà été utilisé. Les liens de
+            réinitialisation ne sont valables qu’une heure et ne servent qu’une
+            fois.
+          </Alert>
+          <p className="auth-card__footer">
+            <Link to="/forgot-password">Demander un nouveau lien</Link>
+          </p>
+        </>
+      )}
 
-        {!success && !linkInvalid && (
-          <>
-            {formError && <Alert className="stack-gap">{formError}</Alert>}
+      {!success && !linkInvalid && (
+        <>
+          {formError && <Alert className="stack-gap">{formError}</Alert>}
 
-            <form onSubmit={handleSubmit} noValidate>
-              <div className="field">
-                <label className="field__label" htmlFor="password">
-                  Nouveau mot de passe
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="new-password"
-                  className="input"
-                  maxLength={PASSWORD_MAX_LENGTH}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  aria-invalid={Boolean(fieldErrors.password)}
-                />
-                {fieldErrors.password && (
-                  <FieldError>{fieldErrors.password}</FieldError>
-                )}
-              </div>
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="field">
+              <label className="field__label" htmlFor="password">
+                Nouveau mot de passe
+              </label>
+              <input
+                id="password"
+                type="password"
+                autoComplete="new-password"
+                className="input"
+                maxLength={PASSWORD_MAX_LENGTH}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                aria-invalid={Boolean(fieldErrors.password)}
+              />
+              {fieldErrors.password && (
+                <FieldError>{fieldErrors.password}</FieldError>
+              )}
+            </div>
 
-              <div className="field">
-                <label className="field__label" htmlFor="confirmation">
-                  Confirmation
-                </label>
-                <input
-                  id="confirmation"
-                  type="password"
-                  autoComplete="new-password"
-                  className="input"
-                  value={confirmation}
-                  onChange={(e) => setConfirmation(e.target.value)}
-                  aria-invalid={Boolean(fieldErrors.confirmation)}
-                />
-                {fieldErrors.confirmation && (
-                  <FieldError>{fieldErrors.confirmation}</FieldError>
-                )}
-              </div>
+            <div className="field">
+              <label className="field__label" htmlFor="confirmation">
+                Confirmation
+              </label>
+              <input
+                id="confirmation"
+                type="password"
+                autoComplete="new-password"
+                className="input"
+                value={confirmation}
+                onChange={(e) => setConfirmation(e.target.value)}
+                aria-invalid={Boolean(fieldErrors.confirmation)}
+              />
+              {fieldErrors.confirmation && (
+                <FieldError>{fieldErrors.confirmation}</FieldError>
+              )}
+            </div>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn btn--primary btn--block"
-              >
-                {loading ? 'Enregistrement…' : 'Changer mon mot de passe'}
-              </button>
-            </form>
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn--primary btn--block"
+            >
+              {loading ? 'Enregistrement…' : 'Changer mon mot de passe'}
+            </button>
+          </form>
 
-            <p className="auth-card__footer">
-              <Link to="/login">Retour à la connexion</Link>
-            </p>
-          </>
-        )}
-      </div>
-    </div>
+          <p className="auth-card__footer">
+            <Link to="/login">Retour à la connexion</Link>
+          </p>
+        </>
+      )}
+    </AuthLayout>
   )
 }

@@ -36,10 +36,27 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
     prend ou rend sa place sans rien casser.
   - Limité à la page du kanban : archives et compte gardent le défilement de page ;
     la landing n'est pas concernée.
+- Écrans d'AUTHENTIFICATION (connexion, inscription, mot de passe oublié,
+  réinitialisation, vérification d'email ; `AuthLayout.jsx`, décidé le 2026-10-07) :
+  - En haut, la barre de l'application (classes `.navbar`, `.navbar__brand`) réduite
+    à la marque et à la bascule de thème. Auparavant aucune marque : impossible de
+    revenir à la landing sans modifier l'URL.
+  - Au centre, une carte (bordure 1px, pas d'ombre : elle ne flotte pas).
+  - En bas, un pied de page au traitement de celui de la landing : « Politique de
+    confidentialité », lien discret, survol en couleur de texte, jamais teal. CENTRÉ
+    comme lui : la page est composée autour de la carte centrée, le pied de page suit
+    le même axe.
+  - Inscription : la même politique est rappelée sous le bouton (« Ce que Cockpit
+    fait de vos données : … »). Une information, pas un consentement : aucune
+    formule du type « vous acceptez ».
 - Tableau vide : les cinq colonnes restent affichées (elles montrent les étapes du
   suivi), précédées d'une phrase qui dit comment ajouter une offre : le bouton, ou
   l'extension (lien neutre vers le Chrome Web Store, jamais teal). C'est le premier
   écran d'un nouvel inscrit, dont le tableau « Mes candidatures » est créé vide.
+- Archives vides : même principe, même style (`.board-empty-hint`) : la phrase dit
+  comment archiver (bouton « Archiver » de la modale, ou glisser vers la zone « Déposer
+  ici pour archiver »).
+- Tableau d'archives : l'en-tête « Actions » est calé à droite, comme ses boutons.
 
 ## Typographie
 - Une seule famille, celle déjà en place. Pas de police décorative.
@@ -62,6 +79,11 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
     rouvrir) et celui de l'en-tête de la sidebar, à côté de « TABLEAUX », carré de
     24px : là où l'œil se trouve, le premier seul passait inaperçu. Replier depuis
     l'en-tête rend le focus au bouton de la navbar.
+  - Celui de la navbar est placé APRÈS la marque, jamais avant (décidé le
+    2026-10-07) : il n'existe que sur les pages à sidebar (kanban, archives). Placé
+    avant, il décalait la marque de 40px entre ces pages et Mon compte ou les écrans
+    d'authentification. La marque est à 24px du bord sur toutes les pages qui
+    portent la navbar ; le bouton reste au-dessus de la sidebar qu'il commande.
   - Actions d'une ligne de la sidebar (renommer, supprimer) : carrés de 24px
     (`--space-5`).
   - Icône posée devant un texte (alerte, avertissement, bandeau, retour d'action) :
@@ -74,6 +96,11 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
   de la marque (même cible, /app). Ce lien est NEUTRE : ni soulignement, ni teal au
   survol (la règle globale des liens les lui donnait ; corrigé le 2026-10-07). Il ne change pas la hauteur des barres (57px, fixée
   par les boutons-icônes de 32px).
+  - Écrans d'authentification : même barre, même lien de marque, mais cible
+    CALCULÉE : la landing (/) pour un visiteur, le kanban (/app) pour un connecté.
+    Les trois écrans atteints depuis un lien email peuvent recevoir un connecté, à
+    qui la landing reste fermée : son logo mène au tableau, sans détour par la
+    redirection.
   - Il suit le thème choisi SUR LE SITE, pas celui du système : le SVG choisit ses
     couleurs par `prefers-color-scheme`, qui, dans une image, suit le `color-scheme`
     de la page, posé par `tokens.css` selon `data-theme`. Retirer ces
@@ -90,7 +117,14 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Étiquette « TABLEAUX » de la sidebar : même gabarit que le titre de colonne, mais en
   couleur SECONDAIRE. Rôle différent : c'est une étiquette de catégorie, et ce sont
   les noms de tableaux (14px) qu'elle surmonte qui doivent dominer.
+- En-têtes du tableau d'archives : gabarit ET couleur du titre de colonne (12px, 600,
+  majuscules, texte principal : 13,5 / 13,6:1 sur la page). Même rôle : ils
+  structurent la zone de travail. Auparavant en secondaire (2026-10-07).
 - Titre de page : 28px, poids 600.
+- Titre de section d'une page de contenu (« Informations », « Zone de danger » de Mon
+  compte) : 20px, poids 600, texte principal. Hiérarchie 28 (page) > 20 (section) > 16
+  (élément). Écart corrigé le 2026-10-07 : en 16px secondaire, « Informations »
+  pesait moins que « Supprimer mon compte », qui n'en est qu'un élément.
 - Interligne : 1.55 pour le texte courant (token `--leading-body`, source unique :
   `html` et la hauteur minimale de `.input` le lisent), 1.2 pour les titres.
 - Un texte qui dépasse son espace est plafonné à DEUX lignes avec ellipse
@@ -122,6 +156,21 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
   retours d'envoi succès 5,1 / 7,9 et erreur 5,7 / 7,2. Limite connue : en sombre, il
   ne se distingue de la navbar qu'à 1,08:1 (deux filets les séparent). Texte EXACT :
   aucune promesse de « sécuriser le compte », la vérification n'est pas bloquante.
+- Statut « Non vérifiée » de Mon compte : NEUTRE comme le bandeau (bordure
+  `--color-border-hover` 5,83 / 5,30:1, texte principal, pictogramme `Envelope`, celui
+  du bandeau). Il était aux couleurs de danger : neutre sur le kanban, alarmant sur
+  Mon compte pour le même fait. « Vérifiée » garde le vert et la coche : pictogramme
+  et libellé distinguent les deux états sans la couleur.
+- Zone de danger de Mon compte : fond et bordure de danger, titre et pictogramme, le
+  libellé du bouton. Bordure de 1px comme toute carte : l'ancienne bordure de 2px
+  (seule de l'application, `--color-danger-border` à 1,73 / 1,84:1) passait pour un
+  signal perceptible sans la couleur, ce qu'elle n'était pas.
+- Liens dans un texte (cartes d'authentification, kanban vide) : NEUTRES, texte
+  principal, soulignés de la même couleur. En teal (règle globale `a`), un lien dans
+  une phrase ne se distinguait du texte voisin qu'à 1,27 / 1,02:1 en luminance, avec
+  un soulignement à 1,73 / 2,43:1 : sans percevoir la teinte, on ne le repérait
+  presque pas. Soulignement en `currentColor` : au contraste du texte (14,2 / 12,3:1).
+  La connexion comptait trois éléments teal ; il en reste un, le bouton.
 - Les colonnes n'ont pas de couleur propre. Le statut est porté par la position et le libellé.
 - Fond de colonne : token dédié `--color-surface-column`, en CREUX sous la page dans les
   deux thèmes. Écart retenu le 2026-10-07 (nouvelle nuance) : en sombre,
@@ -299,6 +348,8 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
   tabulation (neuf arrêts sans action utile), seul le panneau du tableau est focusable
   pour le défilement horizontal en fenêtre étroite. Son rayon est conservé au focus
   (`base.css` impose sinon `--radius-sm` à tout `:focus-visible`).
+- Le pied de page est CENTRÉ, sur l'axe de l'appel final juste au-dessus (décidé le
+  2026-10-07 ; il était aligné à gauche).
 - Les liens du pied de page sont neutres (texte discret, survol en couleur de texte),
   jamais en accent.
 - Contenu : la page décrit ce qui existe. Aucune promesse sur l'avenir (fonctionnalité
@@ -333,13 +384,27 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
 - `cursor: grab` sur la carte, `cursor: pointer` sur le titre-lien.
 - L'anneau de focus est visible sur tous les éléments interactifs :
   `:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }`
+  Champs de saisie compris (`.input`, depuis le 2026-10-07) : leur focus propre
+  (bordure teal de 1px, halo `--color-accent-soft` à 1,16 / 1,25:1) se voyait à peine.
+  L'anneau garde le rayon du champ (10px).
 - Ne jamais écrire `outline: none` sans le remplacer immédiatement.
+- Champs de saisie (`.input`, partagé par les écrans d'authentification, les filtres
+  des archives et les modales) : bordure `--color-border-hover` au repos (5,83 /
+  5,30:1 sur surface), sans changement au survol. C'est le seul contour d'un champ
+  posé sur une surface de même fond ; `--color-border-strong` (1,63 / 1,73:1) restait
+  sous les 3:1. Champ invalide : bordure `--color-danger-text` (7,22 / 7,79:1), jamais
+  plus faible qu'un champ normal ; le message sous le champ porte l'information.
+- Pas de survol sur une ligne qui n'est pas cliquable (tableau d'archives : seuls ses
+  boutons le sont). Le survol signale une interactivité ; celui des lignes d'archives
+  était d'ailleurs invisible en sombre (1,05:1). Retiré le 2026-10-07 ; les filets
+  suffisent à suivre une ligne.
 
 ## Interdits
 - Pas de dégradé.
 - Pas d'ombre décorative. L'ombre sert uniquement aux éléments flottants (modale, menu,
   zone d'archivage, carte en cours de glisser), et au panneau du kanban de la landing
-  page, posé sur la page (cf. section « Landing page »).
+  page, posé sur la page (cf. section « Landing page »). Les cartes d'authentification
+  et de Mon compte en portaient une : retirée le 2026-10-07.
 - Pas d'emoji dans l'interface.
 - Pas d'animation au-delà de 180ms, et uniquement sur opacité, fond et couleur.
   DEUX EXCEPTIONS, écrites et limitées chacune à son seul élément, toutes deux à

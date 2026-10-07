@@ -147,7 +147,8 @@
     border-color var(--transition-base);
 }
 
-/* Bouton de repli de la sidebar + marque, groupés à gauche. */
+/* Marque puis bouton de repli de la sidebar (s'il y en a une), groupés à gauche.
+ * La marque en premier : sa position ne dépend pas de la présence du bouton. */
 .navbar__start {
   display: flex;
   align-items: center;
@@ -953,10 +954,21 @@
   color: var(--color-text-muted);
 }
 
+/* Bordure au repos border-hover (5,83 / 5,30:1 sur surface) : c'est le SEUL
+ * contour d'un champ posé sur une surface de même fond (carte d'authentification,
+ * modale), il doit franchir les 3:1 des bordures (DESIGN.md). border-strong
+ * (1,63 / 1,73:1) le laissait presque invisible. Plus de changement au survol :
+ * la bordure est déjà au niveau qu'il atteignait.
+ * Focus : l'anneau STANDARD de :focus-visible (base.css, 2px teal décalé de 2px),
+ * comme tout autre élément interactif. L'ancien focus propre aux champs
+ * (outline:none, bordure teal de 1px, halo accent-soft à 1,16 / 1,25:1) se voyait
+ * à peine. Le rayon reste celui du champ : à spécificité égale, .input
+ * (components.css, chargé après base.css) l'emporte sur le --radius-sm que
+ * :focus-visible impose. */
 .input {
   width: 100%;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-border-hover);
   border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-text);
@@ -970,34 +982,21 @@
   min-height: calc(
     var(--text-md) * var(--leading-body) + 2 * var(--space-2) + 2px
   );
-  transition:
-    border-color var(--transition-fast),
-    box-shadow var(--transition-fast);
+  transition: border-color var(--transition-fast);
 }
 
 .input::placeholder {
   color: var(--color-text-muted);
 }
 
-.input:hover {
-  border-color: var(--color-border-hover);
-}
-
-.input:focus {
-  outline: none;
-  border-color: var(--color-accent);
-  box-shadow: 0 0 0 3px var(--color-accent-soft);
-}
-
 /* Champ invalide : bordure rouge tiède, MAIS le message d'erreur textuel juste
- * en dessous (.field__error) reste le porteur de l'information. */
+ * en dessous (.field__error) reste le porteur de l'information. danger-text et
+ * non danger-border (1,73 / 1,84:1) : un champ en erreur ne doit pas être MOINS
+ * contrasté qu'un champ normal. Même token qu'auparavant au focus d'un champ
+ * invalide, déjà employé en bordure et en icône (.confirm-warning__icon). Focus :
+ * anneau standard, comme les autres champs. */
 .input[aria-invalid='true'] {
-  border-color: var(--color-danger-border);
-}
-
-.input[aria-invalid='true']:focus {
   border-color: var(--color-danger-text);
-  box-shadow: 0 0 0 3px var(--color-danger-soft);
 }
 
 .textarea {
@@ -1096,6 +1095,8 @@
 /* Écrans d'authentification                                          */
 /* ================================================================== */
 
+/* Mise en page commune (AuthLayout.jsx) : navbar de l'application en haut, carte
+ * centrée dans l'espace restant, pied de page en bas. */
 .auth-page {
   flex: 1;
   display: flex;
@@ -1104,6 +1105,8 @@
   padding: var(--space-5);
 }
 
+/* Pas d'ombre : la carte ne flotte pas (DESIGN.md, « Interdits » : ombre réservée
+ * aux éléments flottants). Bordure de 1px, comme les cartes du kanban. */
 .auth-card {
   width: 100%;
   max-width: 380px;
@@ -1111,7 +1114,19 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+}
+
+/* Liens de la carte NEUTRES (« Mot de passe oublié ? », « Créer un compte »…),
+ * comme le lien du kanban vide : texte principal, soulignés de la même couleur.
+ * En teal, ils faisaient trois éléments teal à l'écran avec le bouton, et un lien
+ * dans une phrase ne se distinguait du texte voisin qu'à 1,27 / 1,02:1 en
+ * luminance, avec un soulignement accent-border à 1,73 / 2,43:1 : sans percevoir
+ * la teinte, on ne le repérait presque pas. Soulignement en currentColor : au
+ * contraste du texte (plus de 10:1). Le teal reste unique, sur le bouton. */
+.auth-card a,
+.auth-card a:hover {
+  color: var(--color-text);
+  text-decoration-color: currentColor;
 }
 
 .auth-card__title {
@@ -1133,17 +1148,58 @@
   color: var(--color-text-secondary);
 }
 
-/* Précision secondaire sous un message d'état (« pensez à vos spams »). */
+/* Précision secondaire sous un message d'état (« pensez à vos spams »). Marge
+ * basse : sur la vérification, elle précède le bouton de renvoi, qu'elle touchait
+ * (0px, .btn est inline-flex, rien ne s'intercalait). Devant le pied de carte, la
+ * marge haute de celui-ci (24px) l'emporte : les deux fusionnent. */
 .auth-card__hint {
   margin-top: var(--space-4);
+  margin-bottom: var(--space-4);
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
 
-/* Lien discret aligné avec le libellé d'un champ (« Mot de passe oublié ? »). */
+/* Ligne d'information sous le bouton d'inscription : la politique de
+ * confidentialité, au moment où l'adresse est confiée. Texte secondaire, lien
+ * neutre (règle .auth-card a). */
+.auth-card__legal {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+/* Le lien passe à la ligne d'un bloc, jamais coupé en « politique de /
+ * confidentialité » (constaté dans la carte de 380px). */
+.auth-card__legal a {
+  white-space: nowrap;
+}
+
+/* Lien discret aligné avec le libellé d'un champ (« Mot de passe oublié ? »).
+ * Couleur : celle des liens de la carte (neutre, .auth-card a). */
 .field__link {
   font-size: var(--text-sm);
-  color: var(--color-accent-text);
+}
+
+/* Pied de page des écrans d'authentification : même traitement que celui de la
+ * landing (.landing-footer, landing.css) : filet en haut, lien discret, survol
+ * en couleur de texte, jamais en accent. CENTRÉ comme lui : la page est composée
+ * autour de la carte centrée, le pied de page suit le même axe. Pleine largeur
+ * comme .auth-page, donc même centre. */
+.auth-footer {
+  padding: var(--space-5);
+  border-top: 1px solid var(--color-border);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.auth-footer a {
+  color: var(--color-text-muted);
+  text-decoration-color: var(--color-border-strong);
+}
+
+.auth-footer a:hover {
+  color: var(--color-text);
 }
 
 /* ================================================================== */
@@ -1217,31 +1273,36 @@
   margin-bottom: var(--space-5);
 }
 
+/* Pas d'ombre : la carte ne flotte pas (DESIGN.md, « Interdits »). */
 .account-card {
   padding: var(--space-5);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
 }
 
 .account-card + .account-card {
   margin-top: var(--space-6);
 }
 
+/* Titre de section : 20px, texte PRINCIPAL. Hiérarchie 28 (page) > 20 (section)
+ * > 16 (élément). Auparavant 16px en secondaire : « Informations » pesait moins
+ * que « Supprimer mon compte » (16px, principal), qui n'en est qu'un élément,
+ * même inversion que celle corrigée sur les libellés de colonnes du kanban. */
 .account-card__title {
   margin-bottom: var(--space-4);
-  font-size: var(--text-md);
-  color: var(--color-text-secondary);
+  font-size: var(--text-lg);
+  color: var(--color-text);
 }
 
 /* Zone de suppression. La couleur n'est qu'un signal PARMI d'autres : le titre
- * « Zone de danger », le pictogramme Warning et la bordure renforcée portent la même
- * information, perceptibles sans distinguer les teintes (WCAG 1.4.1). */
+ * « Zone de danger », le pictogramme Warning et le libellé du bouton portent la
+ * même information, sans distinguer les teintes (WCAG 1.4.1). Bordure de 1px
+ * comme toute carte : l'ancienne bordure de 2px (seule de l'application) était
+ * présentée comme un signal, mais danger-border n'est qu'à 1,73 / 1,84:1. */
 .account-card--danger {
   background: var(--color-danger-soft);
   border-color: var(--color-danger-border);
-  border-width: 2px;
 }
 
 .account-card__title--danger {
@@ -1298,10 +1359,15 @@
   color: var(--color-success-text);
 }
 
-.status-tag--warning {
-  background: var(--color-danger-soft);
-  border-color: var(--color-danger-border);
-  color: var(--color-danger-text);
+/* Adresse non vérifiée : NEUTRE, comme le bandeau de vérification du kanban (la
+ * vérification n'est pas bloquante : ni erreur, ni danger). Auparavant aux
+ * couleurs de danger. Pictogramme Envelope (celui du bandeau) contre Check pour
+ * « Vérifiée » : les deux états se distinguent sans la couleur. Bordure
+ * border-hover (5,83 / 5,30:1 sur surface), texte principal. */
+.status-tag--neutral {
+  background: transparent;
+  border-color: var(--color-border-hover);
+  color: var(--color-text);
 }
 
 /* Ligne d'action dangereuse : description à gauche, bouton à droite. */
@@ -1511,6 +1577,9 @@
   font-size: var(--text-sm);
 }
 
+/* En-têtes : même gabarit que les libellés de colonnes du kanban (12px, 600,
+ * majuscules), et comme eux en texte PRINCIPAL (13,5 / 13,6:1) : ils structurent
+ * la zone de travail (auparavant secondaire, 8,7 / 8,9:1). */
 .archive-table th {
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-border-strong);
@@ -1519,21 +1588,24 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  color: var(--color-text-secondary);
+  color: var(--color-text);
   white-space: nowrap;
 }
 
+/* « Actions » calé à droite, comme ses boutons (.archive-table__actions). */
+.archive-table th:last-child {
+  text-align: right;
+}
+
+/* Pas de survol de ligne : la ligne n'est pas cliquable (seuls ses boutons le
+ * sont), et le survol signale l'interactivité dans l'application (DESIGN.md).
+ * Il était d'ailleurs invisible en sombre (surface-2 : 1,05:1 contre la page).
+ * Les filets entre les lignes suffisent à suivre une ligne. */
 .archive-table td {
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text);
   vertical-align: middle;
-}
-
-/* Survol de ligne : même principe que .board-row/.kanban-column, un fond
- * neutre, pas de teal (réservé à l'action principale et au focus). */
-.archive-table tbody tr:hover {
-  background: var(--color-surface-2);
 }
 
 /* Intitulé, entreprise, lieu : plafonnés à 2 lignes avec ellipse au-delà,

@@ -516,9 +516,13 @@
   font-size: var(--text-sm);
 }
 
+/* Centré : il suit l'axe de l'appel final juste au-dessus (.landing-closing,
+ * centré dans le même conteneur). En fenêtre étroite, une seconde ligne de liens
+ * est centrée elle aussi. */
 .landing-footer__inner {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--space-2) var(--space-5);
 }
 

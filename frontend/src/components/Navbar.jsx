@@ -45,10 +45,24 @@ export default function Navbar({ withSidebarToggle = false }) {
           retour attendu. Un <Link> plutôt qu'un bouton — c'est une navigation,
           donc ouvrable dans un nouvel onglet et annonçable comme lien. */}
       <div className="navbar__start">
+        {/* Marque EN PREMIER, toujours au même endroit (24px du bord) sur toutes
+            les pages qui portent cette barre : kanban, archives, Mon compte et
+            écrans d'authentification (AuthLayout). Le bouton de repli, présent
+            seulement là où il y a une sidebar, vient APRÈS elle : placé avant, il
+            décalait la marque de 40px d'une page à l'autre (corrigé le
+            2026-10-07). Logo DANS le lien : il agrandit la zone cliquable sans
+            changer le comportement (toujours /app). Décoratif (alt vide,
+            BrandLogo) : le lien reste annoncé « Cockpit ». */}
+        <Link to="/app" className="navbar__brand">
+          <BrandLogo />
+          Cockpit
+        </Link>
+
         {/* Dans la navbar et NON dans la sidebar : sidebar repliée, elle
-            disparaît entièrement, le bouton doit rester atteignable. L'icône
-            est constante ; c'est le libellé (et aria-expanded) qui porte l'état,
-            jamais le pictogramme ni la couleur seuls. Icône Phosphor
+            disparaît entièrement, le bouton doit rester atteignable. Juste après
+            la marque, il reste au-dessus de la sidebar (220px) qu'il commande.
+            L'icône est constante ; c'est le libellé (et aria-expanded) qui porte
+            l'état, jamais le pictogramme ni la couleur seuls. Icône Phosphor
             SidebarSimple (un panneau latéral) et non List (trois traits, lu
             comme un menu générique) ; la même icône orne le bouton de repli de l'en-tête de la
             sidebar : une fonction, une icône. id : cible du focus quand ce
@@ -67,14 +81,6 @@ export default function Navbar({ withSidebarToggle = false }) {
             <SidebarSimple size={16} aria-hidden="true" />
           </button>
         )}
-
-        {/* Logo DANS le lien : il agrandit la zone cliquable sans changer le
-            comportement (toujours /app). Décoratif (alt vide, BrandLogo) : le
-            lien reste annoncé « Cockpit ». */}
-        <Link to="/app" className="navbar__brand">
-          <BrandLogo />
-          Cockpit
-        </Link>
       </div>
 
       <div className="navbar__actions">

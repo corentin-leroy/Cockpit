@@ -29,11 +29,10 @@ import BrandLogo from '../components/BrandLogo.jsx'
 import KanbanColumn from '../components/KanbanColumn.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
-import { EXTENSION_URL } from '../constants/links.js'
+import { EXTENSION_URL, PRIVACY_URL } from '../constants/links.js'
 import { useKanbanDrag } from '../kanban/useKanbanDrag.js'
 import '../styles/landing.css'
 
-const PRIVACY_URL = 'https://corentin-leroy.github.io/Cockpit/privacy'
 const GITHUB_URL = 'https://github.com/corentin-leroy'
 
 // Date de création relative à AUJOURD'HUI : l'ancienneté affichée sur les cartes

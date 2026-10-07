@@ -16,8 +16,7 @@ section « Feuille de route » du CLAUDE.md racine.
    - [fait] Backend : modèle Board, CRUD, ownership en chaîne, board par défaut,
      dernier tableau non supprimable, cascade
    - [fait] Front : sélection/gestion des tableaux, board_id à la création
-6. Design du site (en cours : ce qui reste est dans la feuille de route du
-   CLAUDE.md racine)
+6. Design du site
    - [fait] DESIGN.md : direction visuelle, échelle typo, espacements, couleur
    - [fait] Refonte du kanban : densité, carte cliquable, tokens, contrastes
    - [fait] Refonte de la landing page : slogan en titre, vrai kanban de démonstration
@@ -30,6 +29,15 @@ section « Feuille de route » du CLAUDE.md racine.
      d'inscription différé. Écarts documentés dans DESIGN.md (section « Landing
      page »). Palier typographique de 30px (`--text-2xl`) supprimé : le h1 par défaut
      passe à 28px (titres de Mon compte et Archives, qui dépassaient la règle)
+   - [fait, validé le 2026-10-07] Reste de l'application (formulaires, page compte),
+     aligné sur les lots du kanban : écrans d'authentification sous une barre commune
+     (`AuthLayout.jsx`, logo vers la landing pour un visiteur, vers /app pour un
+     connecté), politique de confidentialité en pied de page et sur l'inscription,
+     liens neutres, champs à bordure `--color-border-hover` et anneau de focus
+     standard (modales comprises), ombres non flottantes retirées ; archives
+     (en-têtes en texte principal, survol de ligne retiré, état vide explicatif) ;
+     Mon compte (« Non vérifiée » neutre, titres de section en 20px) ; marque à la
+     même place sur toutes les pages ; pieds de page centrés. Détail dans DESIGN.md
 7. Mot de passe oublié + vérification d'email (Brevo)
    - [fait] Backend : app/email.py, SecurityToken, 4 endpoints, rate limiting
    - [fait] Front : écrans /forgot-password, /reset-password, /verify-email

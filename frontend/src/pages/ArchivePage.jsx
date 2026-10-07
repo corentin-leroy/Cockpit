@@ -205,12 +205,20 @@ export default function ArchivePage() {
 
           {!loading && error && <Alert>{error}</Alert>}
 
+          {/* Aucune archive : dire COMMENT en créer une, comme le kanban vide
+              dit comment ajouter une offre (même style, .board-empty-hint). Les
+              deux chemins existants : le bouton de la modale, le glisser. */}
           {!loading && !error && archives.length === 0 && (
-            <p className="text-muted">Aucune candidature archivée.</p>
+            <p className="board-empty-hint">
+              Aucune candidature archivée. Pour en archiver une, ouvrez sa carte
+              sur le tableau et cliquez sur « Archiver », ou faites-la glisser
+              vers la zone « Déposer ici pour archiver » qui apparaît en bas de
+              l’écran.
+            </p>
           )}
 
           {!loading && !error && archives.length > 0 && filtered.length === 0 && (
-            <p className="text-muted">Aucune archive ne correspond</p>
+            <p className="text-muted">Aucune archive ne correspond.</p>
           )}
 
           {!loading && !error && filtered.length > 0 && (

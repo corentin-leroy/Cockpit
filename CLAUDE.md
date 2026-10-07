@@ -158,8 +158,6 @@ renvois « cf. ») :
 Seuls les points OUVERTS figurent ici ; l'historique des lots terminés (dates,
 commits, vérifications) est dans `dev-docs/roadmap.md`. Un point terminé quitte
 cette liste et rejoint l'historique : jamais de statut tenu aux deux endroits.
-- Design du site (point 6 de l'historique) :
-   - [à faire] Reste de l'application (formulaires, page compte)
 - Extension : republication sur le Chrome Web Store en attente. La version
   publiée (manifest 1.0.0) est antérieure à trois lots committés : le lot 3d
   (bornes alignées sur le backend), l'adaptateur France Travail et l'adaptateur

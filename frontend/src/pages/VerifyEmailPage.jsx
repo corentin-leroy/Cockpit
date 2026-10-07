@@ -13,6 +13,7 @@ import { verifyEmail } from '../api/auth.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useResendVerification } from '../auth/useResendVerification.js'
 import Alert from '../components/Alert.jsx'
+import AuthLayout from '../components/AuthLayout.jsx'
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams()
@@ -64,67 +65,65 @@ export default function VerifyEmailPage() {
   }, [token, isAuthenticated, refreshUser])
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h1 className="auth-card__title">Confirmation de votre adresse</h1>
+    <AuthLayout>
+      <h1 className="auth-card__title">Confirmation de votre adresse</h1>
 
-        {status === 'pending' && (
-          <p className="text-muted" role="status">
-            Vérification en cours…
+      {status === 'pending' && (
+        <p className="text-muted" role="status">
+          Vérification en cours…
+        </p>
+      )}
+
+      {status === 'success' && (
+        <>
+          <Alert variant="success">{message}</Alert>
+          <p className="auth-card__footer">
+            <Link to="/app">Retour à mes candidatures</Link>
           </p>
-        )}
+        </>
+      )}
 
-        {status === 'success' && (
-          <>
-            <Alert variant="success">{message}</Alert>
-            <p className="auth-card__footer">
-              <Link to="/app">Retour à mes candidatures</Link>
-            </p>
-          </>
-        )}
+      {status === 'error' && (
+        <>
+          <Alert>{message}</Alert>
 
-        {status === 'error' && (
-          <>
-            <Alert>{message}</Alert>
-
-            {isAuthenticated ? (
-              <>
-                <p className="auth-card__hint">
-                  Vous pouvez vous faire renvoyer un lien de confirmation.
-                </p>
-
-                {feedback && (
-                  <Alert variant={feedback.variant} className="stack-gap">
-                    {feedback.message}
-                  </Alert>
-                )}
-
-                <button
-                  type="button"
-                  className="btn btn--primary btn--block"
-                  onClick={resend}
-                  disabled={resending}
-                >
-                  {resending ? 'Envoi…' : 'Renvoyer l’email de confirmation'}
-                </button>
-
-                <p className="auth-card__footer">
-                  <Link to="/app">Retour à mes candidatures</Link>
-                </p>
-              </>
-            ) : (
-              // Non connecté : impossible de renvoyer un lien (l'endpoint est
-              // authentifié — et il le reste, sinon il deviendrait un oracle
-              // d'énumération des comptes). On invite donc à se connecter, d'où
-              // le bandeau proposera le renvoi.
-              <p className="auth-card__footer">
-                Connectez-vous pour demander un nouveau lien.{' '}
-                <Link to="/login">Se connecter</Link>
+          {isAuthenticated ? (
+            <>
+              <p className="auth-card__hint">
+                Vous pouvez vous faire renvoyer un lien de confirmation.
               </p>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+
+              {feedback && (
+                <Alert variant={feedback.variant} className="stack-gap">
+                  {feedback.message}
+                </Alert>
+              )}
+
+              <button
+                type="button"
+                className="btn btn--primary btn--block"
+                onClick={resend}
+                disabled={resending}
+              >
+                {resending ? 'Envoi…' : 'Renvoyer l’email de confirmation'}
+              </button>
+
+              <p className="auth-card__footer">
+                <Link to="/app">Retour à mes candidatures</Link>
+              </p>
+            </>
+          ) : (
+            // Non connecté : impossible de renvoyer un lien (l'endpoint est
+            // authentifié — et il le reste, sinon il deviendrait un oracle
+            // d'énumération des comptes). On invite donc à se connecter, d'où
+            // le bandeau proposera le renvoi.
+            <p className="auth-card__footer">
+              Connectez-vous pour demander un nouveau lien.{' '}
+              <Link to="/login">Se connecter</Link>
+            </p>
+          )}
+        </>
+      )}
+    </AuthLayout>
   )
 }

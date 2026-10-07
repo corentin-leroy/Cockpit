@@ -12,6 +12,7 @@ import { forgotPassword } from '../api/auth.js'
 import { splitFormErrors } from '../api/client.js'
 import { useRateLimitCooldown } from '../auth/useRateLimitCooldown.js'
 import Alert, { FieldError } from '../components/Alert.jsx'
+import AuthLayout from '../components/AuthLayout.jsx'
 
 const FIELD_MAP = { email: 'email' }
 
@@ -62,63 +63,61 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h1 className="auth-card__title">Mot de passe oublié</h1>
+    <AuthLayout>
+      <h1 className="auth-card__title">Mot de passe oublié</h1>
 
-        {submitted ? (
-          <>
-            <Alert variant="success">
-              Si un compte existe avec cette adresse, un email vient d’être
-              envoyé. Le lien reste valable une heure.
-            </Alert>
-            <p className="auth-card__hint">
-              Pensez à regarder dans vos spams si vous ne le voyez pas arriver.
-            </p>
-            <p className="auth-card__footer">
-              <Link to="/login">Retour à la connexion</Link>
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="auth-card__intro">
-              Saisissez l’adresse de votre compte : nous vous enverrons un lien
-              pour choisir un nouveau mot de passe.
-            </p>
+      {submitted ? (
+        <>
+          <Alert variant="success">
+            Si un compte existe avec cette adresse, un email vient d’être
+            envoyé. Le lien reste valable une heure.
+          </Alert>
+          <p className="auth-card__hint">
+            Pensez à regarder dans vos spams si vous ne le voyez pas arriver.
+          </p>
+          <p className="auth-card__footer">
+            <Link to="/login">Retour à la connexion</Link>
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="auth-card__intro">
+            Saisissez l’adresse de votre compte : nous vous enverrons un lien
+            pour choisir un nouveau mot de passe.
+          </p>
 
-            {formError && <Alert className="stack-gap">{formError}</Alert>}
-            {cooldown.active && <Alert className="stack-gap">{cooldown.message}</Alert>}
+          {formError && <Alert className="stack-gap">{formError}</Alert>}
+          {cooldown.active && <Alert className="stack-gap">{cooldown.message}</Alert>}
 
-            <form onSubmit={handleSubmit} noValidate>
-              <div className="field">
-                <label className="field__label" htmlFor="email">Email</label>
-                <input
-                  id="email"
-                  type="email"
-                  autoComplete="email"
-                  className="input"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  aria-invalid={Boolean(fieldError)}
-                />
-                {fieldError && <FieldError>{fieldError}</FieldError>}
-              </div>
+          <form onSubmit={handleSubmit} noValidate>
+            <div className="field">
+              <label className="field__label" htmlFor="email">Email</label>
+              <input
+                id="email"
+                type="email"
+                autoComplete="email"
+                className="input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                aria-invalid={Boolean(fieldError)}
+              />
+              {fieldError && <FieldError>{fieldError}</FieldError>}
+            </div>
 
-              <button
-                type="submit"
-                disabled={loading || cooldown.active}
-                className="btn btn--primary btn--block"
-              >
-                {loading ? 'Envoi…' : cooldown.active ? cooldown.buttonLabel : 'Envoyer le lien'}
-              </button>
-            </form>
+            <button
+              type="submit"
+              disabled={loading || cooldown.active}
+              className="btn btn--primary btn--block"
+            >
+              {loading ? 'Envoi…' : cooldown.active ? cooldown.buttonLabel : 'Envoyer le lien'}
+            </button>
+          </form>
 
-            <p className="auth-card__footer">
-              <Link to="/login">Retour à la connexion</Link>
-            </p>
-          </>
-        )}
-      </div>
-    </div>
+          <p className="auth-card__footer">
+            <Link to="/login">Retour à la connexion</Link>
+          </p>
+        </>
+      )}
+    </AuthLayout>
   )
 }

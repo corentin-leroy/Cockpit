@@ -8,6 +8,7 @@ import { splitFormErrors } from '../api/client.js'
 import { useAuth } from '../auth/useAuth.js'
 import { useRateLimitCooldown } from '../auth/useRateLimitCooldown.js'
 import Alert, { FieldError } from '../components/Alert.jsx'
+import AuthLayout from '../components/AuthLayout.jsx'
 import { formatClockTime } from '../utils/retryAfter.js'
 
 const FIELD_MAP = { email: 'email', password: 'password' }
@@ -169,92 +170,90 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <h1 className="auth-card__title">Connexion</h1>
+    <AuthLayout>
+      <h1 className="auth-card__title">Connexion</h1>
 
-        {/* Explication de la présence sur cet écran, affichée seulement quand la
-            session a réellement été invalidée par le serveur. Ton neutre : une
-            session qui arrive à son terme est un fonctionnement normal, pas un
-            incident — et surtout pas une faute de l'utilisateur. Masquée dès
-            qu'une erreur de connexion survient, pour ne pas empiler deux
-            messages dont un devenu caduc. */}
-        {showExpired && !formError && !showCreated && (
-          <Alert variant="info" className="stack-gap">
-            Votre session a expiré, veuillez vous reconnecter.
-          </Alert>
-        )}
+      {/* Explication de la présence sur cet écran, affichée seulement quand la
+          session a réellement été invalidée par le serveur. Ton neutre : une
+          session qui arrive à son terme est un fonctionnement normal, pas un
+          incident — et surtout pas une faute de l'utilisateur. Masquée dès
+          qu'une erreur de connexion survient, pour ne pas empiler deux
+          messages dont un devenu caduc. */}
+      {showExpired && !formError && !showCreated && (
+        <Alert variant="info" className="stack-gap">
+          Votre session a expiré, veuillez vous reconnecter.
+        </Alert>
+      )}
 
-        {/* Compte tout juste créé (la connexion automatique a été bloquée) : message
-            durable, il change de texte à l'échéance au lieu de disparaître. */}
-        {showCreated && accountCreated && (
-          <Alert variant={cooldown.active ? 'info' : 'success'} className="stack-gap">
-            {accountCreatedMessage(accountCreated.until, cooldown.active)}
-          </Alert>
-        )}
+      {/* Compte tout juste créé (la connexion automatique a été bloquée) : message
+          durable, il change de texte à l'échéance au lieu de disparaître. */}
+      {showCreated && accountCreated && (
+        <Alert variant={cooldown.active ? 'info' : 'success'} className="stack-gap">
+          {accountCreatedMessage(accountCreated.until, cooldown.active)}
+        </Alert>
+      )}
 
-        {formError && <Alert className="stack-gap">{formError}</Alert>}
-        {cooldown.active && cooldown.message && (
-          <Alert className="stack-gap">{cooldown.message}</Alert>
-        )}
+      {formError && <Alert className="stack-gap">{formError}</Alert>}
+      {cooldown.active && cooldown.message && (
+        <Alert className="stack-gap">{cooldown.message}</Alert>
+      )}
 
-        <form onSubmit={handleSubmit} noValidate>
-          <div className="field">
-            <label className="field__label" htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              className="input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onBeforeInput={dismissExpiredNotice}
-              onKeyDown={dismissExpiredNotice}
-              aria-invalid={Boolean(fieldErrors.email)}
-            />
-            {fieldErrors.email && <FieldError>{fieldErrors.email}</FieldError>}
+      <form onSubmit={handleSubmit} noValidate>
+        <div className="field">
+          <label className="field__label" htmlFor="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            autoComplete="email"
+            className="input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onBeforeInput={dismissExpiredNotice}
+            onKeyDown={dismissExpiredNotice}
+            aria-invalid={Boolean(fieldErrors.email)}
+          />
+          {fieldErrors.email && <FieldError>{fieldErrors.email}</FieldError>}
+        </div>
+
+        <div className="field">
+          <div className="field__label-row">
+            <label className="field__label" htmlFor="password">Mot de passe</label>
+            <Link className="field__link" to="/forgot-password">
+              Mot de passe oublié ?
+            </Link>
           </div>
+          <input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            className="input"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onBeforeInput={dismissExpiredNotice}
+            onKeyDown={dismissExpiredNotice}
+            aria-invalid={Boolean(fieldErrors.password)}
+          />
+          {/* PAS de maxLength ici : la borne du mot de passe PRÉSENTÉ est de
+              4096 OCTETS (pas des caractères), et un compte existant peut
+              avoir un mot de passe de plus de 72 octets (limite de
+              l'inscription depuis, 128 caractères avant) — un
+              maxLength empêcherait de s'authentifier avec un mot de passe
+              pourtant valide (cf. constants/limits.js). */}
+          {fieldErrors.password && <FieldError>{fieldErrors.password}</FieldError>}
+        </div>
 
-          <div className="field">
-            <div className="field__label-row">
-              <label className="field__label" htmlFor="password">Mot de passe</label>
-              <Link className="field__link" to="/forgot-password">
-                Mot de passe oublié ?
-              </Link>
-            </div>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              className="input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onBeforeInput={dismissExpiredNotice}
-              onKeyDown={dismissExpiredNotice}
-              aria-invalid={Boolean(fieldErrors.password)}
-            />
-            {/* PAS de maxLength ici : la borne du mot de passe PRÉSENTÉ est de
-                4096 OCTETS (pas des caractères), et un compte existant peut
-                avoir un mot de passe de plus de 72 octets (limite de
-                l'inscription depuis, 128 caractères avant) — un
-                maxLength empêcherait de s'authentifier avec un mot de passe
-                pourtant valide (cf. constants/limits.js). */}
-            {fieldErrors.password && <FieldError>{fieldErrors.password}</FieldError>}
-          </div>
+        <button
+          type="submit"
+          disabled={loading || cooldown.active}
+          className="btn btn--primary btn--block"
+        >
+          {loading ? 'Connexion…' : cooldown.active ? cooldown.buttonLabel : 'Se connecter'}
+        </button>
+      </form>
 
-          <button
-            type="submit"
-            disabled={loading || cooldown.active}
-            className="btn btn--primary btn--block"
-          >
-            {loading ? 'Connexion…' : cooldown.active ? cooldown.buttonLabel : 'Se connecter'}
-          </button>
-        </form>
-
-        <p className="auth-card__footer">
-          Pas encore de compte ? <Link to="/register">Créer un compte</Link>
-        </p>
-      </div>
-    </div>
+      <p className="auth-card__footer">
+        Pas encore de compte ? <Link to="/register">Créer un compte</Link>
+      </p>
+    </AuthLayout>
   )
 }
