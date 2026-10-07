@@ -13,13 +13,14 @@
 // l'écran, un board-row--active n'aurait pas de sens ici.
 
 import { useNavigate } from 'react-router-dom'
+import { SidebarSimple } from '@phosphor-icons/react'
 
 import { useBoards } from '../boards/useBoards.js'
 import { useSidebar } from '../preferences/useSidebar.js'
 
 export default function ArchiveSidebar() {
   const { boards, selectBoard } = useBoards()
-  const { collapsed } = useSidebar()
+  const { collapsed, collapseSidebar } = useSidebar()
   const navigate = useNavigate()
 
   function goToBoard(boardId) {
@@ -35,7 +36,19 @@ export default function ArchiveSidebar() {
       className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}
       inert={collapsed}
     >
-      <h2 className="sidebar__title">Tableaux</h2>
+      {/* Même en-tête que Sidebar.jsx : le repli est partagé, son bouton aussi. */}
+      <div className="sidebar__header">
+        <h2 className="sidebar__title">Tableaux</h2>
+        <button
+          type="button"
+          className="btn btn--ghost btn--icon sidebar__collapse"
+          onClick={collapseSidebar}
+          aria-label="Replier les tableaux"
+          title="Replier les tableaux"
+        >
+          <SidebarSimple size={16} aria-hidden="true" />
+        </button>
+      </div>
 
       {boards.map((board) => (
         <div className="board-row" key={board.id}>

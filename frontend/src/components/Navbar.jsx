@@ -1,7 +1,7 @@
 // Barre de navigation minimale des pages protégées : le titre de l'app, l'accès
 // au compte, la bascule de thème et un bouton de déconnexion.
 
-import { List } from '@phosphor-icons/react'
+import { SidebarSimple } from '@phosphor-icons/react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth.js'
@@ -47,12 +47,15 @@ export default function Navbar({ withSidebarToggle = false }) {
         {/* Dans la navbar et NON dans la sidebar : sidebar repliée, elle
             disparaît entièrement, le bouton doit rester atteignable. L'icône
             est constante ; c'est le libellé (et aria-expanded) qui porte l'état,
-            jamais le pictogramme ni la couleur seuls. Icône SVG Phosphor (List,
-            l'équivalent de ☰), comme la bascule de thème voisine : la barre ne
-            mélange pas SVG et caractère Unicode. */}
+            jamais le pictogramme ni la couleur seuls. Icône Phosphor
+            SidebarSimple (un panneau latéral) et non List (trois traits, lu
+            comme un menu générique) ; la même icône orne le bouton de repli de l'en-tête de la
+            sidebar : une fonction, une icône. id : cible du focus quand ce
+            bouton-là replie la sidebar (il devient alors inerte). */}
         {withSidebarToggle && (
           <button
             type="button"
+            id="sidebar-toggle"
             className="btn btn--ghost btn--icon sidebar-toggle"
             onClick={toggleSidebar}
             aria-expanded={!collapsed}
@@ -60,7 +63,7 @@ export default function Navbar({ withSidebarToggle = false }) {
             aria-label={collapsed ? 'Afficher les tableaux' : 'Replier les tableaux'}
             title={collapsed ? 'Afficher les tableaux' : 'Replier les tableaux'}
           >
-            <List size={16} aria-hidden="true" />
+            <SidebarSimple size={16} aria-hidden="true" />
           </button>
         )}
 

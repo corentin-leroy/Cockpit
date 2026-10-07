@@ -18,6 +18,28 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Le KANBAN reste aligné à gauche, jamais centré : ses colonnes s'étendent et
   défilent horizontalement, un centrage n'a pas de sens sur un contenu qui
   déborde par construction.
+- Page du kanban : la PAGE ne défile pas, c'est la zone des colonnes (`.kanban`) qui
+  défile, dans les deux sens (`.board-page`, components.css ; décidé le 2026-10-07).
+  - Pourquoi : `.kanban` défile horizontalement, donc c'est un conteneur de défilement.
+    Tant que la page défilait verticalement, des en-têtes `sticky` restaient accrochés
+    à ce conteneur immobile et ne collaient jamais. Et la barre de défilement
+    horizontale était sous la plus longue colonne : 413px sous le bas de l'écran,
+    mesuré en 1366px de large.
+  - Effets : les en-têtes de colonnes restent collés en haut de la zone, la sidebar
+    (cibles de dépôt) et le bouton « Ajouter une candidature » restent visibles, la
+    barre horizontale est toujours en bas de l'écran. Nombre de cartes visibles
+    inchangé.
+  - La zone est focalisable et nommée (« Colonnes du tableau ») : sans cela, le
+    clavier ne peut pas la faire défiler. Anneau de focus extérieur (rentrant, son
+    bord haut passait sous les en-têtes collés), d'où 4px de marge sous la zone.
+  - Hauteurs en chaîne de flex, aucune valeur en dur : le bandeau de vérification
+    prend ou rend sa place sans rien casser.
+  - Limité à la page du kanban : archives et compte gardent le défilement de page ;
+    la landing n'est pas concernée.
+- Tableau vide : les cinq colonnes restent affichées (elles montrent les étapes du
+  suivi), précédées d'une phrase qui dit comment ajouter une offre : le bouton, ou
+  l'extension (lien neutre vers le Chrome Web Store, jamais teal). C'est le premier
+  écran d'un nouvel inscrit, dont le tableau « Mes candidatures » est créé vide.
 
 ## Typographie
 - Une seule famille, celle déjà en place. Pas de police décorative.
@@ -35,6 +57,11 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
   - Boutons-icônes des barres (bascule de thème, repli de la sidebar) et croix de
     fermeture des modales : CARRÉS FIXES de 32px (`--space-6`), leur taille ne dépend
     jamais de l'icône.
+  - Repli de la sidebar : DEUX boutons, même icône (`SidebarSimple`, un panneau
+    latéral, et non `List`, lu comme un menu). Celui de la navbar (seul moyen de
+    rouvrir) et celui de l'en-tête de la sidebar, à côté de « TABLEAUX », carré de
+    24px : là où l'œil se trouve, le premier seul passait inaperçu. Replier depuis
+    l'en-tête rend le focus au bouton de la navbar.
   - Actions d'une ligne de la sidebar (renommer, supprimer) : carrés de 24px
     (`--space-5`).
   - Icône posée devant un texte (alerte, avertissement, bandeau, retour d'action) :
@@ -71,9 +98,19 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
   de l'écran (bouton « Ajouter une candidature ») et l'anneau de focus.
 - Aucun texte de contenu en accent. Les titres de cartes sont en neutre.
 - Les ÉTATS sont neutres, jamais teal : tableau courant de la sidebar (fond de carte,
-  bordure forte, nom en semi-gras), cible de dépôt survolée (fond de survol, bordure
-  `--color-border-hover`), survols de boutons. Corrigé le 2026-10-07 : ces trois
+  bordure `--color-border-hover` à 5,1:1 / 5,6:1, nom en semi-gras : il dit où l'on se
+  trouve, il doit être évident d'un coup d'œil), cible de dépôt survolée (fond de
+  survol, bordure `--color-border-hover`), survols de boutons. Corrigé le 2026-10-07 : ces trois
   éléments étaient teal.
+- Bandeau de vérification d'email : NEUTRE, jamais teal (il l'était : deux éléments
+  teal à l'écran avec le bouton d'ajout). Il attire l'œil par sa bande et par une
+  accroche en gras (« Adresse email non vérifiée. »), pas par la couleur. Fond
+  `--color-surface-band`, écart retenu le 2026-10-07 (token jusque-là réservé aux
+  bandes de la landing) : c'est le seul fond qui se détache de la page de façon
+  comparable dans les deux thèmes (1,20 / 1,19:1). Mesuré : texte 11,3 / 11,4:1,
+  retours d'envoi succès 5,1 / 7,9 et erreur 5,7 / 7,2. Limite connue : en sombre, il
+  ne se distingue de la navbar qu'à 1,08:1 (deux filets les séparent). Texte EXACT :
+  aucune promesse de « sécuriser le compte », la vérification n'est pas bloquante.
 - Les colonnes n'ont pas de couleur propre. Le statut est porté par la position et le libellé.
 - Fond de colonne : token dédié `--color-surface-column`, en CREUX sous la page dans les
   deux thèmes. Écart retenu le 2026-10-07 (nouvelle nuance) : en sombre,
@@ -141,7 +178,8 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
 - Fonds alternés, cinq temps : page, bande teal pâle (bas du kanban et « Gardez la vue
   d'ensemble », `--color-accent-soft`), page (extension), bande neutre (confiance,
   `--color-surface-band`), page (appel final).
-  - `--color-surface-band` est le token DÉDIÉ aux bandes de section : il se distingue du
+  - `--color-surface-band` est le token DÉDIÉ aux bandes de section (et, dans
+    l'application, au bandeau de vérification d'email, cf. « Couleur ») : il se distingue du
     fond de page de façon comparable dans les deux thèmes (1,20:1 en clair comme en
     sombre). Aucune surface existante ne le permettait : `--color-surface-2` est plus
     sombre que le fond en clair mais plus claire en sombre, à peine visible (1,08 /

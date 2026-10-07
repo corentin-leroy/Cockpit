@@ -37,6 +37,13 @@ cas d'écart. Commandes : CLAUDE.md racine. Pas de lanceur de tests frontend.
   `SidebarProvider` monté dans main.jsx au-dessus du routeur), commun au kanban
   et à la page d'archives, mémorisé, dépliée par défaut. Repliée, la sidebar est
   `inert` (hors clavier) et les cibles de dépôt de `Sidebar.jsx` sont désactivées.
+  Deux boutons de repli (navbar, `#sidebar-toggle`, et en-tête de la sidebar) :
+  replier depuis l'en-tête passe par `collapseSidebar`, qui rend le focus à
+  `#sidebar-toggle` (le bouton de l'en-tête devient inerte avec la sidebar).
+- Page du kanban (`.board-page`) : la page ne défile pas, la zone `.kanban` défile
+  dans les deux sens (en-têtes de colonnes collés). La réservation de place pour
+  la zone d'archivage pendant un glisser est donc sur `.kanban`, pas sur
+  `.board-main`. Pourquoi et limites : DESIGN.md, « Mise en page des écrans ».
 - Contexte d'auth (auth/) : état isAuthenticated, login/logout, plus `user`
   (chargé via GET /auth/me dès qu'un token existe, rechargeable par refreshUser).
   `user` peut être null même connecté (chargement, ou /auth/me en échec) : son

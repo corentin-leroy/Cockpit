@@ -28,9 +28,14 @@ export default function VerificationBanner() {
         <Envelope size={16} />
       </span>
 
+      {/* Texte EXACT : la vérification n'est pas bloquante et la
+          réinitialisation du mot de passe fonctionne sans elle, donc aucune
+          promesse de « sécuriser le compte ». L'adresse reste affichée : elle
+          permet de repérer une faute de frappe à l'inscription. L'accroche en
+          gras attire l'œil, pas la couleur (bandeau neutre, components.css). */}
       <p className="banner__text">
-        Vérifiez votre adresse email <strong>{user.email}</strong> pour
-        sécuriser votre compte.
+        <strong>Adresse email non vérifiée.</strong> Cliquez sur le lien que nous
+        vous avons envoyé à {user.email} pour la confirmer.
         {/* Le retour de l'envoi (succès, 429, erreur) s'affiche ici même, à côté
             de l'action : pas de bandeau supplémentaire empilé au-dessus. */}
         {feedback && (

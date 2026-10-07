@@ -76,7 +76,8 @@
    * text-muted 5,1:1. Absent de la popup de l'extension, volontairement (cf.
    * DESIGN.md, « Duplication à surveiller »). */
   --color-surface-column: #f2f0ec;
-  /* Bande de section (landing) : se distingue du fond de page de façon COMPARABLE
+  /* Bande de section (landing) et bandeau de vérification d'email de
+   * l'application (écart retenu, DESIGN.md) : se distingue du fond de page de façon COMPARABLE
    * dans les deux thèmes, ~1,2:1 (1,20 ici, 1,20 en sombre). Aucune surface
    * existante ne le permet : surface-2 est plus sombre que le fond en clair mais
    * plus claire en sombre, à peine visible (1,08 / 1,05). Textes posés dessus :

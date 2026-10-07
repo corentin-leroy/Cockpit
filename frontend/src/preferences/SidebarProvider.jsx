@@ -20,7 +20,19 @@ export function SidebarProvider({ children }) {
     setSidebarCollapsed(next)
   }, [collapsed])
 
-  const value = useMemo(() => ({ collapsed, toggleSidebar }), [collapsed, toggleSidebar])
+  // Repli depuis le bouton de l'EN-TÊTE de la sidebar. Ce bouton devient inerte
+  // avec elle : le focus clavier serait perdu (renvoyé au <body>). On le rend au
+  // bouton de la navbar (#sidebar-toggle, Navbar.jsx), qui sert à rouvrir.
+  const collapseSidebar = useCallback(() => {
+    setCollapsed(true)
+    setSidebarCollapsed(true)
+    document.getElementById('sidebar-toggle')?.focus()
+  }, [])
+
+  const value = useMemo(
+    () => ({ collapsed, toggleSidebar, collapseSidebar }),
+    [collapsed, toggleSidebar, collapseSidebar],
+  )
 
   return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>
 }

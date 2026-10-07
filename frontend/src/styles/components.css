@@ -205,21 +205,93 @@
   flex: 1;
   min-width: 0;
   padding: var(--space-5);
-  transition: padding-bottom var(--transition-base);
+}
+
+/* ------------------------------------------------------------------ */
+/* Page du kanban : la PAGE ne défile pas, la zone .kanban défile.      */
+/* ------------------------------------------------------------------ */
+
+/* Pourquoi (DESIGN.md, « Mise en page des écrans ») : .kanban défile
+ * horizontalement (overflow-x: auto), ce qui en fait un conteneur de défilement
+ * (son overflow-y passe aussi à auto). Tant que c'était la PAGE qui défilait
+ * verticalement, des en-têtes `sticky` restaient accrochés à ce conteneur
+ * immobile et ne collaient jamais ; et la barre de défilement horizontale
+ * était sous la plus longue colonne (413px sous l'écran, mesuré en 1366px de
+ * large). En donnant à la zone la hauteur restante de la fenêtre, .kanban défile
+ * dans les deux sens : en-têtes collés, sidebar et bouton d'ajout toujours
+ * visibles, barre horizontale toujours en bas de l'écran.
+ * Limité à la page du kanban (.board-page, BoardPage.jsx) : archives et compte
+ * gardent le défilement de page, la landing n'est pas concernée.
+ * Hauteur en chaîne de flex (min-height: 0 à chaque niveau) : le bandeau de
+ * vérification, quand il apparaît ou disparaît, prend ou rend sa place sans
+ * qu'aucune hauteur ne soit écrite en dur. */
+.board-page {
+  display: flex;
+  flex-direction: column;
+  height: 100svh;
+}
+
+/* Beaucoup de tableaux (10 au plus) : la sidebar défile seule. */
+.board-page .sidebar {
+  overflow-y: auto;
+}
+
+/* Padding bas réduit à 4px : la zone qui défile descend presque jusqu'au bas de
+ * l'écran (le nombre de cartes visibles ne baisse pas) ; l'air de fin de
+ * défilement est porté par .kanban lui-même. Les 4px restants laissent la place
+ * à l'anneau de focus de la zone (2px, décalé de 2px), sinon rogné par le bas de
+ * l'écran. Anneau EXTÉRIEUR et non rentrant : rentrant, son bord haut passait
+ * sous les en-têtes de colonnes collés. */
+.board-page .board-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: var(--space-1);
+}
+
+.board-page .kanban {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: var(--space-5);
 }
 
 /* Posée pendant un glisser-déposer (BoardPage, via BoardMain) : RÉSERVE la
- * hauteur d'ArchiveDropZone plutôt que de la laisser superposer le bas des
- * colonnes. La page (voir base.css : c'est #root/body qui défile, pas cette
- * zone) gagne cette hauteur en espace de défilement, donc faire défiler une
- * colonne longue jusqu'en bas laisse toujours ses dernières cartes au-dessus
- * de la barre, jamais en dessous — rien n'est jamais rendu inatteignable
- * pendant le geste. Valeur composée de deux fois le plus grand espacement
- * (48px) : large marge au-delà de la hauteur réelle de la barre (~70px avec
- * son padding et son ombre), pour ne jamais la faire recouvrir un contenu de
- * justesse. */
-.board-main--dragging {
+ * hauteur d'ArchiveDropZone en fin de défilement de la zone .kanban, plutôt que
+ * de la laisser superposer le bas des colonnes : faire défiler une colonne
+ * longue jusqu'en bas laisse toujours ses dernières cartes au-dessus de la
+ * barre, jamais en dessous. Deux fois le plus grand espacement (96px) : large
+ * marge au-delà de la hauteur réelle de la barre (~70px avec son ombre).
+ * Instantané, sans transition : c'est une animation de mise en page, et elle
+ * n'est visible qu'en fin de défilement. */
+.board-main--dragging .kanban {
   padding-bottom: calc(var(--space-7) * 2);
+}
+
+/* En-têtes de colonnes COLLÉS en haut de la zone qui défile. Les 12px au-dessus
+ * et au-dessous du libellé sont portés par l'en-tête (padding) et non par la
+ * colonne ni par une marge : au repos, géométrie identique ; collé, le libellé
+ * garde son air au lieu de toucher le bord de la zone, et une carte qui passe
+ * dessous disparaît proprement au lieu d'être coupée à ras du texte.
+ * z-index 1 : au-dessus des cartes de la même colonne, seul calque ajouté. */
+.board-page .kanban-column {
+  padding-top: 0;
+}
+
+.board-page .kanban-column__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-bottom: 0;
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-3);
+  background: var(--color-surface-column);
+  transition: background-color var(--transition-fast);
+}
+
+/* Colonne survolée pendant un glisser : l'en-tête prend le même fond qu'elle. */
+.board-page .kanban-column--drop-target .kanban-column__header {
+  background: var(--color-surface-3);
 }
 
 .board-header {
@@ -240,6 +312,22 @@
   /* DESIGN.md : « Titre de page : 28px ». Même valeur que le h1 par défaut
    * (base.css), posée ici explicitement pour le titre du tableau. */
   font-size: var(--text-xl);
+}
+
+/* Tableau vide : comment ajouter une offre, au-dessus des cinq colonnes (vides).
+ * Texte secondaire (8,7 / 8,9:1 sur la page). Lien NEUTRE, souligné, de la
+ * couleur du texte (13,5:1) : le teal reste unique à l'écran, sur le bouton
+ * d'ajout. */
+.board-empty-hint {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.board-empty-hint a,
+.board-empty-hint a:hover {
+  color: var(--color-text);
+  text-decoration-color: currentColor;
 }
 
 /* ================================================================== */
@@ -308,8 +396,24 @@
  * couleur SECONDAIRE et non principale. Rôles différents (DESIGN.md) : le
  * libellé de colonne structure la zone de travail et domine les cartes ; ici, ce
  * sont les noms de tableaux qui doivent dominer leur étiquette. */
-.sidebar__title {
+/* En-tête : étiquette « TABLEAUX » à gauche, bouton de repli à droite. */
+.sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
   margin-bottom: var(--space-2);
+}
+
+/* Bouton de repli : carré de 24px (--space-5), comme les actions de ligne, icône
+ * Phosphor de 16px. TOUJOURS visible : c'est lui qui rend le repli découvrable. */
+.sidebar__collapse {
+  width: var(--space-5);
+  height: var(--space-5);
+  padding: 0;
+}
+
+.sidebar__title {
   font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
@@ -337,21 +441,22 @@
 }
 
 /* Tableau courant : NEUTRE, jamais teal (réservé à l'action principale et au
- * focus, DESIGN.md). Trois signaux sans teinte : fond de carte (surface) sur la
- * sidebar creuse, bordure forte, nom en texte principal et semi-gras (règle
- * .board-row--active .board-row__name) ; aria-current le porte aussi. Le survol
- * ne le change pas : il est déjà sélectionné. */
+ * focus, DESIGN.md). Il dit où l'on se trouve : évident d'un coup d'œil, par
+ * trois signaux sans teinte : fond de carte (surface) sur la sidebar creuse,
+ * bordure border-hover (5,12 / 5,57:1 sur la sidebar, au-dessus du seuil de 3:1),
+ * nom en texte principal et semi-gras (règle .board-row--active
+ * .board-row__name) ; aria-current le porte aussi. Le survol ne le change pas :
+ * il est déjà sélectionné. */
 .board-row--active,
 .board-row--active:hover {
   background: var(--color-surface);
-  border-color: var(--color-border-strong);
+  border-color: var(--color-border-hover);
 }
 
 /* Surbrillance quand une carte glissée survole ce tableau : neutre, comme la
- * colonne survolée du kanban. Se distingue du tableau courant par le fond
- * (surface-3 contre surface) et par une bordure nettement plus contrastée
- * (border-hover : 5,12 / 5,57:1 sur la sidebar, contre 1,43 / 1,81 pour la
- * bordure du tableau courant). */
+ * colonne survolée du kanban. Même bordure que le tableau courant : elle s'en
+ * distingue par le fond (surface-3 contre surface) et par la graisse du nom.
+ * Traitement complet des cibles de dépôt : lot « glisser-déposer » (3.2). */
 .board-row--drop-target,
 .board-row--drop-target:hover {
   background: var(--color-surface-3);
@@ -969,16 +1074,20 @@
 /* Bandeau de vérification d'email                                    */
 /* ================================================================== */
 
-/* Rappel NON BLOQUANT sous la navbar : ton neutre (surface, pas d'alerte rouge),
- * pictogramme Envelope + texte + action. Il informe, il n'avertit pas — le compte est
- * pleinement utilisable sans vérification. */
+/* Rappel NON BLOQUANT sous la navbar : pictogramme Envelope + texte + action. Il
+ * informe, il n'avertit pas : le compte est pleinement utilisable sans
+ * vérification. NEUTRE, jamais teal (le teal reste unique à l'écran, sur l'action
+ * principale) : il attire l'œil par sa bande et par l'accroche en gras, pas par
+ * la couleur. Fond --color-surface-band (écart retenu, DESIGN.md) : le seul fond
+ * qui se détache de la page de façon comparable dans les deux thèmes (1,20 /
+ * 1,19:1). Texte 11,3 / 11,4:1. */
 .banner {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-5);
-  background: var(--color-accent-soft);
-  border-bottom: 1px solid var(--color-accent-border);
+  background: var(--color-surface-band);
+  border-bottom: 1px solid var(--color-border-strong);
   color: var(--color-text);
   font-size: var(--text-sm);
   transition:
@@ -986,10 +1095,10 @@
     border-color var(--transition-base);
 }
 
+/* Icône de la couleur du texte (currentColor), plus en accent. */
 .banner__icon {
   flex: 0 0 auto;
   display: flex;
-  color: var(--color-accent-text);
 }
 
 /* Le texte occupe la place restante ; le bouton est repoussé à droite. */

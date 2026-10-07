@@ -28,11 +28,10 @@ import { Link } from 'react-router-dom'
 import KanbanColumn from '../components/KanbanColumn.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
+import { EXTENSION_URL } from '../constants/links.js'
 import { useKanbanDrag } from '../kanban/useKanbanDrag.js'
 import '../styles/landing.css'
 
-const EXTENSION_URL =
-  'https://chromewebstore.google.com/detail/cockpit/cabhkfjohddpeigkoijhlidndfkgbpno'
 const PRIVACY_URL = 'https://corentin-leroy.github.io/Cockpit/privacy'
 const GITHUB_URL = 'https://github.com/corentin-leroy'
 

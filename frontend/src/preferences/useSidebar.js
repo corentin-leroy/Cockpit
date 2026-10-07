@@ -4,7 +4,10 @@ import { useContext } from 'react'
 
 import { SidebarContext } from './context.js'
 
-/** Renvoie { collapsed, toggleSidebar }. Garde-fou si utilisé hors SidebarProvider. */
+/**
+ * Renvoie { collapsed, toggleSidebar, collapseSidebar }. Garde-fou si utilisé hors
+ * SidebarProvider.
+ */
 export function useSidebar() {
   const context = useContext(SidebarContext)
   if (context === null) {

@@ -28,11 +28,12 @@ import BoardForm from '../components/BoardForm.jsx'
 import ConfirmModal from '../components/ConfirmModal.jsx'
 import DeleteBoardModal from '../components/DeleteBoardModal.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
+import { EXTENSION_URL } from '../constants/links.js'
 
 // Enveloppe de <main class="board-main"> qui pose board-main--dragging pendant
-// un glisser-déposer : cette classe réserve (par padding-bottom, cf.
-// components.css) la hauteur d'ArchiveDropZone, plutôt que de laisser la barre
-// se superposer au bas des colonnes. DOIT être un composant à part — un hook
+// un glisser-déposer : cette classe réserve (par padding-bottom de la zone .kanban,
+// celle qui défile, cf. components.css) la hauteur d'ArchiveDropZone, plutôt que
+// de laisser la barre se superposer au bas des colonnes. DOIT être un composant à part — un hook
 // appelé dans BoardPage lui-même n'aurait pas accès au contexte de
 // DragDropProvider que BoardPage rend dans le même JSX (le contexte n'est
 // fourni qu'à ses DESCENDANTS, pas au composant qui le monte).
@@ -349,7 +350,12 @@ export default function BoardPage() {
   }
 
   return (
-    <>
+    // .board-page : hauteur de la fenêtre, la PAGE ne défile pas (components.css).
+    // C'est la zone .kanban qui défile, dans les deux sens : ses en-têtes de
+    // colonnes peuvent alors rester collés, la sidebar et le bouton d'ajout
+    // restent visibles, et la barre de défilement horizontale est toujours en bas
+    // de l'écran. Les modales, en position fixe, n'en dépendent pas.
+    <div className="board-page">
       <Navbar withSidebarToggle />
       {/* Ne rend rien si l'adresse est déjà vérifiée (ou si `user` n'est pas
           encore chargé) : aucun décalage de mise en page dans le cas courant. */}
@@ -413,14 +419,32 @@ export default function BoardPage() {
 
             {!loading && error && <Alert>{error}</Alert>}
 
+            {/* Tableau vide (premier écran d'un nouvel inscrit : « Mes
+                candidatures » est créé vide) : les cinq colonnes restent
+                affichées, elles montrent les étapes du suivi ; une phrase dit
+                comment ajouter une offre. Lien neutre : le teal reste unique à
+                l'écran, sur le bouton d'ajout. */}
             {!loading && !error && applications.length === 0 && (
-              <p className="text-muted">
-                Ce tableau n’a pas encore de candidature.
+              <p className="board-empty-hint">
+                Ce tableau est vide. Ajoutez une offre avec le bouton « Ajouter
+                une candidature », ou directement depuis la page de l’offre
+                grâce à{' '}
+                <a href={EXTENSION_URL} target="_blank" rel="noreferrer">
+                  l’extension Chrome
+                </a>
+                .
               </p>
             )}
 
-            {!loading && !error && applications.length > 0 && (
-              <div className="kanban">
+            {!loading && !error && (
+              // Zone qui défile (cf. .board-page) : focalisable et nommée, sinon
+              // le clavier ne peut pas la faire défiler.
+              <div
+                className="kanban"
+                tabIndex={0}
+                role="region"
+                aria-label="Colonnes du tableau"
+              >
                 {APPLICATION_STATUSES.map((status) => (
                   <KanbanColumn
                     key={status.key}
@@ -507,6 +531,6 @@ export default function BoardPage() {
           onClose={() => setBoardToDelete(null)}
         />
       )}
-    </>
+    </div>
   )
 }

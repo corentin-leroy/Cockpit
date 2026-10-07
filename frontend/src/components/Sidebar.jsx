@@ -13,7 +13,7 @@
 // L'apparence vit dans styles/components.css (.sidebar, .board-row…).
 
 import { useDroppable } from '@dnd-kit/react'
-import { PencilSimple, Plus, Trash } from '@phosphor-icons/react'
+import { PencilSimple, Plus, SidebarSimple, Trash } from '@phosphor-icons/react'
 
 import { useSidebar } from '../preferences/useSidebar.js'
 
@@ -93,7 +93,7 @@ export default function Sidebar({
   // Règle métier « pas le dernier tableau » côté UX : sans au moins deux tableaux,
   // on masque l'action supprimer (le backend renverrait 409 de toute façon).
   const canDelete = boards.length > 1
-  const { collapsed } = useSidebar()
+  const { collapsed, collapseSidebar } = useSidebar()
 
   return (
     // `inert` : repliée, la sidebar sort du parcours de Tab et de l'arbre
@@ -104,7 +104,21 @@ export default function Sidebar({
       className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}
       inert={collapsed}
     >
-      <h2 className="sidebar__title">Tableaux</h2>
+      {/* Bouton de repli À CÔTÉ de l'étiquette : là où l'œil se trouve quand il
+          regarde les tableaux (celui de la navbar, seul, passait inaperçu).
+          Même icône que celui de la navbar, qui reste le seul moyen de rouvrir. */}
+      <div className="sidebar__header">
+        <h2 className="sidebar__title">Tableaux</h2>
+        <button
+          type="button"
+          className="btn btn--ghost btn--icon sidebar__collapse"
+          onClick={collapseSidebar}
+          aria-label="Replier les tableaux"
+          title="Replier les tableaux"
+        >
+          <SidebarSimple size={16} aria-hidden="true" />
+        </button>
+      </div>
 
       {boards.map((board) => (
         <BoardRow
