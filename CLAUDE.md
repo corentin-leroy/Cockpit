@@ -109,7 +109,8 @@ Kanban :
   par défaut. → `dev-docs/archiving.md`
 Frontend, style, extension :
 - Lire DESIGN.md avant tout CSS ; une modification de `tokens.css` se répercute
-  dans `extension/popup.html` (sauf `--color-surface-band`). → `frontend/CLAUDE.md`
+  dans `extension/popup.html` (sauf `--color-surface-band` et
+  `--color-surface-column`). → `frontend/CLAUDE.md`
 - Appels API via `apiFetch` uniquement ; localStorage via son module dédié
   uniquement. → `frontend/CLAUDE.md`
 - Statuts : `constants/applicationStatuses.js` = miroir exact de l'enum backend ;

@@ -13,10 +13,11 @@
   `prefers-color-scheme: dark`. La popup n'a pas de bascule de thème manuelle.
 - Toute modification de la palette dans `tokens.css` doit être reportée ici dans la même
   passe. Signale-le-moi explicitement quand tu touches aux couleurs.
-- Seule exception, VOLONTAIRE : `--color-surface-band` n'est PAS dans la popup. Il ne
-  sert qu'aux bandes de section de la landing, et la popup n'en a pas : son absence
-  n'est pas un oubli de synchronisation (cf. DESIGN.md, « Duplication à surveiller »).
-  À ajouter le jour où la popup en aurait l'usage.
+- Deux exceptions, VOLONTAIRES, absentes de la popup : `--color-surface-band` (bandes de
+  section de la landing) et `--color-surface-column` (colonnes du kanban). La popup n'a
+  ni l'un ni l'autre : leur absence n'est pas un oubli de synchronisation (cf.
+  DESIGN.md, « Duplication à surveiller »). À ajouter le jour où la popup en aurait
+  l'usage.
 
 ## Messages de la popup
 - Un seul conteneur, `<p id="message">`, présent dans le HTML initial et partagé entre

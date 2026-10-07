@@ -6,6 +6,7 @@
 // d'une candidature) n'en exigent pas côté backend.
 
 import { useState } from 'react'
+import { Warning } from '@phosphor-icons/react'
 
 import Alert from './Alert.jsx'
 import Modal from './Modal.jsx'
@@ -59,7 +60,7 @@ export default function ConfirmModal({
           destructrice par défaut. */}
       <div className="confirm-warning" role="alert">
         <span className="confirm-warning__icon" aria-hidden="true">
-          ⚠
+          <Warning size={16} />
         </span>
         <div className="confirm-warning__body">
           <p className="confirm-warning__lead">{warningLead}</p>

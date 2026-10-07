@@ -7,6 +7,7 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Check, Warning } from '@phosphor-icons/react'
 
 import { deleteAccount } from '../api/auth.js'
 import { useAuth } from '../auth/useAuth.js'
@@ -54,14 +55,19 @@ export default function AccountPage() {
             <dt className="account-info__label">Statut de l’adresse</dt>
             <dd className="account-info__value">
               {/* Le statut n'est jamais porté par la seule couleur : un
-                  pictogramme (✓ / ⚠) et un libellé explicite le disent aussi. */}
+                  pictogramme (coche / triangle) et un libellé explicite le disent
+                  aussi. */}
               {user ? (
                 <span
                   className={`status-tag status-tag--${
                     user.is_verified ? 'success' : 'warning'
                   }`}
                 >
-                  <span aria-hidden="true">{user.is_verified ? '✓' : '⚠'}</span>
+                  {user.is_verified ? (
+                    <Check size={16} aria-hidden="true" />
+                  ) : (
+                    <Warning size={16} aria-hidden="true" />
+                  )}
                   {user.is_verified ? 'Vérifiée' : 'Non vérifiée'}
                 </span>
               ) : (
@@ -88,9 +94,11 @@ export default function AccountPage() {
                   className={`inline-feedback inline-feedback--${feedback.variant}`}
                   role="status"
                 >
-                  <span aria-hidden="true">
-                    {feedback.variant === 'success' ? '✓' : '⚠'}
-                  </span>{' '}
+                  {feedback.variant === 'success' ? (
+                    <Check size={16} aria-hidden="true" />
+                  ) : (
+                    <Warning size={16} aria-hidden="true" />
+                  )}
                   {feedback.message}
                 </span>
               )}
@@ -103,7 +111,8 @@ export default function AccountPage() {
             couleur n'est donc qu'un signal parmi quatre (WCAG 1.4.1). */}
         <section className="account-card account-card--danger">
           <h2 className="account-card__title account-card__title--danger">
-            <span aria-hidden="true">⚠</span> Zone de danger
+            <Warning size={16} aria-hidden="true" />
+            Zone de danger
           </h2>
 
           <div className="danger-row">

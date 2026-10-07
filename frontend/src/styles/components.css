@@ -110,10 +110,14 @@
   color: var(--color-text-secondary);
 }
 
+/* Survol NEUTRE : le teal est réservé à l'action principale et au focus
+ * (DESIGN.md, « Couleur »). Même fond et même texte que le survol des autres
+ * boutons ; la bordure passe en border-hover (4,68 / 4,63:1 sur surface-3), un
+ * changement de luminance perceptible sans distinguer les teintes. */
 .btn--dashed:hover:not(:disabled) {
-  border-color: var(--color-accent-border);
-  color: var(--color-accent-text);
-  background: var(--color-accent-soft);
+  border-color: var(--color-border-hover);
+  color: var(--color-text);
+  background: var(--color-surface-3);
 }
 
 .btn--block {
@@ -299,13 +303,18 @@
   }
 }
 
+/* Étiquette de catégorie au-dessus des noms de tableaux : même gabarit que le
+ * libellé de colonne (12px, 600, majuscules, même interlettrage), mais en
+ * couleur SECONDAIRE et non principale. Rôles différents (DESIGN.md) : le
+ * libellé de colonne structure la zone de travail et domine les cartes ; ici, ce
+ * sont les noms de tableaux qui doivent dominer leur étiquette. */
 .sidebar__title {
   margin-bottom: var(--space-2);
   font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: var(--color-text-muted);
+  letter-spacing: 0.3px;
+  color: var(--color-text-secondary);
 }
 
 /* Ligne d'un tableau : bouton de sélection (nom) + actions au survol.
@@ -327,25 +336,34 @@
   background: var(--color-surface-3);
 }
 
-/* Tableau courant : fond teinté + bordure d'accent + texte renforcé. La sélection
- * ne repose donc pas sur la seule couleur (aria-current la porte aussi). */
-.board-row--active {
-  background: var(--color-accent-soft);
-  border-color: var(--color-accent-border);
-}
-
+/* Tableau courant : NEUTRE, jamais teal (réservé à l'action principale et au
+ * focus, DESIGN.md). Trois signaux sans teinte : fond de carte (surface) sur la
+ * sidebar creuse, bordure forte, nom en texte principal et semi-gras (règle
+ * .board-row--active .board-row__name) ; aria-current le porte aussi. Le survol
+ * ne le change pas : il est déjà sélectionné. */
+.board-row--active,
 .board-row--active:hover {
-  background: var(--color-accent-soft-hover);
+  background: var(--color-surface);
+  border-color: var(--color-border-strong);
 }
 
-/* Surbrillance quand une carte glissée survole ce tableau (miroir du feedback des
- * colonnes du kanban). */
+/* Surbrillance quand une carte glissée survole ce tableau : neutre, comme la
+ * colonne survolée du kanban. Se distingue du tableau courant par le fond
+ * (surface-3 contre surface) et par une bordure nettement plus contrastée
+ * (border-hover : 5,12 / 5,57:1 sur la sidebar, contre 1,43 / 1,81 pour la
+ * bordure du tableau courant). */
 .board-row--drop-target,
 .board-row--drop-target:hover {
-  background: var(--color-accent-soft-hover);
-  border-color: var(--color-accent);
+  background: var(--color-surface-3);
+  border-color: var(--color-border-hover);
 }
 
+.board-row--drop-target .board-row__name {
+  color: var(--color-text);
+}
+
+/* 14px (et non 16px) : même corps que les titres de cartes, densité de
+ * référence Notion. Le nom domine son étiquette « TABLEAUX » (12px). */
 .board-row__name {
   flex: 1;
   min-width: 0;
@@ -356,7 +374,7 @@
   background: transparent;
   color: var(--color-text-secondary);
   font: inherit;
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   cursor: pointer;
   /* Tronque un nom trop long au lieu de casser la mise en page. */
   overflow: hidden;
@@ -370,9 +388,31 @@
   font-weight: 600;
 }
 
-/* Bouton « + Nouveau tableau » : détaché de la liste. */
+/* Actions de ligne (renommer, supprimer) : affichées au survol de la ligne OU
+ * quand le clavier y est (:focus-within), tableau courant compris. Absentes le
+ * reste du temps (display:none), elles laissent toute la largeur au nom : affichées
+ * en permanence sur le tableau courant, elles le tronquaient dès 9 caractères.
+ * Le clavier les atteint : Tab sur le nom → la ligne a le focus → elles
+ * apparaissent et deviennent le prochain arrêt de Tab. Carrés de 24px (--space-5),
+ * icône Phosphor de 16px. Déclarée après .btn : à spécificité égale, ce
+ * display l'emporte sur son inline-flex. */
+.board-row__action {
+  display: none;
+  width: var(--space-5);
+  height: var(--space-5);
+  padding: 0;
+}
+
+.board-row:hover .board-row__action,
+.board-row:focus-within .board-row__action {
+  display: inline-flex;
+}
+
+/* Bouton « Nouveau tableau » : détaché de la liste, même corps (14px) que les
+ * noms de tableaux qu'il prolonge. */
 .sidebar > .btn--dashed {
   margin-top: var(--space-2);
+  font-size: var(--text-sm);
 }
 
 /* ================================================================== */
@@ -397,7 +437,9 @@
   display: flex;
   flex-direction: column;
   padding: var(--space-3);
-  background: var(--color-surface-2);
+  /* Token dédié, en creux sous la page dans les deux thèmes (cf. tokens.css) :
+   * la carte s'en détache à 1,14 / 1,16:1 (1,05 en sombre avec surface-2). */
+  background: var(--color-surface-column);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   transition:
@@ -422,22 +464,27 @@
 
 /* Le statut reste porté par son LIBELLÉ texte (« Repérée », « Entretien »…) : aucune
  * information n'est confiée à la couleur seule — les colonnes sont d'ailleurs
- * toutes de la même teinte. */
+ * toutes de la même teinte.
+ * Couleur de texte PRINCIPALE (écart retenu, DESIGN.md) : en secondaire, le
+ * libellé qui structure l'écran pesait moins que les titres de cartes. 12,5 /
+ * 14,3:1 sur la colonne. */
 .kanban-column__label {
   font-size: var(--text-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  color: var(--color-text-secondary);
+  color: var(--color-text);
 }
 
 /* Pas de fond ni de bordure : le chiffre seul suffit à se distinguer du
  * libellé de colonne (DESIGN.md, « pas de bordure quand un espace suffit »).
+ * Discret (muted, 5,1 / 6,2:1 sur la colonne) : un cran sous le libellé, qu'il
+ * complète sans lui faire concurrence.
  * flex:0 0 auto l'empêche de rétrécir dans l'en-tête (justify-content:
  * space-between). */
 .kanban-column__count {
   flex: 0 0 auto;
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
 }
@@ -523,10 +570,12 @@
 /* Pas d'ombre : DESIGN.md la réserve aux éléments flottants (modale, menu).
  * Le survol change le fond ET renforce la bordure (DESIGN.md, « Cartes »).
  * surface-3 = token « survol » ; ses contrastes texte sont vérifiés AA dans
- * tokens.css. */
+ * tokens.css. Bordure border-hover (4,68 / 4,63:1 sur surface-3) et non
+ * border-strong (1,31 / 1,51) : un vrai saut de luminance, perceptible quelle
+ * que soit la vision des couleurs. */
 .app-card:hover {
   background: var(--color-surface-3);
-  border-color: var(--color-border-strong);
+  border-color: var(--color-border-hover);
 }
 
 /* Retour visuel de la carte en cours de déplacement : atténuée, pendant qu'un
@@ -584,8 +633,16 @@
   text-decoration: none;
 }
 
-.app-card__title a:hover {
+/* Souligné au survol ou au focus du TITRE SEUL (écart retenu, DESIGN.md) : la
+ * carte a deux cibles de clic aux effets opposés (le titre ouvre l'offre
+ * externe dans un nouvel onglet, le reste de la carte ouvre la modale), il faut
+ * les distinguer. Filet de la couleur du texte : la règle globale `a` le
+ * teinterait en accent. */
+.app-card__title a:hover,
+.app-card__title a:focus-visible {
   color: inherit;
+  text-decoration-line: underline;
+  text-decoration-color: currentColor;
 }
 
 /* Métadonnées (entreprise, lieu) : 12px, couleur secondaire pour les deux
@@ -677,10 +734,13 @@
   font-size: var(--text-lg);
 }
 
+/* Croix de fermeture : icône Phosphor de 16px dans un CARRÉ FIXE de 32px
+ * (--space-6), même gabarit que les boutons-icônes des barres. L'ancien glyphe ×
+ * dépendait de la police (taille --text-xl pour être visible). */
 .modal__close {
-  font-size: var(--text-xl);
-  padding: 0 var(--space-2);
-  line-height: 1.2;
+  width: var(--space-6);
+  height: var(--space-6);
+  padding: 0;
 }
 
 /* ================================================================== */
@@ -782,7 +842,7 @@
 /* Messages d'état                                                    */
 /* ================================================================== */
 
-/* Bandeau d'erreur : icône ⚠ + texte + couleur. Trois signaux redondants, la
+/* Bandeau d'erreur : icône Warning (Phosphor) + texte + couleur. Trois signaux redondants, la
  * couleur n'est jamais seule à porter le sens (WCAG 1.4.1). */
 .alert {
   display: flex;
@@ -807,8 +867,8 @@
 }
 
 /* Information neutre (session expirée) : surface creuse et texte secondaire,
- * sans teinte d'alerte. Le pictogramme ℹ porte le sens indépendamment de la
- * couleur, comme ⚠ et ✓ pour les deux autres variantes. --color-text-secondary
+ * sans teinte d'alerte. Le pictogramme Info porte le sens indépendamment de la
+ * couleur, comme Warning et Check pour les deux autres variantes. --color-text-secondary
  * est vérifié AA sur les surfaces des deux thèmes (cf. tokens.css). */
 .alert--info {
   background: var(--color-surface-2);
@@ -816,9 +876,13 @@
   color: var(--color-text-secondary);
 }
 
+/* Icône Phosphor de 16px centrée sur la PREMIÈRE ligne du message (hauteur
+ * 1lh), qu'il tienne sur une ligne ou plusieurs. */
 .alert__icon {
   flex: 0 0 auto;
-  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  height: 1lh;
 }
 
 /* Le texte est un enfant flex : sans min-width:0 un mot sans espace élargit le
@@ -906,7 +970,7 @@
 /* ================================================================== */
 
 /* Rappel NON BLOQUANT sous la navbar : ton neutre (surface, pas d'alerte rouge),
- * pictogramme ✉ + texte + action. Il informe, il n'avertit pas — le compte est
+ * pictogramme Envelope + texte + action. Il informe, il n'avertit pas — le compte est
  * pleinement utilisable sans vérification. */
 .banner {
   display: flex;
@@ -924,6 +988,7 @@
 
 .banner__icon {
   flex: 0 0 auto;
+  display: flex;
   color: var(--color-accent-text);
 }
 
@@ -935,8 +1000,12 @@
 }
 
 /* Retour de l'envoi, à la suite du texte du bandeau. Le sens ne repose pas sur
- * la couleur seule : chaque variante porte son pictogramme (✓ / ⚠). */
+ * la couleur seule : chaque variante porte son pictogramme (Check / Warning). */
+/* inline-flex : l'icône SVG reste centrée sur le texte du retour. */
 .banner__feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   margin-left: var(--space-2);
 }
 
@@ -982,7 +1051,7 @@
 }
 
 /* Zone de suppression. La couleur n'est qu'un signal PARMI d'autres : le titre
- * « Zone de danger », le pictogramme ⚠ et la bordure renforcée portent la même
+ * « Zone de danger », le pictogramme Warning et la bordure renforcée portent la même
  * information, perceptibles sans distinguer les teintes (WCAG 1.4.1). */
 .account-card--danger {
   background: var(--color-danger-soft);
@@ -1073,6 +1142,9 @@
 
 /* Retour d'action affiché à côté du bouton qui l'a déclenchée. */
 .inline-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-size: var(--text-sm);
 }
 
@@ -1097,9 +1169,13 @@
   border-radius: var(--radius-md);
 }
 
+/* Icône Phosphor de 16px centrée sur la première ligne du message d'en-tête
+ * (.confirm-warning__lead, en --text-sm) : la hauteur est celle de cette ligne. */
 .confirm-warning__icon {
   flex: 0 0 auto;
-  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  height: calc(var(--text-sm) * var(--leading-body));
   color: var(--color-danger-text);
 }
 

@@ -26,15 +26,32 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
   section « Landing page »). L'application (kanban, formulaires, modales) plafonne à 28px.
 - Les glyphes et icônes (croix de fermeture, pictogrammes) ne consomment pas de token
   typographique : leur taille relève de l'icône, pas du texte.
-- Icônes : bibliothèque Phosphor (`@phosphor-icons/react`), graisse normale, 16px dans
-  les boutons-icônes des barres. Les boutons-icônes des barres (bascule de thème, repli
-  de la sidebar) sont des CARRÉS FIXES de 32px (`--space-6`) : leur taille ne dépend
-  jamais de l'icône. Jamais de SVG et de caractère Unicode mêlés dans une même barre.
-  Le reste de l'application utilise encore des caractères Unicode (dont deux emoji,
-  contraires aux interdits) : leur passage à Phosphor est un lot d'harmonisation prévu.
+- Icônes : bibliothèque Phosphor (`@phosphor-icons/react`) PARTOUT, graisse normale,
+  16px. Aucun caractère Unicode ni emoji servant d'icône dans le frontend (croix de
+  fermeture, coche, avertissement, enveloppe compris) : un glyphe dépend de la police
+  de secours, change de taille et de graisse d'un système à l'autre. Harmonisation
+  terminée le 2026-10-07 ; à revérifier par une recherche dans `frontend/` à chaque
+  ajout d'icône.
+  - Boutons-icônes des barres (bascule de thème, repli de la sidebar) et croix de
+    fermeture des modales : CARRÉS FIXES de 32px (`--space-6`), leur taille ne dépend
+    jamais de l'icône.
+  - Actions d'une ligne de la sidebar (renommer, supprimer) : carrés de 24px
+    (`--space-5`).
+  - Icône posée devant un texte (alerte, avertissement, bandeau, retour d'action) :
+    centrée sur la PREMIÈRE ligne du texte (hauteur `1lh`), qu'il tienne sur une ou
+    plusieurs lignes.
 - Titre de carte : 14px, poids 500, couleur de texte principale.
 - Métadonnées (entreprise, lieu) : 12px, couleur de texte secondaire.
-- Titre de colonne : 12px, poids 600, majuscules, couleur secondaire.
+- Titre de colonne : 12px, poids 600, majuscules, couleur de texte PRINCIPALE (12,5:1
+  en clair, 14,3:1 en sombre). Écart retenu le 2026-10-07 (auparavant : secondaire) :
+  le libellé de colonne structure la zone de travail, mais en secondaire il avait la
+  couleur des métadonnées et pesait moins que les titres de cartes. La hiérarchie
+  était inversée.
+- Compteur de colonne : 12px, couleur discrète (`--color-text-muted`, 5,1:1 / 6,2:1),
+  un cran sous le libellé qu'il complète.
+- Étiquette « TABLEAUX » de la sidebar : même gabarit que le titre de colonne, mais en
+  couleur SECONDAIRE. Rôle différent : c'est une étiquette de catégorie, et ce sont
+  les noms de tableaux (14px) qu'elle surmonte qui doivent dominer.
 - Titre de page : 28px, poids 600.
 - Interligne : 1.55 pour le texte courant (token `--leading-body`, source unique :
   `html` et la hauteur minimale de `.input` le lisent), 1.2 pour les titres.
@@ -53,7 +70,16 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - L'accent teal est réservé à deux usages, et seulement ceux-là : l'action principale
   de l'écran (bouton « Ajouter une candidature ») et l'anneau de focus.
 - Aucun texte de contenu en accent. Les titres de cartes sont en neutre.
+- Les ÉTATS sont neutres, jamais teal : tableau courant de la sidebar (fond de carte,
+  bordure forte, nom en semi-gras), cible de dépôt survolée (fond de survol, bordure
+  `--color-border-hover`), survols de boutons. Corrigé le 2026-10-07 : ces trois
+  éléments étaient teal.
 - Les colonnes n'ont pas de couleur propre. Le statut est porté par la position et le libellé.
+- Fond de colonne : token dédié `--color-surface-column`, en CREUX sous la page dans les
+  deux thèmes. Écart retenu le 2026-10-07 (nouvelle nuance) : en sombre,
+  `--color-surface-2` est plus claire que la page. La colonne y était en relief (en
+  creux en clair) et la carte s'en distinguait à 1,05:1 seulement. Mesuré : carte /
+  colonne 1,14 (clair) et 1,16 (sombre), colonne / page 1,08 et 1,05.
 - Aucune information ne repose sur la couleur seule.
 - Contraste minimum WCAG AA : 4.5:1 pour le texte, 3:1 pour les bordures et icônes.
 - Les tokens `--color-text*` ne servent qu'au texte. Une bordure, un fond ou une icône
@@ -68,8 +94,13 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
 - Aucune action n'est affichée sur la carte, ni en permanence ni au survol.
   Éditer, supprimer et changer de statut se font depuis la modale.
 - Le survol modifie le fond et renforce la bordure. C'est le seul signal d'interactivité.
-- Le titre reste un lien vers l'offre, mais sans style de lien : couleur de texte
-  principale, pas de soulignement, `cursor: pointer`.
+  Bordure de survol `--color-border-hover` (4,7:1 / 4,6:1 sur le fond de survol) : un
+  saut de luminance perceptible quelle que soit la vision des couleurs.
+- Le titre reste un lien vers l'offre : couleur de texte principale, `cursor: pointer`,
+  pas de soulignement AU REPOS. Souligné (couleur du texte, jamais teal) au survol ou
+  au focus du TITRE SEUL, pas de la carte. Écart retenu le 2026-10-07 : la carte a deux
+  cibles de clic aux effets opposés (le titre ouvre l'offre externe dans un nouvel
+  onglet, le reste de la carte ouvre la modale), elles doivent se distinguer.
 - Bordure 1px, rayon 6px, pas d'ombre portée.
 
 ## Landing page
@@ -272,9 +303,10 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
 - Le bloc `<style>` de `extension/popup.html` duplique volontairement les tokens de
   `tokens.css` (couleurs, espacements, rayons, typo). Toute modification de la palette
   ou de l'échelle typographique doit y être répercutée dans la même passe.
-- Exception VOLONTAIRE : `--color-surface-band` n'est PAS dans la popup. Il ne sert
-  qu'aux bandes de section de la landing, et la popup n'en a pas. Son absence n'est pas
-  un oubli de synchronisation ; à ajouter le jour où la popup en aurait l'usage.
+- Exceptions VOLONTAIRES, absentes de la popup, à ajouter le jour où elle en aurait
+  l'usage (leur absence n'est pas un oubli de synchronisation) :
+  - `--color-surface-band` : ne sert qu'aux bandes de section de la landing ;
+  - `--color-surface-column` : ne sert qu'aux colonnes du kanban, la popup n'en a pas.
 
 ## Vérification avant de considérer un écran terminé
 - Compter les valeurs d'espacement utilisées : toutes doivent être dans l'échelle.

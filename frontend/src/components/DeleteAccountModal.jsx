@@ -10,6 +10,7 @@
 // garde-fou d'interface qu'on pourrait contourner en appelant l'API directement.
 
 import { useState } from 'react'
+import { Warning } from '@phosphor-icons/react'
 
 import { splitFormErrors } from '../api/client.js'
 import Alert, { FieldError } from './Alert.jsx'
@@ -63,7 +64,7 @@ export default function DeleteAccountModal({ onConfirm, onClose }) {
             sûr ? » abstrait : on ne peut consentir qu'à ce qu'on a compris. */}
         <div className="confirm-warning" role="alert">
           <span className="confirm-warning__icon" aria-hidden="true">
-            ⚠
+            <Warning size={16} />
           </span>
           <div className="confirm-warning__body">
             <p className="confirm-warning__lead">

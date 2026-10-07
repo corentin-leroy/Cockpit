@@ -12,9 +12,10 @@ cas d'écart. Commandes : CLAUDE.md racine. Pas de lanceur de tests frontend.
   densité : Notion). La couleur et l'espace signalent, ils ne décorent pas.
 - Les tokens (couleurs, espacements, typo) sont dupliqués dans le bloc `<style>`
   de `extension/popup.html` : toute modification de `tokens.css` doit y être
-  répercutée dans la même passe. Seule exception, VOLONTAIRE : `--color-surface-band`
-  (bandes de section de la landing), absent de la popup qui n'en a pas l'usage
-  (cf. DESIGN.md, « Duplication à surveiller »).
+  répercutée dans la même passe. Deux exceptions, VOLONTAIRES :
+  `--color-surface-band` (bandes de section de la landing) et
+  `--color-surface-column` (colonnes du kanban), absents de la popup qui n'en a pas
+  l'usage (cf. DESIGN.md, « Duplication à surveiller »).
 - La landing page a une zone de liberté propre (échelle typographique, fonds de
   section alternés, ombre, teal d'identité), limitée aux écarts listés dans la
   section « Landing page » de DESIGN.md. L'application plafonne à 28px.

@@ -7,6 +7,7 @@
 //   à la fermeture, il est rendu à l'élément qui l'avait avant l'ouverture.
 
 import { useEffect, useRef } from 'react'
+import { X } from '@phosphor-icons/react'
 
 export default function Modal({ title, onClose, children }) {
   const dialogRef = useRef(null)
@@ -69,7 +70,7 @@ export default function Modal({ title, onClose, children }) {
             className="btn btn--ghost btn--icon modal__close"
             onClick={onClose}
           >
-            <span aria-hidden="true">×</span>
+            <X size={16} aria-hidden="true" />
           </button>
         </header>
 

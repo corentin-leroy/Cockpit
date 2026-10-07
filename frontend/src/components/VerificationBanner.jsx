@@ -11,6 +11,8 @@
 // /auth/me est encore en vol — l'afficher « au cas où » ferait clignoter un
 // avertissement chez un utilisateur déjà vérifié.
 
+import { Check, Envelope, Warning } from '@phosphor-icons/react'
+
 import { useAuth } from '../auth/useAuth.js'
 import { useResendVerification } from '../auth/useResendVerification.js'
 
@@ -23,7 +25,7 @@ export default function VerificationBanner() {
   return (
     <div className="banner" role="status">
       <span className="banner__icon" aria-hidden="true">
-        ✉
+        <Envelope size={16} />
       </span>
 
       <p className="banner__text">
@@ -33,7 +35,11 @@ export default function VerificationBanner() {
             de l'action : pas de bandeau supplémentaire empilé au-dessus. */}
         {feedback && (
           <span className={`banner__feedback banner__feedback--${feedback.variant}`}>
-            <span aria-hidden="true">{feedback.variant === 'success' ? '✓' : '⚠'}</span>{' '}
+            {feedback.variant === 'success' ? (
+              <Check size={16} aria-hidden="true" />
+            ) : (
+              <Warning size={16} aria-hidden="true" />
+            )}
             {feedback.message}
           </span>
         )}

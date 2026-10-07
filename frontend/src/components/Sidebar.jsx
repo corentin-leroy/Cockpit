@@ -1,7 +1,8 @@
 // Menu latéral listant les tableaux de l'utilisateur. Le tableau courant est mis
 // en évidence ; cliquer sur un tableau le définit comme courant. Chaque tableau
-// expose au survol (ou s'il est courant) deux actions : renommer et supprimer.
-// Un bouton « + Nouveau tableau » termine la liste.
+// expose au survol, ou quand le clavier est dans sa ligne, deux actions :
+// renommer et supprimer (affichage piloté en CSS, .board-row__action). Un bouton
+// « Nouveau tableau » termine la liste.
 //
 // Chaque tableau est aussi une CIBLE de dépôt (@dnd-kit/react) : glisser une carte
 // du kanban sur un tableau y déplace la candidature. Le tableau courant n'est PAS
@@ -11,8 +12,8 @@
 // BoardsProvider via props) ; seule l'intégration drag & drop est locale.
 // L'apparence vit dans styles/components.css (.sidebar, .board-row…).
 
-import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/react'
+import { PencilSimple, Plus, Trash } from '@phosphor-icons/react'
 
 import { useSidebar } from '../preferences/useSidebar.js'
 
@@ -22,8 +23,6 @@ import { useSidebar } from '../preferences/useSidebar.js'
 // le type (« board ») et le boardId : c'est ce qui permet à onDragEnd de
 // distinguer un dépôt sur un tableau d'un dépôt sur une colonne (cf. BoardPage).
 function BoardRow({ board, active, collapsed, canDelete, onSelect, onRename, onDelete }) {
-  const [hovered, setHovered] = useState(false)
-
   // Le tableau courant n'est pas une cible : la carte glissée en provient déjà.
   // `disabled` empêche à la fois la détection de collision et la surbrillance.
   // Sidebar REPLIÉE : aussi désactivée. Repliée, elle est décalée hors de l'écran
@@ -36,9 +35,6 @@ function BoardRow({ board, active, collapsed, canDelete, onSelect, onRename, onD
     disabled: active || collapsed,
   })
 
-  // Actions visibles au survol, et en permanence sur le tableau courant.
-  const showActions = hovered || active
-
   const className = [
     'board-row',
     active ? 'board-row--active' : '',
@@ -48,12 +44,7 @@ function BoardRow({ board, active, collapsed, canDelete, onSelect, onRename, onD
     .join(' ')
 
   return (
-    <div
-      ref={ref}
-      className={className}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
+    <div ref={ref} className={className}>
       <button
         type="button"
         aria-current={active ? 'true' : undefined}
@@ -64,29 +55,28 @@ function BoardRow({ board, active, collapsed, canDelete, onSelect, onRename, onD
         {board.name}
       </button>
 
-      {showActions && (
-        <>
-          <button
-            type="button"
-            aria-label={`Renommer le tableau ${board.name}`}
-            title="Renommer"
-            className="btn btn--ghost btn--icon"
-            onClick={() => onRename(board)}
-          >
-            <span aria-hidden="true">✎</span>
-          </button>
-          {canDelete && (
-            <button
-              type="button"
-              aria-label={`Supprimer le tableau ${board.name}`}
-              title="Supprimer"
-              className="btn btn--ghost btn--icon"
-              onClick={() => onDelete(board)}
-            >
-              <span aria-hidden="true">🗑</span>
-            </button>
-          )}
-        </>
+      {/* Toujours rendues : masquées en CSS hors survol et hors focus clavier
+          (.board-row__action). Rendues seulement au survol, elles n'existaient
+          pas pour le clavier. */}
+      <button
+        type="button"
+        aria-label={`Renommer le tableau ${board.name}`}
+        title="Renommer"
+        className="btn btn--ghost btn--icon board-row__action"
+        onClick={() => onRename(board)}
+      >
+        <PencilSimple size={16} aria-hidden="true" />
+      </button>
+      {canDelete && (
+        <button
+          type="button"
+          aria-label={`Supprimer le tableau ${board.name}`}
+          title="Supprimer"
+          className="btn btn--ghost btn--icon board-row__action"
+          onClick={() => onDelete(board)}
+        >
+          <Trash size={16} aria-hidden="true" />
+        </button>
       )}
     </div>
   )
@@ -134,7 +124,8 @@ export default function Sidebar({
         className="btn btn--dashed btn--block"
         onClick={onCreate}
       >
-        + Nouveau tableau
+        <Plus size={16} aria-hidden="true" />
+        Nouveau tableau
       </button>
     </aside>
   )

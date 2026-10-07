@@ -65,8 +65,17 @@
   /* Fonds : blanc cassé tiède → surfaces légèrement contrastées */
   --color-bg: #faf9f7; /* fond d'application */
   --color-surface: #ffffff; /* cartes, modales, navbar */
-  --color-surface-2: #f2f0ec; /* colonnes du kanban, zones creuses */
+  --color-surface-2: #f2f0ec; /* sidebar, zones creuses (colonnes : surface-column) */
   --color-surface-3: #e9e6e1; /* survol, éléments enfoncés */
+  /* Colonne du kanban : TOUJOURS en creux sous la page, dans les deux thèmes.
+   * En clair, valeur identique à surface-2 (coïncidence, pas un lien). Token
+   * dédié parce qu'en sombre surface-2 est PLUS CLAIRE que la page : la colonne
+   * y était en relief, et la carte s'en distinguait à 1,05:1 seulement. Mesuré :
+   * carte (surface) / colonne 1,14 ici, 1,16 en sombre ; colonne / page 1,08 et
+   * 1,05 (en creux). Textes posés dessus : text 12,5:1, text-secondary 8,0:1,
+   * text-muted 5,1:1. Absent de la popup de l'extension, volontairement (cf.
+   * DESIGN.md, « Duplication à surveiller »). */
+  --color-surface-column: #f2f0ec;
   /* Bande de section (landing) : se distingue du fond de page de façon COMPARABLE
    * dans les deux thèmes, ~1,2:1 (1,20 ici, 1,20 en sombre). Aucune surface
    * existante ne le permet : surface-2 est plus sombre que le fond en clair mais
@@ -125,6 +134,9 @@
   --color-surface: #23252d;
   --color-surface-2: #1f2128;
   --color-surface-3: #2c2f38;
+  /* Colonne du kanban, en creux sous la page (cf. thème clair). Textes : text
+   * 14,3:1, text-secondary 9,4:1, text-muted 6,2:1. */
+  --color-surface-column: #16181d;
   /* Bande de section : 1,20:1 contre le fond (cf. thème clair). Textes : text
    * 11,4:1, text-secondary 7,4:1, text-muted 4,9:1. */
   --color-surface-band: #292b34;
@@ -173,6 +185,7 @@
     --color-surface: #23252d;
     --color-surface-2: #1f2128;
     --color-surface-3: #2c2f38;
+    --color-surface-column: #16181d;
     --color-surface-band: #292b34;
 
     --color-border: #343843;

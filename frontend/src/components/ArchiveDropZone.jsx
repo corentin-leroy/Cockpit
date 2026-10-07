@@ -16,6 +16,7 @@
 // glisser (même principe que le tableau courant dans Sidebar.jsx).
 
 import { useDragOperation, useDroppable } from '@dnd-kit/react'
+import { Archive } from '@phosphor-icons/react'
 
 export default function ArchiveDropZone() {
   const { source } = useDragOperation()
@@ -37,7 +38,8 @@ export default function ArchiveDropZone() {
 
   return (
     <div ref={ref} className={className} aria-hidden={!isDragging}>
-      <span aria-hidden="true">🗄</span> Déposer ici pour archiver
+      <Archive size={16} aria-hidden="true" />
+      Déposer ici pour archiver
     </div>
   )
 }
