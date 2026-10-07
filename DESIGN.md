@@ -67,6 +67,17 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
   - Icône posée devant un texte (alerte, avertissement, bandeau, retour d'action) :
     centrée sur la PREMIÈRE ligne du texte (hauteur `1lh`), qu'il tienne sur une ou
     plusieurs lignes.
+- Marque : le logo (le favicon, `BrandLogo.jsx`, SEUL composant qui l'affiche) à
+  gauche du nom « Cockpit », 24px, 8px d'écart, dans la barre de l'application et
+  dans celle de la landing : identique sur la vitrine et dans l'outil. Décoratif
+  (alt vide), le nom est toujours écrit à côté. Dans la navbar, il est DANS le lien
+  de la marque (même cible, /app). Ce lien est NEUTRE : ni soulignement, ni teal au
+  survol (la règle globale des liens les lui donnait ; corrigé le 2026-10-07). Il ne change pas la hauteur des barres (57px, fixée
+  par les boutons-icônes de 32px).
+  - Il suit le thème choisi SUR LE SITE, pas celui du système : le SVG choisit ses
+    couleurs par `prefers-color-scheme`, qui, dans une image, suit le `color-scheme`
+    de la page, posé par `tokens.css` selon `data-theme`. Retirer ces
+    `color-scheme` de `tokens.css` casserait ce comportement.
 - Titre de carte : 14px, poids 500, couleur de texte principale.
 - Métadonnées (entreprise, lieu) : 12px, couleur de texte secondaire.
 - Titre de colonne : 12px, poids 600, majuscules, couleur de texte PRINCIPALE (12,5:1
@@ -206,7 +217,6 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
   et les titres séparent déjà les blocs) peut rester sous le seuil des bordures, comme
   `--color-border` dans l'application. Mesurés : teal sur bande teal 1,49 / 1,94,
   neutre sur bande neutre 1,31 / 1,51.
-- Logo (le favicon) dans l'en-tête, à côté du nom.
 
 ### Mise en page des sections
 - Deux sections ne partagent JAMAIS la même disposition. C'était la principale cause de

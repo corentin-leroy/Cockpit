@@ -16,7 +16,6 @@
  *  - ombre portée (--shadow-lg) sur le panneau du kanban, objet posé sur la page ;
  *  - teal comme couleur d'identité : mots du h1, bande teal pâle, filets de la
  *    vue d'ensemble, numéros d'étapes. Il ne porte jamais seul une information ;
- *  - logo (favicon) dans l'en-tête ;
  *  - en-tête COLLÉ en haut pendant le défilement (CSS seul), avec « Créer un
  *    compte » en style secondaire : le teal reste unique à l'écran.
  * Aucune animation d'entrée ni au défilement : le kanban déplaçable reste
@@ -237,10 +236,6 @@
   font-weight: 600;
   letter-spacing: -0.2px;
   color: var(--color-text);
-}
-
-.landing-topbar__logo {
-  display: block;
 }
 
 /* --topbar-gap : l'écart entre les commandes, nommé parce que l'emplacement de

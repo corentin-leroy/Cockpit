@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../auth/useAuth.js'
 import { useSidebar } from '../preferences/useSidebar.js'
+import BrandLogo from './BrandLogo.jsx'
 import ThemeToggle from './ThemeToggle.jsx'
 
 /**
@@ -67,7 +68,11 @@ export default function Navbar({ withSidebarToggle = false }) {
           </button>
         )}
 
+        {/* Logo DANS le lien : il agrandit la zone cliquable sans changer le
+            comportement (toujours /app). Décoratif (alt vide, BrandLogo) : le
+            lien reste annoncé « Cockpit ». */}
         <Link to="/app" className="navbar__brand">
+          <BrandLogo />
           Cockpit
         </Link>
       </div>

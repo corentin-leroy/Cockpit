@@ -25,6 +25,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { DragDropProvider } from '@dnd-kit/react'
 import { Link } from 'react-router-dom'
 
+import BrandLogo from '../components/BrandLogo.jsx'
 import KanbanColumn from '../components/KanbanColumn.jsx'
 import ThemeToggle from '../components/ThemeToggle.jsx'
 import { APPLICATION_STATUSES } from '../constants/applicationStatuses.js'
@@ -225,16 +226,11 @@ export default function LandingPage() {
           à droite de « Se connecter ». */}
       <header ref={headerRef} className="landing-topbar">
         <div className="landing-container landing-topbar__inner">
-          {/* Le favicon sert de marque : alt vide, le nom est écrit juste à côté
-              (masqué visuellement en fenêtre étroite, toujours lu). */}
+          {/* Le favicon sert de marque (BrandLogo, partagé avec la navbar de
+              l'application) : décoratif, le nom est écrit juste à côté (masqué
+              visuellement en fenêtre étroite, toujours lu). */}
           <span className="landing-topbar__brand">
-            <img
-              src="/favicon.svg"
-              alt=""
-              width="24"
-              height="24"
-              className="landing-topbar__logo"
-            />
+            <BrandLogo />
             <span className="landing-topbar__name">Cockpit</span>
           </span>
           <div className="landing-topbar__actions">
