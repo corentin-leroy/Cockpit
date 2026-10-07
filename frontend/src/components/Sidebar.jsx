@@ -12,7 +12,7 @@
 // BoardsProvider via props) ; seule l'intégration drag & drop est locale.
 // L'apparence vit dans styles/components.css (.sidebar, .board-row…).
 
-import { useDroppable } from '@dnd-kit/react'
+import { useDragOperation, useDroppable } from '@dnd-kit/react'
 import { PencilSimple, Plus, SidebarSimple, Trash } from '@phosphor-icons/react'
 
 import { useSidebar } from '../preferences/useSidebar.js'
@@ -94,6 +94,19 @@ export default function Sidebar({
   // on masque l'action supprimer (le backend renverrait 409 de toute façon).
   const canDelete = boards.length > 1
   const { collapsed, collapseSidebar } = useSidebar()
+  // Pendant un glisser-déposer de carte, les tableaux deviennent des cibles et
+  // l'annoncent DÈS le début du geste (styles .sidebar--dragging). Sidebar
+  // repliée : rien ne change (ses cibles sont désactivées, cf. BoardRow).
+  const { source } = useDragOperation()
+  const dragging = source != null && !collapsed
+
+  const className = [
+    'sidebar',
+    collapsed ? 'sidebar--collapsed' : '',
+    dragging ? 'sidebar--dragging' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
     // `inert` : repliée, la sidebar sort du parcours de Tab et de l'arbre
@@ -101,14 +114,15 @@ export default function Sidebar({
     // la visibilité CSS. id : cible de aria-controls du bouton de la navbar.
     <aside
       id="board-sidebar"
-      className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}
+      className={className}
       inert={collapsed}
     >
       {/* Bouton de repli À CÔTÉ de l'étiquette : là où l'œil se trouve quand il
           regarde les tableaux (celui de la navbar, seul, passait inaperçu).
           Même icône que celui de la navbar, qui reste le seul moyen de rouvrir. */}
       <div className="sidebar__header">
-        <h2 className="sidebar__title">Tableaux</h2>
+        {/* Même élément, même corps : le changement de libellé ne décale rien. */}
+        <h2 className="sidebar__title">{dragging ? 'Déplacer vers' : 'Tableaux'}</h2>
         <button
           type="button"
           className="btn btn--ghost btn--icon sidebar__collapse"

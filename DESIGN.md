@@ -191,7 +191,9 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
 - Mise en scène du kanban : un panneau (fond de surface, bordure, `--shadow-lg`) posé
   sur la page, qui chevauche de 160px (96px en fenêtre étroite) la bande teal suivante.
   Rayon concentrique : celui des colonnes plus le padding du panneau (14 + 12 = 26px).
-  C'est le seul élément ombré de la page, hors bouton principal.
+  C'est le seul élément ombré de la page, hors bouton principal et hors carte EN COURS
+  de glisser dans la démo (élément flottant, `--shadow-md`, cf. « Interaction et
+  périmètre »), qui n'existe que le temps du geste.
 - Teal comme couleur d'identité, plus seulement comme signal : « poste de pilotage »
   dans le `h1` (`--color-accent-text`, 6,87 / 9,06), la bande teal pâle, les filets de la
   vue d'ensemble (`--color-accent-border`), les numéros des étapes. Partout il double un
@@ -297,6 +299,25 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
 - Cible : desktop, pointeur. Le tactile est hors périmètre pour l'instant.
 - Le glisser-déposer entre colonnes est une interaction pointeur uniquement.
   Choix assumé, à documenter dans le README.
+- Pendant un glisser-déposer (décidé le 2026-10-07). Chaque état se distingue par la
+  FORME du trait et la LUMINANCE, jamais par la teinte seule ; aucun teal ; aucun
+  décalage de mise en page au début ni à la fin du geste :
+  - Carte glissée : OPAQUE, `--shadow-md` (élément flottant). Au-dessus d'un tableau de
+    la sidebar ou de la zone d'archivage, translucide à 20 % : le nom de la cible se lit
+    à travers (son titre tombe pile dessus, à 40 % les deux textes se mêlaient), et
+    l'effacement annonce qu'elle va quitter le tableau. Landing : toujours opaque.
+  - Sidebar dépliée, dès le début du geste : « TABLEAUX » devient « DÉPLACER VERS »
+    (même élément, aucun décalage), actions de ligne masquées.
+  - Autre tableau (cible) : trait fin en TIRETS `--color-border-hover` (5,1 / 5,6:1),
+    le vocabulaire « déposer ici » de l'application.
+  - Cible survolée : trait PLEIN et DOUBLE (bordure + liseré intérieur, sans changer la
+    taille), fond `--color-surface-3`, nom en texte principal (11,4 / 10,8:1).
+  - Tableau courant (pas une cible) : trait plein fin, atténué à 65 %. Plus bas, son nom
+    passerait sous AA (4,75 / 6,05:1 à 65 %, 3,56 à 55 %).
+  - Zone d'archivage : MÊME langage que les tableaux cibles (tirets fins au repos,
+    trait plein doublé et fond de survol quand elle est visée). Elle apparaît par un
+    simple fondu d'opacité, sans glisser (glissement de 12px retiré le 2026-10-07).
+  - Sidebar repliée : rien ne change (déplacement vers un autre tableau par la modale).
 - Le survol n'est jamais le seul chemin vers une action : la carte est aussi
   activable au clavier (Entrée ou Espace).
 - `cursor: grab` sur la carte, `cursor: pointer` sur le titre-lien.
@@ -306,9 +327,9 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
 
 ## Interdits
 - Pas de dégradé.
-- Pas d'ombre décorative. L'ombre sert uniquement aux éléments flottants (modale, menu),
-  et au panneau du kanban de la landing page, posé sur la page (cf. section « Landing
-  page »).
+- Pas d'ombre décorative. L'ombre sert uniquement aux éléments flottants (modale, menu,
+  zone d'archivage, carte en cours de glisser), et au panneau du kanban de la landing
+  page, posé sur la page (cf. section « Landing page »).
 - Pas d'emoji dans l'interface.
 - Pas d'animation au-delà de 180ms, et uniquement sur opacité, fond et couleur.
   DEUX EXCEPTIONS, écrites et limitées chacune à son seul élément, toutes deux à

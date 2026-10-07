@@ -37,14 +37,27 @@ import { EXTENSION_URL } from '../constants/links.js'
 // appelé dans BoardPage lui-même n'aurait pas accès au contexte de
 // DragDropProvider que BoardPage rend dans le même JSX (le contexte n'est
 // fourni qu'à ses DESCENDANTS, pas au composant qui le monte).
+//
+// Pose aussi board-main--leaving quand la carte survole un tableau de la sidebar
+// ou la zone d'archivage : la carte glissée (qui reste dans ce <main> même affichée
+// en couche supérieure) devient translucide, elle va QUITTER le tableau (cf.
+// components.css). La cible est un signal calculé : ce composant ne se réaffiche
+// qu'au changement de cible, pas à chaque mouvement du pointeur.
 function BoardMain({ children }) {
-  const { source } = useDragOperation()
+  const { source, target } = useDragOperation()
   const isDragging = source != null
-  return (
-    <main className={`board-main${isDragging ? ' board-main--dragging' : ''}`}>
-      {children}
-    </main>
-  )
+  const targetType = target?.data?.type
+  const isLeaving = isDragging && (targetType === 'board' || targetType === 'archive')
+
+  const className = [
+    'board-main',
+    isDragging ? 'board-main--dragging' : '',
+    isLeaving ? 'board-main--leaving' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  return <main className={className}>{children}</main>
 }
 
 export default function BoardPage() {

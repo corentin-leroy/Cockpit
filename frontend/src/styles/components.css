@@ -453,14 +453,42 @@
   border-color: var(--color-border-hover);
 }
 
-/* Surbrillance quand une carte glissée survole ce tableau : neutre, comme la
- * colonne survolée du kanban. Même bordure que le tableau courant : elle s'en
- * distingue par le fond (surface-3 contre surface) et par la graisse du nom.
- * Traitement complet des cibles de dépôt : lot « glisser-déposer » (3.2). */
-.board-row--drop-target,
-.board-row--drop-target:hover {
-  background: var(--color-surface-3);
+/* --- Pendant un glisser-déposer de carte (.sidebar--dragging, Sidebar.jsx) ---
+ * Les tableaux deviennent des cibles de dépôt, et le montrent DÈS le début du
+ * geste. Trois états, distincts par la FORME du trait et la LUMINANCE, jamais par
+ * la teinte (aucun teal) :
+ *  - autre tableau (cible) : trait fin en TIRETS, le vocabulaire « déposer ici »
+ *    de l'application (emplacement d'insertion, zone d'archivage) ;
+ *  - cible survolée : trait PLEIN et DOUBLE (2px), fond de survol, nom en texte
+ *    principal ;
+ *  - tableau courant (pas une cible : la carte y est déjà) : trait plein fin,
+ *    ATTÉNUÉ à 65 %. Plus bas, son nom passerait sous AA : mesuré (mélange avec
+ *    la sidebar) 4,75 / 6,05:1 à 65 %, 3,56 en clair à 55 %. Cible survolée en
+ *    regard : nom 11,4 / 10,8:1, trait doublé 4,68 / 4,63:1.
+ * Aucun décalage : la bordure de 1px existe déjà (transparente) sur chaque ligne,
+ * le second pixel du trait doublé est un liseré intérieur (box-shadow inset, pas
+ * une ombre d'élévation), et les actions de ligne sont masquées pendant le geste
+ * (sinon le passage du pointeur les ferait apparaître et réduirait le nom). */
+.sidebar--dragging .board-row:not(.board-row--active) {
+  border-style: dashed;
   border-color: var(--color-border-hover);
+}
+
+.sidebar--dragging .board-row--active {
+  opacity: 0.65;
+}
+
+.sidebar--dragging .board-row__action {
+  display: none;
+}
+
+/* Cible survolée. Le sélecteur répète le contexte pour l'emporter sur la règle
+ * des tirets ci-dessus. border-hover : 4,68 / 4,63:1 sur surface-3. */
+.sidebar--dragging .board-row.board-row--drop-target {
+  border-style: solid;
+  border-color: var(--color-border-hover);
+  box-shadow: inset 0 0 0 1px var(--color-border-hover);
+  background: var(--color-surface-3);
 }
 
 .board-row--drop-target .board-row__name {
@@ -609,9 +637,11 @@
 /* Zone de dépôt d'archivage (ArchiveDropZone) : fixée par rapport au VIEWPORT
  * (pas à une colonne), donc atteignable depuis n'importe laquelle sans
  * défilement horizontal. Masquée hors glisser (opacity + pointer-events),
- * jamais démontée (cf. ArchiveDropZone.jsx). Bordure en tirets : signale un
- * dépôt plutôt qu'une carte ou un conteneur ordinaire, sans recourir à la
- * couleur pour porter ce sens (le texte le dit aussi). */
+ * jamais démontée (cf. ArchiveDropZone.jsx). MÊME LANGAGE que les tableaux cibles
+ * de la sidebar : trait fin en tirets border-hover au repos (5,83 / 5,30:1 sur
+ * surface ; auparavant 2px border-strong, 1,63:1), trait plein doublé au survol.
+ * Les tirets signalent un dépôt sans recourir à la couleur (le texte le dit
+ * aussi). */
 .archive-drop-zone {
   position: fixed;
   left: 50%;
@@ -622,7 +652,7 @@
   gap: var(--space-2);
   padding: var(--space-3) var(--space-5);
   background: var(--color-surface);
-  border: 2px dashed var(--color-border-strong);
+  border: 1px dashed var(--color-border-hover);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   color: var(--color-text-secondary);
@@ -630,26 +660,32 @@
   font-weight: 500;
   opacity: 0;
   pointer-events: none;
-  transform: translate(-50%, 12px);
+  /* Centrage horizontal seulement, IDENTIQUE dans les deux états : la zone
+   * apparaît par un simple fondu d'opacité, sans glisser (DESIGN.md, « Interdits » :
+   * animations sur opacité, fond et couleur uniquement ; l'ancien glissement de
+   * 12px vers le haut est retiré plutôt qu'ajouté aux exceptions). */
+  transform: translateX(-50%);
   transition:
     opacity var(--transition-base),
-    transform var(--transition-base),
     background-color var(--transition-fast),
     border-color var(--transition-fast);
 }
 
 .archive-drop-zone--visible {
   opacity: 1;
-  transform: translate(-50%, 0);
   pointer-events: auto;
 }
 
-/* Survol pendant le glisser : même principe neutre que .kanban-column (le
- * teal reste réservé à l'action principale et au focus, DESIGN.md). */
+/* Survol pendant le glisser : comme un tableau cible survolé (neutre, le teal
+ * reste réservé à l'action principale et au focus, DESIGN.md). Trait plein et
+ * doublé : bordure de 1px + liseré intérieur de 1px, qui s'ajoute à l'ombre
+ * d'élément flottant sans changer la taille de la zone. */
 .archive-drop-zone--drop-target {
   background: var(--color-surface-3);
-  border-color: var(--color-border-hover);
   border-style: solid;
+  box-shadow:
+    inset 0 0 0 1px var(--color-border-hover),
+    var(--shadow-lg);
   color: var(--color-text);
 }
 
@@ -683,11 +719,27 @@
   border-color: var(--color-border-hover);
 }
 
-/* Retour visuel de la carte en cours de déplacement : atténuée, pendant qu'un
- * clone suit le curseur (feedback dnd-kit). */
+/* Carte en cours de déplacement (dnd-kit l'affiche en couche supérieure, sous le
+ * curseur) : OPAQUE et ombrée. C'est un élément flottant, seul cas où DESIGN.md
+ * admet une ombre ; atténuée, elle était la carte la moins lisible de l'écran et
+ * laissait transparaître celles qu'elle survolait. Vaut aussi pour la landing.
+ * L'emplacement d'insertion, clone qui reçoit les mêmes classes, en est exclu
+ * (règle [data-dnd-placeholder] plus bas). */
 .app-card--dragging {
-  opacity: 0.4;
+  box-shadow: var(--shadow-md);
   cursor: grabbing;
+}
+
+/* Au-dessus d'un tableau de la sidebar ou de la zone d'archivage (classe posée
+ * par BoardPage, via BoardMain) : translucide. On lit le nom de la cible à travers
+ * elle, et l'effacement annonce qu'elle va QUITTER le tableau. 20 % et non 40 % :
+ * la carte est saisie près de son haut, son titre tombe donc PILE sur le nom de
+ * la cible ; à 40 % les deux textes se mêlaient (comparé dans le navigateur), à
+ * 20 % le nom domine et la carte reste perceptible, ombre comprise. Fondu de
+ * 120ms (transition d'opacité de .app-card), ramené à ~0 sous
+ * prefers-reduced-motion par la règle globale de base.css (aucun délai en jeu). */
+.board-main--leaving .app-card--dragging:not([data-dnd-placeholder]) {
+  opacity: 0.2;
 }
 
 /* Emplacement d'insertion pendant un glisser-déposer. dnd-kit laisse dans la liste
@@ -703,6 +755,9 @@
   opacity: 1;
   background: var(--color-surface-3);
   border: 1px dashed var(--color-border-hover);
+  /* Clone de la carte glissée : dnd-kit lui recopie ses classes, dont
+   * .app-card--dragging et son ombre. Un creux n'a pas d'ombre. */
+  box-shadow: none;
 }
 
 .kanban-column__list .app-card[data-dnd-placeholder] > * {
