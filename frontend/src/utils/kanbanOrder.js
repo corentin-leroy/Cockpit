@@ -27,6 +27,14 @@ const STATUS_KEYS = APPLICATION_STATUSES.map((status) => status.key)
  * Les candidatures au statut inconnu (désync backend) sont conservées, en fin.
  */
 export function reorderOnDragOver(applications, event) {
+  // Espace vide sous une colonne (zone `column-end`, KanbanColumn.jsx) : toujours la
+  // fin de cette colonne. Pas par `move` : il choisirait le haut ou le bas selon le
+  // centre de la zone, sans rapport avec la place des cartes.
+  const target = event.operation.target
+  if (target?.data?.type === 'column-end') {
+    return moveToColumnEnd(applications, event.operation.source?.id, target.data.status)
+  }
+
   const groups = Object.fromEntries(STATUS_KEYS.map((key) => [key, []]))
   for (const application of applications) {
     groups[application.status]?.push(application.id)
@@ -45,6 +53,20 @@ export function reorderOnDragOver(applications, event) {
   }
   const unknown = applications.filter((application) => !STATUS_KEYS.includes(application.status))
   return [...ordered, ...unknown]
+}
+
+/**
+ * Met la carte à la FIN de la colonne `status` (dépôt dans l'espace vide sous une
+ * colonne). Renvoie la MÊME liste si elle y est déjà, ou si la carte ou le statut
+ * sont inconnus : pas de rendu inutile à chaque mouvement du pointeur.
+ */
+export function moveToColumnEnd(applications, applicationId, status) {
+  if (!STATUS_KEYS.includes(status)) return applications
+  const card = applications.find((item) => item.id === applicationId)
+  if (!card) return applications
+  const column = applications.filter((item) => item.status === status)
+  if (column.at(-1)?.id === applicationId) return applications
+  return placeCard(applications, applicationId, { status, index: column.length })
 }
 
 /**

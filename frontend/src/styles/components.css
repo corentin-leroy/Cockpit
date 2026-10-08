@@ -290,30 +290,62 @@
   padding-bottom: calc(var(--space-7) * 2);
 }
 
-/* En-têtes de colonnes COLLÉS en haut de la zone qui défile. Les 12px au-dessus
- * et au-dessous du libellé sont portés par l'en-tête (padding) et non par la
- * colonne ni par une marge : au repos, géométrie identique ; collé, le libellé
- * garde son air au lieu de toucher le bord de la zone, et une carte qui passe
- * dessous disparaît proprement au lieu d'être coupée à ras du texte.
- * z-index 1 : au-dessus des cartes de la même colonne, seul calque ajouté. */
-.board-page .kanban-column {
-  padding-top: 0;
-}
-
+/* En-têtes de colonnes COLLÉS en haut de la zone qui défile. L'en-tête est enfant
+ * de l'ENVELOPPE de la colonne (étirée à la hauteur de la plus longue, cf.
+ * « Kanban ») et non du cadre : il reste affiché tant qu'il y a quelque chose à
+ * faire défiler, même quand le cadre d'une colonne courte est sorti de l'écran. Le
+ * z-index 1 qui le place au-dessus des cartes est posé dans « Kanban » (il vaut
+ * aussi pour la landing, où l'en-tête ne colle pas). */
 .board-page .kanban-column__header {
   position: sticky;
   top: 0;
-  z-index: 1;
-  margin-bottom: 0;
-  padding-top: var(--space-3);
-  padding-bottom: var(--space-3);
-  background: var(--color-surface-column);
-  transition: background-color var(--transition-fast);
 }
 
-/* Colonne survolée pendant un glisser : l'en-tête prend le même fond qu'elle. */
-.board-page .kanban-column--drop-target .kanban-column__header {
-  background: var(--color-surface-3);
+/* ACCROCHÉ (data-stuck, posé par KanbanColumn via IntersectionObserver) : le haut
+ * arrondi du cadre est sorti de l'écran ; la forme de l'en-tête
+ * (.kanban-column__heading) devient un ONGLET opaque : haut arrondi (rayon du
+ * cadre), bas droit sur toute la largeur du cadre, contour complet. Même forme sur
+ * une colonne longue (ses côtés coïncident avec les bords latéraux du cadre, qui
+ * reprennent dessous) et sur une colonne courte dont le cadre est sorti de l'écran.
+ *  - Fond de la colonne : les cartes passent dessous, sous un bord net.
+ *  - Contour et FILET du bas : --color-border, le trait du cadre, dont il est le
+ *    prolongement (décoratif, mesuré : 1,18 / 1,52:1 contre le fond de l'en-tête,
+ *    1,34 / 1,30:1 contre une carte, cf. DESIGN.md). Le libellé porte l'information.
+ *  - PAS d'ombre : essayée (--shadow-md) puis retirée à la demande, le 2026-10-07.
+ * Rien de tout cela AU REPOS, où la forme est entièrement transparente : seul le
+ * cadre se voit, comme avant les en-têtes collés. Changement instantané, sans
+ * transition (rien à réduire pour prefers-reduced-motion) : aucune dimension ne
+ * change. Image de transition acceptée : l'accrochage est signalé une image après
+ * le début du défilement ; pendant cette image, la forme est encore transparente. */
+.board-page .kanban-column[data-stuck] .kanban-column__heading {
+  background-color: var(--color-surface-column);
+  background-clip: padding-box;
+  border-color: var(--color-border);
+}
+
+/* Accroché ET colonne visée par un glisser : fond et bordure de la cible. */
+.board-page .kanban-column--drop-target[data-stuck] .kanban-column__heading {
+  background-color: var(--color-surface-3);
+  border-color: var(--color-border-hover);
+}
+
+/* COINS du haut de l'en-tête accroché, hors de l'arrondi : --color-bg, la page sur
+ * laquelle le kanban est posé. Sans eux, collé sur une colonne longue, les traits
+ * droits du cadre y redessineraient des angles droits. Bande de la hauteur du rayon,
+ * DERRIÈRE la forme (z-index -1 dans le contexte d'empilement de l'en-tête) : la
+ * forme la recouvre partout sauf dans ces deux coins. SEULEMENT accroché : au repos,
+ * elle masquerait le trait haut et les arcs du cadre (défaut constaté le 2026-10-07
+ * avec un fond d'en-tête permanent). Token : suit les deux thèmes. JAMAIS sur la
+ * landing (kanban posé sur le fond d'un panneau) : règle limitée à .board-page. */
+.board-page .kanban-column[data-stuck] .kanban-column__header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--radius-lg);
+  z-index: -1;
+  background: var(--color-bg);
 }
 
 .board-header {
@@ -574,24 +606,101 @@
 /* Kanban                                                             */
 /* ================================================================== */
 
+/* GRILLE d'une seule rangée, une piste de 280px par colonne. La rangée « auto »
+ * prend la hauteur de la colonne la plus longue, et les ENVELOPPES de colonnes y
+ * sont étirées (align-items: stretch, valeur par défaut) : toutes ont cette hauteur,
+ * même dans la zone de hauteur fixe de la page du kanban. Un flex d'une ligne ne
+ * le permettait pas : `stretch` y étire à la hauteur du CONTENEUR (la partie
+ * visible), pas à celle du plus grand élément (vérifié dans le navigateur).
+ * L'en-tête collant n'est pas un élément de cette grille mais un enfant de
+ * l'enveloppe (flex) : Firefox ignore le collage d'un élément de grille dont un
+ * voisin a un grid-row explicite. */
 .kanban {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 280px;
+  column-gap: var(--space-3);
   overflow-x: auto; /* 5 colonnes : défilement horizontal si l'écran est étroit */
   padding-bottom: var(--space-2);
 }
 
+/* ENVELOPPE de la colonne : INVISIBLE (ni fond, ni bordure), haute comme la colonne
+ * la plus longue. Elle porte l'en-tête collant (qui ne peut sortir de son parent),
+ * le cadre (.kanban-column__list) à sa hauteur naturelle, puis l'espace vide
+ * (.kanban-column__end), zone de dépôt « fin de colonne ».
+ * --column-header-height : hauteur de l'en-tête, dérivée des tokens (une ligne de
+ * 12px à l'interligne courant, 12px d'air dessus et dessous, 2 × 1px de bordure).
+ * La liste remonte de cette hauteur sous l'en-tête : géométrie identique à
+ * l'ancienne colonne (libellé à 13px du bord, première carte à 13 + 18,6 + 12).
+ * min-width:0 : un mot très long ne peut pas élargir la colonne au-delà de sa piste. */
 .kanban-column {
-  flex: 0 0 280px;
-  /* min-width:0 : un élément flex a `min-width:auto` par défaut, soit la largeur
-   * de son plus long mot insécable. Sans cela, ce minimum l'emporte sur les
-   * 280px du flex-basis et un mot très long élargit la colonne. Avec 0, la
-   * largeur de la colonne est une contrainte, pas une suggestion. */
+  --column-header-height: calc(
+    var(--text-xs) * var(--leading-body) + 2 * var(--space-3) + 2px
+  );
+
+  position: relative;
   min-width: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Témoin d'accrochage (KanbanColumn, IntersectionObserver) : 1px JUSTE AU-DESSUS
+ * de l'enveloppe, hors du flux. Au repos il touche le bord haut de la zone qui
+ * défile (un contact compte comme visible) ; au premier pixel de défilement il passe
+ * au-dessus : l'en-tête est collé. Posé à top:0, il n'aurait basculé qu'au
+ * DEUXIÈME pixel (mesuré). */
+.kanban-column__sentinel {
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  pointer-events: none;
+}
+
+/* En-tête : au-dessus de la liste (z-index 1, contexte d'empilement ; collant sur
+ * la page du kanban). Hauteur fixe, celle que le cadre réserve sous lui. Il ne
+ * dessine RIEN lui-même : ni bordure, ni padding, ni fond. */
+.kanban-column__header {
+  position: relative;
+  z-index: 1;
+  height: var(--column-header-height);
+}
+
+/* FORME de l'en-tête : un ONGLET, arrondi en HAUT seulement (rayon du cadre), bas
+ * droit. Elle porte une VRAIE bordure de 1px, et non un pseudo-élément décalé de
+ * `inset: -1px` : au zoom de 125 %, le navigateur arrondit une bordure de 1px à un
+ * pixel réel (0,8px CSS) mais pas un décalage ; la forme débordait de 0,2px sur le
+ * trait haut du cadre et le recouvrait (lu dans les pixels le 2026-10-07). Une
+ * vraie bordure est arrondie exactement comme celle du cadre, au même endroit.
+ * TRANSPARENTE au repos (fond et bordure) : seul le cadre se voit, pixel pour pixel
+ * comme avant les en-têtes collés. Accroché, elle devient opaque (cf. « Page du
+ * kanban »). Contenu aligné en HAUT, 12px sous la bordure : la place du libellé ne
+ * dépend pas de l'arrondi des bordures. Bas droit et non arrondi : arrondi, il
+ * laissait voir dans ses coins les cartes qui défilent dessous. */
+.kanban-column__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  height: 100%;
   padding: var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+/* CADRE visible : fond en creux, bordure, arrondis. Il remonte sous l'en-tête
+ * (marge négative de sa hauteur) et commence en haut de l'enveloppe ; son padding
+ * haut (hauteur de l'en-tête - 2px = 12 + une ligne + 12) remet la première carte
+ * sous sa propre bordure haute exactement comme dans l'ancienne colonne, quel que
+ * soit l'arrondi de cette bordure au zoom courant. C'est aussi la zone de dépôt
+ * « colonne » : même rectangle que l'ancienne colonne. */
+.kanban-column__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: calc(-1 * var(--column-header-height));
+  padding: calc(var(--column-header-height) - 2px) var(--space-3) var(--space-3);
   /* Token dédié, en creux sous la page dans les deux thèmes (cf. tokens.css) :
    * la carte s'en détache à 1,14 / 1,16:1 (1,05 en sombre avec surface-2). */
   background: var(--color-surface-column);
@@ -602,19 +711,21 @@
     border-color var(--transition-fast);
 }
 
-/* Surbrillance de la colonne survolée pendant un drag. Neutre : le teal est
- * réservé à l'action principale et au focus (DESIGN.md, « Couleur »). */
-.kanban-column--drop-target {
-  background: var(--color-surface-3);
-  border-color: var(--color-border-strong);
+/* Espace vide sous le cadre, jusqu'en bas de l'enveloppe : zone de dépôt « fin de
+ * colonne » (KanbanColumn, utils/kanbanOrder.js). Invisible. */
+.kanban-column__end {
+  flex: 1 1 auto;
 }
 
-.kanban-column__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
+/* Colonne VISÉE par un glisser (survol de son cadre ou de l'espace vide dessous) :
+ * fond de survol et bordure border-hover, sur le cadre comme sur l'en-tête, collé
+ * ou non : quand le cadre d'une colonne courte est sorti de l'écran, l'en-tête est
+ * le seul repère de la colonne où la carte va atterrir. Neutre, jamais teal ; trait
+ * SIMPLE : le trait doublé reste réservé aux cibles qui font quitter le tableau
+ * (sidebar, archive). Auparavant border-strong, trop pâle sans percevoir la teinte. */
+.kanban-column--drop-target .kanban-column__list {
+  background: var(--color-surface-3);
+  border-color: var(--color-border-hover);
 }
 
 /* Le statut reste porté par son LIBELLÉ texte (« Repérée », « Entretien »…) : aucune
@@ -642,12 +753,6 @@
   color: var(--color-text-muted);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
-}
-
-.kanban-column__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
 }
 
 .kanban-column__empty {

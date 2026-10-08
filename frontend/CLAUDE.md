@@ -79,6 +79,10 @@ Détail et historique : `dev-docs/frontend-kanban-dnd.md`.
   différé par `startTransition`, dragend ne l'est pas).
 - Dépôt sur un tableau de la sidebar ou sur l'archive : seule compte la place
   d'ORIGINE. Mise à jour optimiste ; en cas d'échec, `restoreCard`.
+- Colonne = ENVELOPPE étirée (en-tête collant) + CADRE (la liste, droppable id =
+  statut) + espace vide (droppable `column-end` → fin de colonne, `moveToColumnEnd`).
+  Ne jamais faire de l'enveloppe la zone « colonne » : `move` choisit haut ou bas
+  selon son centre.
 - Modale : statut changé → la carte passe en haut de sa nouvelle colonne, comme
   côté serveur.
 

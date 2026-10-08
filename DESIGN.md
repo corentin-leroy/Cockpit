@@ -36,6 +36,68 @@ Principe : la couleur et l'espace signalent, ils ne décorent pas.
     prend ou rend sa place sans rien casser.
   - Limité à la page du kanban : archives et compte gardent le défilement de page ;
     la landing n'est pas concernée.
+- En-têtes de colonnes collés (corrigé le 2026-10-07). Deux défauts nés du défilement
+  de la zone : l'en-tête d'une colonne COURTE disparaissait avec son cadre (un élément
+  collant ne sort jamais de son parent, et le parent était le cadre) ; accroché, l'en-
+  tête apparaissait avec des angles droits entre les bords latéraux du cadre, dont le
+  haut arrondi était sorti de l'écran. Colonnes pleine hauteur écartées (trop
+  massives). Solution : séparer ce qui RETIENT l'en-tête de ce qui se VOIT.
+  - Chaque colonne a une ENVELOPPE invisible, haute comme la colonne la plus longue :
+    `.kanban` est une grille d'une rangée (la rangée prend la hauteur de la plus
+    longue, les enveloppes y sont étirées). Un flex d'une ligne ne le permet pas : son
+    `stretch` étire à la hauteur VISIBLE de la zone (vérifié). L'en-tête, enfant de
+    l'enveloppe, reste affiché tant qu'il y a quelque chose à faire défiler.
+  - Le CADRE visible (la liste : fond, bordure, arrondis) garde la hauteur de ses
+    cartes. Rendu au repos INCHANGÉ : 0 écart mesuré sur les 25 cartes, les libellés,
+    compteurs et cadres d'un tableau aux colonnes de 133 à 926px, et sur la démo de la
+    landing ; 20 cartes entièrement visibles avant comme après.
+  - ACCROCHÉ (dès le premier pixel de défilement, détecté par un IntersectionObserver,
+    même rendu dans tous les navigateurs) : l'en-tête prend la forme d'un ONGLET, haut
+    arrondi (rayon du cadre), BAS DROIT sur toute la largeur du cadre, contour et
+    filet `--color-border`, SANS ombre (une ombre `--shadow-md`, essayée, a été
+    retirée à la demande le 2026-10-07). Même forme sur une colonne longue
+    (ses côtés se raccordent aux bords latéraux du cadre, qui reprennent dessous) et
+    sur une colonne courte dont le cadre est sorti de l'écran : pas de second état.
+    - Bas droit, corrigé le 2026-10-07 : une première version arrondie aux quatre
+      coins (« pastille ») laissait voir, dans ses coins du bas, les cartes qui
+      défilaient dessous. Vérifié depuis : aux quatre coins de chaque en-tête accroché,
+      l'élément au premier plan est l'en-tête, jamais une carte.
+    - Filet et contour : le trait du cadre, décoratif (1,18 / 1,52:1 contre le fond de
+      l'en-tête, 1,34 / 1,30:1 contre une carte) ; le bord net vient du fond opaque et
+      du filet, le libellé (12,5 / 14,3:1) porte l'information.
+    - Accroché SEULEMENT, les deux coins du haut, hors de l'arrondi, sont peints en
+      `--color-bg` : sinon les traits droits du cadre d'une colonne longue y
+      redessineraient des angles droits. Jamais sur la landing (`.board-page`).
+  - AU REPOS, la forme de l'en-tête est ENTIÈREMENT transparente (fond et bordure) :
+    seul le cadre se voit, comme avant les en-têtes collés. Deux erreurs corrigées le
+    2026-10-07, toutes deux invisibles dans une comparaison de POSITIONS (elles ne
+    déplacent rien) et trouvées en lisant les PIXELS :
+    - un fond d'en-tête posé en permanence (pour masquer l'image qui sépare le début
+      du défilement du signal d'accrochage) recouvrait le trait haut, les arcs et le
+      haut des traits latéraux du cadre ;
+    - la forme, un pseudo-élément décalé de `inset: -1px`, débordait de 0,2px sur le
+      trait du cadre au zoom de 125 % : le navigateur arrondit une BORDURE de 1px à un
+      pixel réel (0,8px CSS), pas un décalage. La forme porte désormais une vraie
+      bordure (`.kanban-column__heading`), arrondie comme celle du cadre.
+    Vérifié : trait haut de chaque colonne `#e2ded8` / `#343843` (`--color-border`),
+    identique à la version d'avant les en-têtes collés, dans les deux thèmes.
+  - Lissage du texte des en-têtes : GRIS, et non plus ClearType, au repos comme
+    accroché. Écart ACCEPTÉ le 2026-10-08. Chrome sous Windows n'emploie ClearType que
+    dans une couche entièrement opaque ; l'en-tête collant est une couche à part, et
+    la rendre opaque au repos recouvrirait de nouveau le trait du cadre (elle couvre
+    toute sa largeur, pour la forme d'onglet). La position du texte est identique
+    (vérifié au pixel) ; la différence ne se voit qu'à la loupe. Restaurer ClearType
+    demanderait de mesurer en JavaScript la largeur réelle de la bordure au zoom
+    courant pour remettre l'en-tête à l'intérieur du cadre : du code et du risque pour
+    un gain imperceptible. Ne pas « corriger » sans rouvrir cette décision.
+  - Image de transition acceptée : l'accrochage est signalé une image après le début
+    du défilement ; pendant cette image, l'en-tête est encore transparent (coins du
+    haut droits, contenu visible derrière le libellé si le défilement dépasse sa
+    hauteur en une image). Préféré à une bordure manquante en permanence.
+  - Changement instantané, couleurs seulement : aucun décalage, rien à réduire pour
+    `prefers-reduced-motion`.
+  - Les requêtes de conteneur `scroll-state(stuck)` ont été écartées : Chromium
+    seulement (ni Firefox, ni Safari en 2026).
 - Écrans d'AUTHENTIFICATION (connexion, inscription, mot de passe oublié,
   réinitialisation, vérification d'email ; `AuthLayout.jsx`, décidé le 2026-10-07) :
   - En haut, la barre de l'application (classes `.navbar`, `.navbar__brand`) réduite
@@ -379,6 +441,15 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
     trait plein doublé et fond de survol quand elle est visée). Elle apparaît par un
     simple fondu d'opacité, sans glisser (glissement de 12px retiré le 2026-10-07).
   - Sidebar repliée : rien ne change (déplacement vers un autre tableau par la modale).
+  - Colonne VISÉE (survol de son cadre ou de l'espace vide sous elle) : fond
+    `--color-surface-3`, bordure `--color-border-hover` (4,68 / 4,63:1 sur ce fond ;
+    auparavant `--color-border-strong`, 1,31 / 1,51:1), sur le cadre ET sur l'en-tête,
+    collé ou non. Trait SIMPLE : le trait doublé reste réservé aux cibles qui font
+    quitter le tableau (sidebar, archive).
+  - Espace vide sous une colonne courte : zone de dépôt, la carte va à la FIN de cette
+    colonne, là où l'emplacement d'insertion la montre. Quand le cadre est sorti de
+    l'écran, l'emplacement n'est pas visible : l'en-tête accroché, à l'état « visée »,
+    et son compteur, qui augmente, disent où la carte va atterrir.
 - Le survol n'est jamais le seul chemin vers une action : la carte est aussi
   activable au clavier (Entrée ou Espace).
 - `cursor: grab` sur la carte, `cursor: pointer` sur le titre-lien.
@@ -404,7 +475,8 @@ Tout ce qui n'y figure pas reste soumis aux autres sections.
 - Pas d'ombre décorative. L'ombre sert uniquement aux éléments flottants (modale, menu,
   zone d'archivage, carte en cours de glisser), et au panneau du kanban de la landing
   page, posé sur la page (cf. section « Landing page »). Les cartes d'authentification
-  et de Mon compte en portaient une : retirée le 2026-10-07.
+  et de Mon compte en portaient une : retirée le 2026-10-07. L'en-tête de colonne
+  accroché n'en a pas non plus (essayée, retirée à la demande).
 - Pas d'emoji dans l'interface.
 - Pas d'animation au-delà de 180ms, et uniquement sur opacité, fond et couleur.
   DEUX EXCEPTIONS, écrites et limitées chacune à son seul élément, toutes deux à
