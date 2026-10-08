@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cockpit",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Suivez vos candidatures dans un kanban et capturez une offre depuis n'importe quel site d'annonces en un clic.",
 
   "icons": {
