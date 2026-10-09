@@ -122,4 +122,5 @@ Détail : `dev-docs/account-deletion.md`.
 Détail et historique : `dev-docs/vite-build-variables.md`.
 - `VITE_*` est remplacé AU BUILD : changer `VITE_API_BASE_URL` impose de
   rebuilder et redéployer le front ; redémarrer ne suffit pas.
+- Prod : `VITE_API_BASE_URL=https://api.cockpitemploi.fr` (cf. `dev-docs/domain.md`).
 - Tout ce qui est préfixé `VITE_` est public : jamais de secret.

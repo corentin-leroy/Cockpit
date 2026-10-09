@@ -16,6 +16,10 @@
 - `backend/.python-version` épingle Python 3.13 (version de dev). Si le log de
   build montre une autre version, le repli est `runtime.txt` ou la variable
   NIXPACKS_PYTHON_VERSION.
+- Domaines personnalisés : `cockpitemploi.fr` sur le service frontend,
+  `api.cockpitemploi.fr` sur le service backend ; les domaines `*.up.railway.app`
+  restent actifs pendant la transition. DNS, contraintes et ordre des retraits :
+  `dev-docs/domain.md`.
 - La base PostgreSQL est un service Railway séparé ; référencer
   `DATABASE_URL=${{Postgres.DATABASE_URL}}` plutôt que copier l'URL en dur.
 - Migrations : `preDeployCommand` (`alembic upgrade head`, dans railway.json)

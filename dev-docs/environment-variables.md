@@ -5,9 +5,21 @@
   → échec explicite au démarrage, jamais de repli silencieux sur le défaut.
 - JWT_SECRET_KEY : obligatoire en dev ET en prod (clé DIFFÉRENTE en prod).
   Absente, l'app démarre mais toute connexion échoue (RuntimeError explicite).
-- CORS_ORIGINS : origines autorisées, séparées par des virgules, SANS slash
-  final. Défaut http://localhost:5173.
-- FRONTEND_URL : base des liens emails (défaut http://localhost:5173)
+- CORS_ORIGINS : origines autorisées à appeler l'API depuis un NAVIGATEUR (le site),
+  lues au démarrage par `get_allowed_origins()` (app/main.py). Format exact :
+  séparées par des virgules ; espaces autour de chaque origine retirés ; « / » final
+  retiré par le code (l'écrire quand même sans) ; guillemets NON retirés (saisir la
+  valeur sans guillemets : un `"` ferait partie de l'origine, qui ne correspondrait
+  jamais, et le front serait bloqué) ; casse non normalisée (minuscules, comme
+  l'en-tête Origin) ; ni chemin ni port. Vide ou absente : http://localhost:5173.
+  Prod : `https://cockpitemploi.fr,https://cockpit-front-production.up.railway.app`
+  (l'ancienne origine tant que l'ancienne URL du site est servie, cf.
+  `dev-docs/domain.md`). Jamais d'origine `chrome-extension://` : l'extension est
+  exemptée du CORS par ses `host_permissions` (vérifié avec la 1.1.0).
+- FRONTEND_URL : base des liens emails (défaut http://localhost:5173). Prod :
+  `https://cockpitemploi.fr`. La changer laisse les liens déjà envoyés sur
+  l'ancienne adresse (lien de vérification valable 24 h) : garder l'ancienne
+  adresse servie au moins 24 h après le changement.
 - BREVO_API_KEY, BREVO_SENDER_EMAIL (adresse validée dans Brevo),
   BREVO_SENDER_NAME (optionnel) — absentes = mode DEV, aucun envoi.
 - TRUSTED_PROXY_COUNT : nombre de proxys entre le client et l'application, pour lire

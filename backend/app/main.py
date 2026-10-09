@@ -144,10 +144,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 # Plafonne la taille des corps de requête (anti-charge utile démesurée).
 app.add_middleware(BodySizeLimitMiddleware, max_body_size=MAX_REQUEST_BODY_BYTES)
 
-# CORS : nécessaire pour que le front React et l'extension puissent appeler l'API
-# depuis une autre origine. La liste vient de CORS_ORIGINS (cf. get_allowed_origins) :
-# plus de "*" en dur, qui autorisait N'IMPORTE QUEL site à appeler l'API au nom
-# d'un utilisateur connecté et à lire la réponse.
+# CORS : nécessaire pour que le front React puisse appeler l'API depuis une autre
+# origine. L'extension n'en a pas besoin : ses host_permissions l'exemptent du
+# contrôle CORS (cf. extension/api.js). La liste vient de CORS_ORIGINS (cf.
+# get_allowed_origins) : plus de "*" en dur, qui autorisait N'IMPORTE QUEL site à
+# appeler l'API au nom d'un utilisateur connecté et à lire la réponse.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=get_allowed_origins(),

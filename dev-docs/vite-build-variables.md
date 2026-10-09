@@ -14,3 +14,5 @@
     continue d'appeler 127.0.0.1:8000 et échoue chez tous les utilisateurs.
   - Tout ce qui est préfixé VITE_ est PUBLIC (lisible dans le bundle) : jamais
     de secret. Les secrets restent côté backend.
+- Valeur de production : `VITE_API_BASE_URL=https://api.cockpitemploi.fr`, le
+  domaine personnalisé du service backend (cf. `dev-docs/domain.md`).

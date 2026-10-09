@@ -45,3 +45,7 @@
   (UserRead) : le JWT ne portant que l'id, c'est le SEUL canal qui dit au front
   si l'adresse est vérifiée — et il reste à jour, contrairement à un état qui
   serait figé dans le token à la connexion.
+- Domaine : les liens partent de FRONTEND_URL (`https://cockpitemploi.fr` en prod).
+  Le domaine n'est pas encore authentifié dans Brevo ; ce jour-là, l'include SPF de
+  Brevo se FUSIONNE dans le TXT SPF existant d'OVH (un seul SPF sur le domaine) :
+  cf. `dev-docs/domain.md`.

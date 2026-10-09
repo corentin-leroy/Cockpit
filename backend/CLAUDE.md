@@ -154,10 +154,14 @@ il fait foi. Commandes : CLAUDE.md racine (toujours `.venv\Scripts\python.exe -m
 - Viser la prod : `$env:DATABASE_URL` dans la session shell seulement, retirée
   ensuite ; lire `[alembic] cible : ...` avant toute écriture.
 
-# Variables, dépendances, déploiement → `dev-docs/environment-variables.md`, `dev-docs/dependencies.md`, `dev-docs/deployment-railway.md`
+# Variables, dépendances, déploiement → `dev-docs/environment-variables.md`, `dev-docs/dependencies.md`, `dev-docs/deployment-railway.md`, `dev-docs/domain.md`
 - Obligatoires en prod : DATABASE_URL, JWT_SECRET_KEY, CORS_ORIGINS, FRONTEND_URL,
   BREVO_API_KEY, BREVO_SENDER_EMAIL, TRUSTED_PROXY_COUNT (oubliées, l'app démarre
   mais casse). Valeur invalide → échec au démarrage, jamais de repli silencieux.
+- Domaine `cockpitemploi.fr` : CORS_ORIGINS liste le site ET son ancienne URL Railway
+  tant qu'elle est servie ; jamais d'origine `chrome-extension://` (l'extension est
+  exemptée du CORS par ses host_permissions). Ne pas retirer le domaine
+  *.up.railway.app de l'API avant la publication de l'extension 1.2.0.
 - Versions EXACTES (`==`), relevées à la main tous les 2-3 mois (suite au vert,
   date « figées le » mise à jour) ; jamais de `pip freeze` collé (extras perdus,
   build cassé) ; `bcrypt==4.0.1` figé (passlib 1.7.4 lit un attribut supprimé en
