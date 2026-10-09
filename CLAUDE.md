@@ -127,7 +127,7 @@ CLAUDE.md par dossier (chargés automatiquement, cf. « Où trouver quoi ») :
 - `frontend/CLAUDE.md` : direction visuelle, architecture frontend, glisser-déposer,
   landing, blocage après un 429, suppression de compte, variables Vite.
 - `extension/CLAUDE.md` : extension Chrome (URL figée, tokens de la popup,
-  bornes, adaptateurs France Travail et Indeed).
+  bornes, adaptateurs France Travail et Indeed, renvoi au cadrage de la 1.2.0).
 `dev-docs/` (à la demande ; entre guillemets, le titre d'origine cité par les
 renvois « cf. ») :
 - `kanban-order.md` : « Ordre des cartes du kanban »
@@ -146,6 +146,8 @@ renvois « cf. ») :
 - `environment-variables.md` : « Variables d'environnement »
 - `dependencies.md` : « Versions des dépendances »
 - `deployment-railway.md` : « Déploiement (Railway) »
+- `domain.md` : nom de domaine (DNS, messagerie, domaines Railway, transition)
+- `extension-session-sharing.md` : partage de session site → extension (1.2.0)
 - `frontend-kanban-dnd.md` : glisser-déposer, extrait de « Architecture frontend »
 - `landing-page.md` : landing, extraite de « Architecture frontend »
 - `rate-limit-cooldown.md` : « Blocage après un 429 », extrait de « Architecture frontend »
@@ -158,12 +160,24 @@ renvois « cf. ») :
 Seuls les points OUVERTS figurent ici ; l'historique des lots terminés (dates,
 commits, vérifications) est dans `dev-docs/roadmap.md`. Un point terminé quitte
 cette liste et rejoint l'historique : jamais de statut tenu aux deux endroits.
-- Extension : republication sur le Chrome Web Store en attente. La version
-  publiée (manifest 1.0.0) est antérieure à trois lots committés : le lot 3d
-  (bornes alignées sur le backend), l'adaptateur France Travail et l'adaptateur
-  Indeed, ces deux derniers vérifiés à la main dans l'extension chargée.
+- Bascule vers cockpitemploi.fr (configuration et transition : `dev-docs/domain.md`).
+  Domaines personnalisés actifs et variables de production posées. Reste :
+  - refaire la « VÉRIFICATION APRÈS DÉPLOIEMENT » de `dev-docs/rate-limiting.md`
+    (lecture de l'IP) via api.cockpitemploi.fr ;
+  - retirer l'ancienne origine du site de CORS_ORIGINS quand l'ancienne URL du site
+    ne sera plus servie ;
+  - ⚠ ne PAS retirer le domaine *.up.railway.app de l'API avant la publication de
+    l'extension 1.2.0 : la 1.1.0 appelle l'API à cette adresse.
+- Extension 1.1.0 (étiquette `extension-v1.1.0`, commit 40b8048) : en revue sur le
+  Chrome Web Store depuis le 2026-10-08. Apporte au public le lot 3d (bornes alignées
+  sur le backend) et les adaptateurs France Travail et Indeed, absents de la 1.0.0
+  publiée.
+- Extension 1.2.0 : partage de session site → extension (`externally_connectable`),
+  popup sans connexion, domaines définitifs, script d'empaquetage. Décisions :
+  `dev-docs/extension-session-sharing.md`. Cadrage terminé, audit du code à faire.
+- Connexion Google, sur le site et le backend uniquement, après la 1.2.0.
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
 - Formulaire de correction dans l'extension → V2
 - Alertes email, statistiques, paiement → V2
-- Connexion Google, refresh tokens, UUID → V3
+- Refresh tokens, UUID → V3
