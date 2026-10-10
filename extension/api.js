@@ -1,24 +1,17 @@
 // Couche d'accès à l'API backend, partagée par la popup et le service worker.
 //
-// Deux appels seulement pour l'instant :
+// Trois appels :
 // - login()             : utilisé par la popup (contexte extension, non soumis
 //                         à la CSP d'un site) ;
-// - createApplication() : utilisé par le service worker, qui ajoute le Bearer et
-//                         purge le token sur 401 (même logique que le front).
-
-import { getToken, clearToken } from "./storage.js";
-
-// API de PRODUCTION. Cette valeur doit rester STRICTEMENT alignée sur l'entrée
-// host_permissions du manifest : c'est cette permission d'hôte qui exempte la
-// popup et le service worker du contrôle CORS. Les deux désynchronisées, les
-// appels retombent sous le régime CORS ordinaire (préflight compris) et
-// échouent, sans que le code ne signale quoi que ce soit d'anormal.
+// - getBoards() et
+//   createApplication() : utilisés par le service worker, qui ajoute le Bearer
+//                         et purge le token sur 401 (même logique que le front).
 //
-// Pour développer contre un backend local, modifier CES DEUX valeurs sans les
-// committer (procédure dans README.md). Volontairement PAS de page d'options :
-// une URL d'API configurable par l'utilisateur permettrait de diriger le token
-// d'authentification vers un serveur arbitraire.
-export const API_BASE_URL = "https://cockpit-production-6afb.up.railway.app";
+// L'URL de l'API (API_BASE_URL) est figée dans config.js : voir ce fichier pour
+// son alignement obligatoire avec host_permissions et le développement local.
+
+import { API_BASE_URL } from "./config.js";
+import { getToken, clearToken } from "./storage.js";
 
 /**
  * Erreur d'API porteuse du code HTTP (pour détecter un 401) et du corps JSON

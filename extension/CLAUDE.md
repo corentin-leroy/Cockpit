@@ -1,20 +1,38 @@
 # Extension Chrome (Manifest V3)
 
 ## Sécurité — non négociable
-- L'URL de l'API est figée dans `api.js` et dans `host_permissions`.
-  N'ajoute jamais de page d'options ni de champ permettant de la configurer :
-  une URL modifiable serait un canal d'exfiltration du token d'authentification.
-- Pour le dev local, la bascule d'URL est manuelle et ne doit jamais être committée.
+- L'URL de l'API est figée dans `config.js` (`API_BASE_URL`) et dans
+  `host_permissions`. N'ajoute jamais de page d'options ni de champ permettant de
+  la configurer : une URL modifiable serait un canal d'exfiltration du token
+  d'authentification.
+- Dev local : UNIQUEMENT par `package_extension.py dev` (copie réécrite dans
+  `dist/dev/`). Jamais de valeur locale dans les sources, même temporairement.
 - L'URL actuelle (`cockpit-production-6afb.up.railway.app`) est celle de la 1.1.0 en
   revue : le passage à `api.cockpitemploi.fr` appartient au lot 1.2.0, jamais à une
   correction isolée (cf. `dev-docs/domain.md`). L'extension n'a pas à figurer dans
   CORS_ORIGINS : `host_permissions` l'exempte du CORS (vérifié avec la 1.1.0).
 
-## Version 1.2.0 : partage de session (cadrée, pas commencée)
-- Décisions dans `dev-docs/extension-session-sharing.md` : le LIRE avant tout travail
-  sur la connexion, le manifeste ou l'empaquetage. Elles remplaceront le formulaire
-  de connexion de la popup et la bascule manuelle d'URL ; d'ici là, les règles de ce
+## Version 1.2.0 : partage de session (lot 1, empaquetage, livré)
+- Décisions et ordre des lots dans `dev-docs/extension-session-sharing.md` : le LIRE
+  avant tout travail sur la connexion, le manifeste ou l'empaquetage. Elles
+  remplaceront le formulaire de connexion de la popup ; d'ici là, les règles de ce
   fichier restent valables.
+
+## Empaquetage (`package_extension.py`)
+- Procédure et liste des contrôles : README.md. Bibliothèque standard uniquement ;
+  lancé par `backend\.venv\Scripts\python.exe`.
+- Ajouter un fichier à l'extension = l'ajouter à `FILES` dans le script : sinon le
+  contrôle d'atteignabilité échoue (dev comme store).
+- `config.js` : une constante par ligne, forme exacte `export const NOM = "valeur";`
+  (seule forme que le script réécrit). Aucune valeur locale ni ancien domaine dans
+  un fichier du paquet, COMMENTAIRES COMPRIS (`localhost`, `127.0.0.1`, `railway` :
+  la cible store échoue).
+- Une clé de manifeste qui cite des fichiers hors service worker, popup et icônes
+  (`content_scripts`, `web_accessible_resources`…) fait échouer le script : étendre
+  `_manifest_roots` avant de l'utiliser.
+- ⚠ Ne jamais importer ni compiler le script (`py_compile`, `import`) : le
+  `__pycache__/` créé dans `extension/` empêche Chrome de charger le dossier (noms
+  commençant par « _ » réservés). L'exécuter directement n'en crée pas.
 
 ## Design tokens — synchronisation manuelle
 - Le bloc `<style>` de `popup.html` duplique volontairement les tokens de `tokens.css`

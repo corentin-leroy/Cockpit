@@ -127,7 +127,8 @@ CLAUDE.md par dossier (chargés automatiquement, cf. « Où trouver quoi ») :
 - `frontend/CLAUDE.md` : direction visuelle, architecture frontend, glisser-déposer,
   landing, blocage après un 429, suppression de compte, variables Vite.
 - `extension/CLAUDE.md` : extension Chrome (URL figée, tokens de la popup,
-  bornes, adaptateurs France Travail et Indeed, renvoi au cadrage de la 1.2.0).
+  bornes, adaptateurs France Travail et Indeed, renvoi au cadrage de la 1.2.0,
+  empaquetage).
 `dev-docs/` (à la demande ; entre guillemets, le titre d'origine cité par les
 renvois « cf. ») :
 - `kanban-order.md` : « Ordre des cartes du kanban »
@@ -174,7 +175,8 @@ cette liste et rejoint l'historique : jamais de statut tenu aux deux endroits.
   publiée.
 - Extension 1.2.0 : partage de session site → extension (`externally_connectable`),
   popup sans connexion, domaines définitifs, script d'empaquetage. Décisions :
-  `dev-docs/extension-session-sharing.md`. Cadrage terminé, audit du code à faire.
+  `dev-docs/extension-session-sharing.md` (ordre des lots compris). Audit fait,
+  lot 1 (script d'empaquetage) livré.
 - Connexion Google, sur le site et le backend uniquement, après la 1.2.0.
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
