@@ -117,3 +117,7 @@
      min ») : cela prouve aussi que `Retry-After` est lisible depuis le front déployé.
      Un mot de passe de test sur un compte jetable évite de se bloquer soi-même
      (le blocage ne vise que cette IP et cet email, pendant 15 minutes).
+
+  Refaite le 2026-10-10 après le passage au domaine personnalisé
+  api.cockpitemploi.fr (DNS Cloudflare en « DNS only ») : 6 étapes conformes,
+  topologie inchangée (TRUSTED_PROXY_COUNT=2).
