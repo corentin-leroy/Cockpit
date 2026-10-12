@@ -1,26 +1,29 @@
 // Logique de la popup (module ES). Deux états :
-//   (a) non connecté  → formulaire email/mot de passe → POST /auth/login ;
-//   (b) connecté      → extraction de l'offre → formulaire de CORRECTION
-//                        pré-rempli → « Ajouter au cockpit ».
+//   (a) non connecté  → bouton « Se connecter sur Cockpit », qui ouvre la page
+//                        de connexion du site dans un nouvel onglet ;
+//   (b) connecté      → « Connecté en tant que <email> », extraction de l'offre
+//                        → formulaire de CORRECTION pré-rempli → « Ajouter au
+//                        cockpit ».
 //
 // Séparation des rôles :
-// - la popup fait le login (contexte extension, hors CSP d'un site) et stocke
-//   le token via storage.js ;
+// - la popup ne se connecte plus : la session vient du site (session:set, reçu
+//   et validé par le service worker, cf. background.js), et la déconnexion se fait
+//   aussi sur le site. La popup ne fait que LIRE la session (storage.js) ;
 // - l'extraction et le POST /applications passent par le service worker
-//   (messages EXTRACT_OFFER / ADD_OFFER), qui agit hors CSP du site visité.
+//   (messages EXTRACT_OFFER / GET_BOARDS / ADD_OFFER), qui agit hors CSP du site
+//   visité.
 //
-// Point clé de cette version : on ne poste plus l'extraction brute. Elle
-// pré-remplit le formulaire ; c'est l'utilisateur qui valide/complète, puis on
-// poste les données DU FORMULAIRE.
+// On ne poste jamais l'extraction brute. Elle pré-remplit le formulaire ; c'est
+// l'utilisateur qui valide/complète, puis on poste les données DU FORMULAIRE.
 
+import { SITE_ORIGIN } from "./config.js";
 import {
   getToken,
-  setToken,
-  clearToken,
+  getEmail,
+  clearSession,
   getLastBoardId,
   setLastBoardId,
 } from "./storage.js";
-import { login } from "./api.js";
 import {
   TITLE_MAX_LENGTH,
   COMPANY_MAX_LENGTH,
@@ -33,9 +36,8 @@ const loggedOutEl = document.getElementById("logged-out");
 const loggedInEl = document.getElementById("logged-in");
 const messageEl = document.getElementById("message");
 
-const emailEl = document.getElementById("email");
-const passwordEl = document.getElementById("password");
-const loginBtn = document.getElementById("login-btn");
+const openLoginBtn = document.getElementById("open-login-btn");
+const accountEl = document.getElementById("account");
 
 const extractStatusEl = document.getElementById("extract-status");
 const offerFormEl = document.getElementById("offer-form");
@@ -46,7 +48,10 @@ const urlEl = document.getElementById("f-url");
 const boardFieldEl = document.getElementById("board-field");
 const boardSelectEl = document.getElementById("f-board");
 const addBtn = document.getElementById("add-btn");
-const logoutBtn = document.getElementById("logout-btn");
+
+// Message commun aux deux 401 (chargement des tableaux, ajout) : la reconnexion
+// se fait sur le site, la popup n'a plus de formulaire.
+const SESSION_EXPIRED_MESSAGE = "Session expirée : reconnectez-vous sur le site Cockpit.";
 
 // Bornes posées PAR CODE (miroir du backend, cf. limits.js) plutôt qu'en dur
 // dans popup.html : un fichier réellement appliqué, pas une documentation qu'on
@@ -73,11 +78,30 @@ function showMessage(text, kind = "") {
   messageEl.className = kind;
 }
 
+/**
+ * Affiche « Connecté en tant que <email> », ou masque la ligne si l'email est
+ * inconnu (jeton stocké par la popup de la 1.1.0, avant l'email) : jamais de ligne
+ * vide ni « undefined ». textContent uniquement, jamais innerHTML.
+ */
+function renderAccount(email) {
+  accountEl.replaceChildren();
+  if (typeof email !== "string" || email === "") {
+    accountEl.hidden = true;
+    return;
+  }
+  const emailSpan = document.createElement("span");
+  emailSpan.className = "account__email";
+  emailSpan.textContent = email;
+  accountEl.append("Connecté en tant que ", emailSpan);
+  accountEl.hidden = false;
+}
+
 /** Bascule l'affichage entre les deux états (et efface le message). */
-function render(isAuthenticated) {
+function render(isAuthenticated, email = null) {
   loadingEl.style.display = "none";
   loggedOutEl.style.display = isAuthenticated ? "none" : "block";
   loggedInEl.style.display = isAuthenticated ? "block" : "none";
+  renderAccount(isAuthenticated ? email : null);
   showMessage("");
 }
 
@@ -89,7 +113,7 @@ function refreshAddButton() {
 
 /**
  * Demande l'extraction au service worker et pré-remplit le formulaire.
- * Appelée à chaque entrée dans l'état connecté (ouverture popup / login réussi).
+ * Appelée à chaque entrée dans l'état connecté (ouverture de la popup).
  */
 async function startExtraction() {
   currentOffer = null;
@@ -167,7 +191,7 @@ function populateBoardSelect() {
 /**
  * Charge les tableaux (via le service worker) et détermine le tableau
  * pré-sélectionné. Renvoie true si tout est prêt, false si l'ajout ne peut pas
- * se faire (401 → écran de connexion ; erreur réseau → message). Dans ces deux
+ * se faire (401 → état non connecté ; erreur réseau → message). Dans ces deux
  * cas de false, l'UI a déjà été mise à jour ici.
  */
 async function loadBoards() {
@@ -194,12 +218,13 @@ async function loadBoards() {
     return true;
   }
 
-  // Token expiré/invalide : le service worker a déjà purgé le token. On rebascule
-  // vers l'écran de connexion (cohérent avec l'ajout). On NE ferme PAS la popup.
+  // Token expiré/invalide : le service worker a déjà purgé la session. On
+  // rebascule vers l'état non connecté (cohérent avec l'ajout). On NE ferme PAS
+  // la popup.
   if (result?.status === 401) {
-    await clearToken();
+    await clearSession();
     render(false);
-    showMessage("Session expirée, reconnectez-vous.", "error");
+    showMessage(SESSION_EXPIRED_MESSAGE, "error");
     return false;
   }
 
@@ -212,8 +237,8 @@ async function loadBoards() {
  * board_id, et détecte un 401 d'emblée) ; seulement si c'est bon, on lance
  * l'extraction qui affiche le formulaire de correction.
  */
-async function enterConnectedState() {
-  render(true);
+async function enterConnectedState(email) {
+  render(true, email);
   const ready = await loadBoards();
   if (!ready) return;
   startExtraction();
@@ -224,32 +249,13 @@ boardSelectEl.addEventListener("change", () => {
   selectedBoardId = Number(boardSelectEl.value);
 });
 
-// --- État (a) : connexion ---
-loggedOutEl.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  showMessage("");
-
-  const email = emailEl.value.trim();
-  const password = passwordEl.value;
-  if (!email || !password) {
-    showMessage("Renseignez votre email et votre mot de passe.", "error");
-    return;
-  }
-
-  loginBtn.disabled = true;
-  loginBtn.textContent = "Connexion…";
-  try {
-    const { access_token: token } = await login(email, password);
-    await setToken(token);
-    passwordEl.value = "";
-    enterConnectedState();
-  } catch (err) {
-    // 401 : identifiants invalides. Le backend renvoie déjà un message générique.
-    showMessage(err.message || "Échec de la connexion.", "error");
-  } finally {
-    loginBtn.disabled = false;
-    loginBtn.textContent = "Se connecter";
-  }
+// --- État (a) : ouvrir la connexion du site ---
+// Nouvel onglet sur /login (la popup se ferme d'elle-même en perdant le focus).
+// Déjà connecté sur le site, /login renvoie vers le kanban, dont le chargement
+// transmet la session à l'extension. chrome.tabs.create n'exige pas la
+// permission « tabs ».
+openLoginBtn.addEventListener("click", () => {
+  chrome.tabs.create({ url: `${SITE_ORIGIN}/login` });
 });
 
 // Validation cliente en direct : title et company non vides.
@@ -308,12 +314,12 @@ offerFormEl.addEventListener("submit", async (event) => {
       return;
     }
 
-    // Token expiré/invalide : le service worker a déjà purgé le token ; on
+    // Token expiré/invalide : le service worker a déjà purgé la session ; on
     // rebascule la popup vers l'état non connecté. On NE ferme PAS la popup.
     if (result?.status === 401) {
-      await clearToken();
+      await clearSession();
       render(false);
-      showMessage("Session expirée, reconnectez-vous.", "error");
+      showMessage(SESSION_EXPIRED_MESSAGE, "error");
       return;
     }
 
@@ -328,18 +334,12 @@ offerFormEl.addEventListener("submit", async (event) => {
   }
 });
 
-// --- Déconnexion ---
-logoutBtn.addEventListener("click", async () => {
-  await clearToken();
-  currentOffer = null;
-  render(false);
-});
-
 // --- Au chargement de la popup : choisir l'état selon la présence d'un token ---
+// (l'email peut manquer : renderAccount masque alors sa ligne)
 (async () => {
-  const token = await getToken();
+  const [token, email] = await Promise.all([getToken(), getEmail()]);
   if (token) {
-    enterConnectedState();
+    enterConnectedState(email);
   } else {
     render(false);
   }

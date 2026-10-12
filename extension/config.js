@@ -1,6 +1,5 @@
 // Adresses figées de l'extension : SEUL fichier du code où elles sont écrites
-// (avec host_permissions, et à partir de la 1.2.0 externally_connectable, dans
-// manifest.json).
+// (avec host_permissions et externally_connectable, dans manifest.json).
 //
 // API_BASE_URL : API de PRODUCTION. Elle doit rester STRICTEMENT alignée sur
 // l'entrée host_permissions du manifest : c'est cette permission d'hôte qui
@@ -9,8 +8,10 @@
 // compris) et échouent, sans que le code ne signale quoi que ce soit d'anormal.
 // package_extension.py refuse de construire un paquet dans ce cas.
 //
-// SITE_ORIGIN : origine exacte du site (pas encore utilisée : partage de session
-// de la 1.2.0, cf. dev-docs/extension-session-sharing.md).
+// SITE_ORIGIN : origine exacte du site. Seule origine dont background.js accepte
+// la session (contrôle de sender.origin), et site dont la popup ouvre la page de
+// connexion. Alignée sur externally_connectable du manifest (contrôlé par
+// package_extension.py). Cf. dev-docs/extension-session-sharing.md.
 //
 // Volontairement PAS de page d'options : une URL d'API configurable par
 // l'utilisateur permettrait de diriger le token d'authentification vers un
@@ -25,5 +26,5 @@
 // - aucune valeur locale ni ancien domaine dans ce fichier, commentaires
 //   compris : le paquet Store les refuse partout (cf. README.md).
 
-export const API_BASE_URL = "https://cockpit-production-6afb.up.railway.app";
+export const API_BASE_URL = "https://api.cockpitemploi.fr";
 export const SITE_ORIGIN = "https://cockpitemploi.fr";

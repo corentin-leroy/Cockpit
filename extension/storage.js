@@ -1,12 +1,18 @@
-// Gestion du token JWT de l'extension — SEUL endroit qui touche chrome.storage
-// pour le token (équivalent de auth/token.js côté front, mais on stocke dans
+// Session de l'extension (jeton JWT et email du compte) — SEUL endroit qui touche
+// chrome.storage (équivalent de auth/token.js côté front, mais on stocke dans
 // chrome.storage.local et JAMAIS dans le localStorage d'un site visité).
 //
 // chrome.storage.local est propre à l'extension, persistant entre les sessions,
 // et accessible aussi bien depuis la popup que depuis le service worker — c'est
-// ce qui permet à ces deux contextes de partager le même token.
+// ce qui permet à ces deux contextes de partager la même session.
+//
+// La session est reçue du site (session:set, background.js) : jeton et email sont
+// écrits et effacés ENSEMBLE, en un seul appel. L'email sert à l'affichage
+// « Connecté en tant que … » de la popup. Il peut manquer (jeton stocké par la
+// popup de la 1.1.0, avant l'email) : la popup le tolère.
 
 const TOKEN_KEY = "cockpit_token";
+const EMAIL_KEY = "cockpit_email";
 // Dernier tableau choisi dans l'extension (équivalent de boards/lastBoard.js côté
 // front, même clé « cockpit_last_board »). chrome.storage préserve les types JSON :
 // on y stocke/relit un NOMBRE, pas une chaîne comme localStorage côté front.
@@ -18,14 +24,20 @@ export async function getToken() {
   return result[TOKEN_KEY] ?? null;
 }
 
-/** Enregistre le token (après un login réussi). */
-export async function setToken(token) {
-  await chrome.storage.local.set({ [TOKEN_KEY]: token });
+/** Lit l'email du compte connecté, ou null s'il n'y en a pas. */
+export async function getEmail() {
+  const result = await chrome.storage.local.get(EMAIL_KEY);
+  return result[EMAIL_KEY] ?? null;
 }
 
-/** Efface le token (déconnexion, ou purge sur 401). */
-export async function clearToken() {
-  await chrome.storage.local.remove(TOKEN_KEY);
+/** Enregistre la session (jeton validé par /auth/me et son email), en un appel. */
+export async function setSession(token, email) {
+  await chrome.storage.local.set({ [TOKEN_KEY]: token, [EMAIL_KEY]: email });
+}
+
+/** Efface la session (session:clear du site, ou purge sur 401), en un appel. */
+export async function clearSession() {
+  await chrome.storage.local.remove([TOKEN_KEY, EMAIL_KEY]);
 }
 
 /** Lit l'id du dernier tableau choisi, ou null. */

@@ -74,7 +74,7 @@ CONFIG_CONSTANTS: tuple[str, ...] = ("API_BASE_URL", "SITE_ORIGIN")
 # l'extension en dépend, cf. dev-docs/extension-session-sharing.md).
 DEV_API_BASE_URL = "http://127.0.0.1:8000"
 DEV_SITE_ORIGIN = "http://localhost:5173"
-# Motif externally_connectable du manifeste de dev (utilisé à partir de la 1.2.0).
+# Motif externally_connectable du manifeste de dev (partage de session du site).
 # Si Chrome refuse le port à son chargement : remplacer par "http://localhost/*",
 # ICI seulement (jamais dans le manifeste des sources).
 DEV_SITE_MATCH = DEV_SITE_ORIGIN + "/*"
@@ -225,7 +225,7 @@ def check_alignment(manifest: dict, config: dict[str, str]) -> None:
             "de l'extension retombent sous le contrôle CORS et échouent sans signal."
         )
 
-    # externally_connectable n'existe qu'à partir de la 1.2.0 : contrôlé s'il est là.
+    # externally_connectable (partage de session, depuis la 1.2.0) : contrôlé s'il est là.
     if "externally_connectable" in manifest:
         site_origin = config["SITE_ORIGIN"]
         expected_matches = [site_origin + "/*"]

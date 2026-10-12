@@ -13,16 +13,20 @@
 
 L'extension pointe sur l'**API de production** : aucun backend local n'est requis.
 
-1. Cliquer sur l'icône de l'extension → la **popup** s'ouvre
-2. Se connecter (même identifiants que le front) : le token est stocké dans
-   `chrome.storage.local`
+1. Se connecter **sur le site** (https://cockpitemploi.fr) : le site transmet sa
+   session à l'extension. Non connectée, la popup propose **« Se connecter sur
+   Cockpit »**, qui ouvre la page de connexion du site dans un nouvel onglet.
+2. Cliquer sur l'icône de l'extension → la **popup** s'ouvre et affiche
+   « Connecté en tant que <email> »
 3. Sur une page d'offre, la popup **pré-remplit un formulaire** (intitulé,
    entreprise, lieu, lien) à partir de l'extraction. Corriger/compléter si besoin,
    puis **« Ajouter au cockpit »** → confirmation dans la popup
 4. La candidature apparaît dans le tableau choisi, sur le front déployé
 
-Le token reste stocké entre les sessions ; « Déconnexion » l'efface. Si le token
-expire, la prochaine tentative d'ajout renvoie la popup vers l'écran de connexion.
+La session (jeton et email) est stockée dans `chrome.storage.local`. Elle suit
+celle du site : se déconnecter du site, ou y voir sa session expirer, l'efface. Si
+le jeton expire, la prochaine ouverture de la popup (ou tentative d'ajout) la
+ramène à l'état non connecté. Mécanisme : `dev-docs/extension-session-sharing.md`.
 
 Après chaque modification du code : bouton ⟳ sur la carte de l'extension
 dans `chrome://extensions`.
@@ -38,16 +42,22 @@ produit une copie réécrite pour le local :
 2. Construire la copie de dev, depuis la racine du dépôt :
    `backend\.venv\Scripts\python.exe extension\package_extension.py dev`
    → `extension/dist/dev/` (ignoré par Git), où `config.js` vise
-   `http://127.0.0.1:8000` (API) et `http://localhost:5173` (site), et
-   `host_permissions` du manifeste `http://127.0.0.1:8000/*`.
+   `http://127.0.0.1:8000` (API) et `http://localhost:5173` (site), et le
+   manifeste `http://127.0.0.1:8000/*` (`host_permissions`) et
+   `http://localhost:5173/*` (`externally_connectable`).
 3. Charger `extension/dist/dev/` comme extension non empaquetée (une seule fois),
    puis, après chaque nouvelle construction, ⟳ dans `chrome://extensions`.
+4. Site de dev : `frontend/.env.local` (ignoré par Git) contient
+   `VITE_EXTENSION_ID=<ID de l'extension de dev>` (affiché sur sa carte dans
+   `chrome://extensions`), puis `npm run dev` depuis `frontend/`. Ouvrir le site sur
+   `http://localhost:5173`, JAMAIS `127.0.0.1:5173` : l'extension de dev n'accepte la
+   session que de cette origine exacte.
 
 Le dossier est reconstruit au même endroit à chaque fois : l'identifiant de
 l'extension de dev (qui dépend du chemin du dossier chargé, il diffère de celui du
-Store) reste donc stable. Modifier le code dans `extension/`, jamais dans
-`dist/dev/` (écrasé à la construction suivante). Vérification côté serveur sur
-http://127.0.0.1:8000/docs (GET /applications).
+Store) reste donc stable, et `VITE_EXTENSION_ID` avec lui. Modifier le code dans
+`extension/`, jamais dans `dist/dev/` (écrasé à la construction suivante).
+Vérification côté serveur sur http://127.0.0.1:8000/docs (GET /applications).
 
 **URL de l'API et `host_permissions` vont toujours ensemble.** C'est
 `host_permissions` qui exempte la popup et le service worker du contrôle CORS ;
@@ -75,9 +85,6 @@ Le zip contient la liste EXPLICITE `FILES` du script (ni `icons/icon512.png`, ni
 - un fichier texte du paquet contient `localhost`, `127.0.0.1` ou `railway`,
   commentaires compris (store uniquement).
 
-Tant que la 1.1.0 vise l'ancien domaine de l'API, la cible store échoue sur
-`railway` : c'est attendu jusqu'au passage aux domaines définitifs (1.2.0).
-
 ## Pourquoi pas de page d'options pour l'URL de l'API
 
 **Décision actée : l'URL de l'API n'est pas configurable par l'utilisateur.**
@@ -101,27 +108,33 @@ l'extension publiée n'a aucun moyen d'en changer.
 
 - `manifest.json` — `action.default_popup` (le clic ouvre la popup), permissions
   `activeTab` (accès à l'onglet courant au clic), `scripting` (injection),
-  `storage` (token), `host_permissions` vers l'API. Service worker en module ES.
+  `storage` (session), `host_permissions` vers l'API, `externally_connectable`
+  limité au site (seule page autorisée à transmettre sa session). Service worker
+  en module ES.
 - `icons/` — jeu 16/32/48/128 déclaré deux fois dans le manifest : `icons`
   (page des extensions, fiche du Web Store, écran d'installation) et
   `action.default_icon` (barre d'outils). `icon512.png` n'est pas déclaré : il
   sert aux visuels de la fiche du Store, à téléverser depuis le tableau de bord.
-- `popup.html` / `popup.js` — l'UI : formulaire de connexion (POST /auth/login),
-  ou formulaire de correction de l'offre pré-rempli + « Déconnexion » selon la
-  présence d'un token.
-- `storage.js` — **seul** accès à `chrome.storage.local` pour le token
-  (get/set/clear).
+- `popup.html` / `popup.js` — l'UI, selon la présence d'un jeton : bouton « Se
+  connecter sur Cockpit » (ouvre la connexion du site), ou « Connecté en tant que
+  <email> » + formulaire de correction de l'offre pré-rempli. Aucun formulaire de
+  connexion ni bouton de déconnexion : la session suit celle du site.
+- `storage.js` — **seul** accès à `chrome.storage.local` : session (jeton et
+  email, écrits et effacés ensemble) et dernier tableau choisi.
 - `config.js` — adresses figées : `API_BASE_URL` (alignée sur
-  `host_permissions`) et `SITE_ORIGIN` (partage de session de la 1.2.0). Seul
-  fichier que le script réécrit, avec le manifeste, pour la cible dev.
-- `api.js` — couche API partagée popup/service worker : `login()`, `getBoards()`
-  et `createApplication()` (ajoutent le Bearer, purgent le token sur 401), avec
-  `API_BASE_URL` importée de `config.js`.
-- `background.js` — service worker, trois messages : `EXTRACT_OFFER` injecte
-  l'extracteur et renvoie l'offre à la popup (sans rien poster) ; `GET_BOARDS`
-  renvoie les tableaux de l'utilisateur ; `ADD_OFFER` poste les données validées
-  vers l'API depuis le contexte extension (immunisé contre la CSP des sites),
-  avec le token lu dans `chrome.storage`.
+  `host_permissions`) et `SITE_ORIGIN` (alignée sur `externally_connectable` :
+  origine dont la session est acceptée, site dont la popup ouvre la connexion).
+  Seul fichier que le script réécrit, avec le manifeste, pour la cible dev.
+- `api.js` — couche API du service worker : `getBoards()` et
+  `createApplication()` (Bearer du jeton stocké, purge de la session sur 401), et
+  `fetchCurrentUser()` (validation d'un jeton reçu du site, sans jamais rien
+  purger), avec `API_BASE_URL` importée de `config.js`.
+- `background.js` — service worker, deux canaux. De la popup, trois messages :
+  `EXTRACT_OFFER` injecte l'extracteur et renvoie l'offre (sans rien poster) ;
+  `GET_BOARDS` renvoie les tableaux de l'utilisateur ; `ADD_OFFER` poste les
+  données validées vers l'API depuis le contexte extension (immunisé contre la CSP
+  des sites). Du site (`onMessageExternal`) : `session:set` (jeton validé par
+  `/auth/me` puis stocké avec l'email) et `session:clear`.
 - `adapters/` — extracteurs spécifiques à un site, injectés à la place de
   l'extraction générique (`extractOffer`, background.js). `index.js` choisit
   l'adaptateur d'après l'hôte de l'onglet ; `francetravail.js` lit les offres de

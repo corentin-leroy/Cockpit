@@ -1,8 +1,7 @@
 # Partage de session site → extension (`externally_connectable`)
-Mécanisme PRÉVU pour l'extension 1.2.0, pas encore implémenté : le code actuel
-(popup avec formulaire de connexion, URL de l'API sur le domaine Railway) ne suit
-pas encore ce document. Avancement : feuille de route du CLAUDE.md racine. Une fois
-livré, ce document reste la référence du mécanisme : retirer alors ce paragraphe.
+Référence du mécanisme, implémenté dans l'extension 1.2.0 et le site
+(`frontend/src/auth/extensionSession.js`). Avancement (déploiement, publication) :
+feuille de route du CLAUDE.md racine.
 
 # Principe
 - L'extension est un REFLET de la session du site : on se connecte et se déconnecte
@@ -33,12 +32,15 @@ livré, ce document reste la référence du mécanisme : retirer alors ce paragr
   script : `chrome.runtime.onMessageExternal` (les messages d'une page n'arrivent
   pas sur `onMessage`). Avant tout traitement : `sender.origin` égal à l'origine
   exacte du site (`SITE_ORIGIN`, `config.js`), `type` parmi les deux attendus,
-  `token` de type chaîne. Tout autre message est ignoré.
-- Validation du jeton AVANT stockage : `GET /auth/me` avec ce jeton.
-  - 200 : le jeton ET l'email renvoyé sont stockés (via `storage.js`, seul accès au
-    stockage de l'extension).
-  - 401, ou échec réseau : RIEN n'est stocké, réponse `{ok: false}`. Le site renverra
-    sa session au prochain chargement.
+  `token` de type chaîne NON VIDE. Tout autre message est ignoré, sans réponse.
+- Validation du jeton AVANT stockage : `GET /auth/me` avec ce jeton
+  (`fetchCurrentUser`, `api.js`, qui ne purge JAMAIS la session : le jeton refusé
+  n'est pas celui du stockage).
+  - 200 avec un email : le jeton ET l'email sont stockés en un seul appel (via
+    `storage.js`, seul accès au stockage de l'extension).
+  - 401, échec réseau ou réponse sans email : RIEN n'est stocké (la session
+    précédente reste intacte), réponse `{ok: false}`. Le site renverra sa session au
+    prochain chargement.
   - Raccourci : si le jeton reçu est IDENTIQUE au jeton stocké ET qu'un email est
     déjà stocké, réponse `{ok: true}` sans appeler l'API (évite un `/auth/me` à chaque
     chargement du site). Un jeton stocké sans email (popup de la 1.1.0, qui ne
@@ -46,11 +48,18 @@ livré, ce document reste la référence du mécanisme : retirer alors ce paragr
 - Email affiché dans la popup (« Connecté en tant que … ») : c'est la parade contre
   l'injection d'un jeton ÉTRANGER (le site pousserait la session d'un autre compte,
   et les offres capturées partiraient dans ce compte) ; l'utilisateur voit le compte.
-- Course entre `session:set` et `session:clear` : un compteur de GÉNÉRATION dans le
-  service worker. `session:clear` l'incrémente ; `session:set` relève le compteur
-  avant l'appel à `/auth/me` et ne stocke que s'il n'a pas changé pendant l'appel
-  (sinon `{ok: false}`). Sans cela, une déconnexion pendant la validation laissait
-  le jeton stocké après l'effacement.
+- Courses entre messages : « le DERNIER message reçu gagne ». Un compteur de
+  GÉNÉRATION dans le service worker, incrémenté par CHAQUE message (`session:set`
+  comme `session:clear`) dès son arrivée, avant toute attente. Un `session:set`
+  retient son numéro et ne stocke que si aucun message plus récent n'est arrivé
+  pendant la lecture du stockage et l'appel à `/auth/me` ; sinon `{ok: false}` (set
+  dépassé). Sans cela, une déconnexion pendant la validation laissait le jeton
+  stocké après l'effacement, et lors d'une reconnexion rapide, l'ancien jeton
+  pouvait écraser le nouveau. Entre le dernier contrôle et l'écriture, aucune
+  attente : un message arrivé ensuite passe DERRIÈRE l'écriture dans
+  `chrome.storage` et s'applique en dernier. Vérifié le 2026-10-10 par un banc
+  d'essai Node HORS DÉPÔT (chrome et fetch simulés, 22 cas), contre-épreuve
+  comprise : sans ce contrôle, les trois courses échouent.
 - Côté site : un module unique envoie les messages (`chrome.runtime.sendMessage`),
   avec un garde quand `chrome.runtime` est absent (extension non installée, autre
   navigateur) et une lecture de `chrome.runtime.lastError` : l'échec est SILENCIEUX
@@ -63,7 +72,16 @@ livré, ce document reste la référence du mécanisme : retirer alors ce paragr
   `key` dans le manifeste : l'ID de dev dépend donc du chemin du dossier chargé, que
   le script reconstruit toujours au même endroit.
 - Popup : formulaire de connexion et bouton de déconnexion SUPPRIMÉS, remplacés par
-  un bouton qui ouvre la page de connexion du site (`/login`).
+  un bouton « Se connecter sur Cockpit » qui ouvre `SITE_ORIGIN + "/login"` dans un
+  nouvel onglet (`chrome.tabs.create`, sans permission `tabs`). Déjà connecté sur le
+  site, `/login` renvoie vers le kanban, dont le chargement transmet la session.
+  Connectée, elle affiche « Connecté en tant que <email> » ; un jeton stocké sans
+  email (1.1.0) la laisse connectée SANS cette ligne (jamais « undefined »).
+- Côté site, points d'envoi (tous dans `AuthContext.jsx`) : `session:set` après
+  chaque `GET /auth/me` réussi (`loadUser` : chargement d'un utilisateur déjà
+  connecté, `login()`, connexion dans un autre onglet), avec le jeton lu AVANT
+  l'appel ; `session:clear` dans `logout()` (navbar, suppression de compte, reset
+  de mot de passe) et dans l'écouteur du 401 (`onSessionExpired`).
 - Manifeste construit avec les seuls domaines DÉFINITIFS : `host_permissions` vers
   `api.cockpitemploi.fr` (et `API_BASE_URL` de `config.js` alignée, cf.
   extension/CLAUDE.md). Le changement d'hôte déclenchera un avertissement de

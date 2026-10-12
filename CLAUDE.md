@@ -175,8 +175,11 @@ cette liste et rejoint l'historique : jamais de statut tenu aux deux endroits.
   publiée.
 - Extension 1.2.0 : partage de session site → extension (`externally_connectable`),
   popup sans connexion, domaines définitifs, script d'empaquetage. Décisions :
-  `dev-docs/extension-session-sharing.md` (ordre des lots compris). Audit fait,
-  lot 1 (script d'empaquetage) livré.
+  `dev-docs/extension-session-sharing.md` (ordre des lots compris). Lot 1 (script
+  d'empaquetage) livré ; lot 2 (site et extension, version 1.2.0 dans le manifeste)
+  développé en local. Reste : tests manuels dans Chrome, puis lot 3 (déploiement du
+  site, soumission de la 1.2.0 après l'approbation de la 1.1.0) et lot 4 (retrait du
+  domaine Railway de l'API).
 - Connexion Google, sur le site et le backend uniquement, après la 1.2.0.
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)

@@ -1,17 +1,17 @@
-// Couche d'accès à l'API backend, partagée par la popup et le service worker.
-//
-// Trois appels :
-// - login()             : utilisé par la popup (contexte extension, non soumis
-//                         à la CSP d'un site) ;
+// Couche d'accès à l'API backend, utilisée par le service worker (contexte
+// extension, non soumis à la CSP d'un site). Trois appels :
 // - getBoards() et
-//   createApplication() : utilisés par le service worker, qui ajoute le Bearer
-//                         et purge le token sur 401 (même logique que le front).
+//   createApplication() : ajoutent le Bearer du jeton STOCKÉ et purgent la
+//                         session sur 401 (même logique que le front) ;
+// - fetchCurrentUser()  : valide un jeton REÇU du site avant de le stocker
+//                         (session:set) ; ne purge jamais rien.
+// Plus de login() : on se connecte sur le site, qui transmet sa session.
 //
 // L'URL de l'API (API_BASE_URL) est figée dans config.js : voir ce fichier pour
 // son alignement obligatoire avec host_permissions et le développement local.
 
 import { API_BASE_URL } from "./config.js";
-import { getToken, clearToken } from "./storage.js";
+import { getToken, clearSession } from "./storage.js";
 
 /**
  * Erreur d'API porteuse du code HTTP (pour détecter un 401) et du corps JSON
@@ -33,22 +33,24 @@ export class ApiError extends Error {
 }
 
 /**
- * Connexion. POST /auth/login → { access_token, token_type }.
- * Ne stocke PAS le token : le stockage est décidé par la popup (via storage.js),
- * qui bascule ensuite vers l'état connecté.
+ * Utilisateur courant pour un jeton DONNÉ. GET /auth/me → { id, email, ... }.
+ * Sert à valider le jeton reçu du site AVANT de le stocker (session:set,
+ * background.js). Lève une ApiError (status 401 pour un jeton refusé) ; une
+ * panne réseau remonte telle quelle (TypeError de fetch).
+ *
+ * ⚠ Ne purge JAMAIS la session sur 401, contrairement aux deux appels suivants :
+ * le jeton refusé n'est pas celui du stockage, qui peut porter une session
+ * valide.
  */
-export async function login(email, password) {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+export async function fetchCurrentUser(token) {
+  const response = await fetch(`${API_BASE_URL}/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    // Le backend renvoie `detail` déjà en français, directement affichable —
-    // TOUJOURS une chaîne, y compris sur un 422 (401 ici : « Email ou mot de
-    // passe incorrect. »). Fallback générique si le corps est illisible.
+    // Le backend renvoie `detail` déjà en français — TOUJOURS une chaîne.
+    // Fallback générique si le corps est illisible.
     throw new ApiError(data?.detail || `Erreur ${response.status}`, response.status, data);
   }
   return data;
@@ -57,7 +59,8 @@ export async function login(email, password) {
 /**
  * Récupère les tableaux de l'utilisateur. GET /boards avec Bearer.
  * Sert à alimenter le choix du tableau dans la popup. Même gestion du 401 que
- * createApplication (purge du token → la popup rebascule vers la connexion).
+ * createApplication (purge de la session → la popup rebascule vers l'état
+ * « non connecté »).
  */
 export async function getBoards() {
   const token = await getToken();
@@ -72,7 +75,7 @@ export async function getBoards() {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401) {
-      await clearToken();
+      await clearSession();
     }
     throw new ApiError(data?.detail || `Erreur ${response.status}`, response.status, data);
   }
@@ -81,7 +84,7 @@ export async function getBoards() {
 
 /**
  * Crée une candidature. POST /applications avec Authorization: Bearer <token>.
- * Sur 401 (token expiré/invalide), purge le token stocké — la popup rebascule
+ * Sur 401 (token expiré/invalide), purge la session stockée — la popup rebascule
  * alors vers l'état « non connecté ».
  */
 export async function createApplication(offer) {
@@ -102,7 +105,7 @@ export async function createApplication(offer) {
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401) {
-      await clearToken();
+      await clearSession();
     }
     throw new ApiError(data?.detail || `Erreur ${response.status}`, response.status, data);
   }

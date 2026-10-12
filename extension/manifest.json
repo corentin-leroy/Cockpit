@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cockpit",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Suivez vos candidatures dans un kanban et capturez une offre depuis n'importe quel site d'annonces en un clic.",
 
   "icons": {
@@ -34,6 +34,12 @@
   ],
 
   "host_permissions": [
-    "https://cockpit-production-6afb.up.railway.app/*"
-  ]
+    "https://api.cockpitemploi.fr/*"
+  ],
+
+  "externally_connectable": {
+    "matches": [
+      "https://cockpitemploi.fr/*"
+    ]
+  }
 }

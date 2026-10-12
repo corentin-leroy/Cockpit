@@ -7,16 +7,31 @@
   d'authentification.
 - Dev local : UNIQUEMENT par `package_extension.py dev` (copie réécrite dans
   `dist/dev/`). Jamais de valeur locale dans les sources, même temporairement.
-- L'URL actuelle (`cockpit-production-6afb.up.railway.app`) est celle de la 1.1.0 en
-  revue : le passage à `api.cockpitemploi.fr` appartient au lot 1.2.0, jamais à une
-  correction isolée (cf. `dev-docs/domain.md`). L'extension n'a pas à figurer dans
-  CORS_ORIGINS : `host_permissions` l'exempte du CORS (vérifié avec la 1.1.0).
+- Depuis la 1.2.0, l'API est `api.cockpitemploi.fr`. La 1.1.0 publiée appelle encore
+  l'ancien domaine Railway de l'API : ne pas le retirer du backend avant la
+  publication de la 1.2.0 (cf. `dev-docs/domain.md`). L'extension n'a pas à figurer
+  dans CORS_ORIGINS : `host_permissions` l'exempte du CORS (vérifié avec la 1.1.0).
 
-## Version 1.2.0 : partage de session (lot 1, empaquetage, livré)
-- Décisions et ordre des lots dans `dev-docs/extension-session-sharing.md` : le LIRE
-  avant tout travail sur la connexion, le manifeste ou l'empaquetage. Elles
-  remplaceront le formulaire de connexion de la popup ; d'ici là, les règles de ce
-  fichier restent valables.
+## Partage de session avec le site (depuis la 1.2.0)
+- Décisions et justification : `dev-docs/extension-session-sharing.md`, à LIRE avant
+  tout travail sur la connexion, le manifeste ou l'empaquetage.
+- L'extension n'a AUCUN écran de connexion : la session vient du site
+  (`chrome.runtime.onMessageExternal`, `background.js`). Ne jamais réintroduire de
+  formulaire de connexion ni de déconnexion dans la popup.
+- `externally_connectable` = la SEULE origine du site (`SITE_ORIGIN`), sans joker ni
+  `ids` ; `sender.origin` est contrôlé EN PREMIER dans l'écouteur, avant de lire le
+  message.
+- Canal à sens unique : la réponse au site n'est JAMAIS que `{ok}`. Aucun message ne
+  doit permettre à une page de lire le jeton ou l'email.
+- Compteur de génération : « le dernier message reçu gagne ». Chaque message
+  l'incrémente avant toute attente ; un `session:set` revérifie son numéro après
+  CHAQUE `await` et n'a aucune attente entre ce contrôle et `setSession`. Ne pas
+  insérer d'`await` à cet endroit (la protection contre les courses en dépend).
+- `fetchCurrentUser` (validation d'un jeton reçu) ne purge JAMAIS la session sur
+  401, contrairement à `getBoards` / `createApplication` (jeton stocké).
+- Jeton et email s'écrivent et s'effacent ENSEMBLE (`setSession` / `clearSession`,
+  `storage.js`). L'email s'affiche par `textContent` uniquement ; absent (jeton de
+  la 1.1.0), la ligne « Connecté en tant que … » reste masquée.
 
 ## Empaquetage (`package_extension.py`)
 - Procédure et liste des contrôles : README.md. Bibliothèque standard uniquement ;
@@ -52,6 +67,9 @@
   succès, erreur et messages neutres. Le type est porté par `className`.
 - Il porte `role="status"` et `aria-atomic="true"` : ne les retire pas, ne crée pas de
   second conteneur.
+- La ligne « Connecté en tant que … » (`#account`) n'est PAS un conteneur de
+  messages : une information fixe sur le compte, sans `role="status"`. N'y écrire
+  aucun message d'état.
 - Aucun emoji dans les chaînes de `popup.js` : le pictogramme d'état vient uniquement
   du CSS (`::before`).
 

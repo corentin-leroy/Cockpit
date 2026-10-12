@@ -1,18 +1,26 @@
 // Service worker de l'extension (Manifest V3), chargé comme module ES
 // ("type": "module" dans le manifest) pour pouvoir importer la couche API.
 //
-// Le clic sur l'icône ouvre la popup (action.default_popup). La popup pilote
-// deux opérations, via deux messages distincts :
-//   - EXTRACT_OFFER : injecter l'extraction dans la page active et renvoyer le
-//     résultat à la popup, SANS rien poster (elle pré-remplit un formulaire) ;
-//   - ADD_OFFER     : poster vers l'API les données VALIDÉES par l'utilisateur.
+// Deux canaux de messages :
 //
-// Pourquoi passer par le service worker plutôt que la page ? L'injection et le
-// POST se font depuis le contexte de l'extension → pas soumis à la CSP du site.
+// 1. Popup → service worker (chrome.runtime.onMessage). Le clic sur l'icône ouvre
+//    la popup (action.default_popup), qui pilote trois opérations :
+//    - EXTRACT_OFFER : injecter l'extraction dans la page active et renvoyer le
+//      résultat à la popup, SANS rien poster (elle pré-remplit un formulaire) ;
+//    - GET_BOARDS    : renvoyer les tableaux de l'utilisateur ;
+//    - ADD_OFFER     : poster vers l'API les données VALIDÉES par l'utilisateur.
+//    Pourquoi passer par le service worker plutôt que la page ? L'injection et le
+//    POST se font depuis le contexte de l'extension → pas soumis à la CSP du site.
+//
+// 2. Site Cockpit → service worker (chrome.runtime.onMessageExternal), partage de
+//    session : session:set et session:clear. Canal à SENS UNIQUE, le jeton ne
+//    repart jamais vers une page. Décisions : dev-docs/extension-session-sharing.md.
 
 import { findAdapter } from "./adapters/index.js";
-import { getBoards, createApplication } from "./api.js";
+import { getBoards, createApplication, fetchCurrentUser } from "./api.js";
+import { SITE_ORIGIN } from "./config.js";
 import { URL_MAX_LENGTH } from "./limits.js";
+import { getToken, getEmail, setSession, clearSession } from "./storage.js";
 import { stripTrackingParams } from "./urlCleanup.js";
 
 // --- La fonction injectée dans la page ---
@@ -188,6 +196,81 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   }
   if (message?.type === "ADD_OFFER") {
     handleCreateApplication(message.offer).then(sendResponse);
+    return true;
+  }
+});
+
+// --- Partage de session avec le site (session:set / session:clear) ---
+
+// Compteur de GÉNÉRATION : « le dernier message reçu gagne ». Chaque message du
+// site l'incrémente DÈS SON ARRIVÉE (de façon synchrone, avant toute attente).
+// Un session:set retient son numéro et, après chaque attente (lecture du stockage,
+// appel à /auth/me), abandonne avec { ok: false } si un message plus récent est
+// arrivé entre-temps : ni un clear (déconnexion pendant la validation), ni un set
+// plus récent (reconnexion rapide) ne peuvent être écrasés par un set dépassé.
+// En mémoire : un service worker relancé repart à 0, sans risque, puisqu'aucune
+// validation n'est alors en cours.
+let sessionGeneration = 0;
+
+/**
+ * Valide le jeton reçu du site puis le stocke avec l'email du compte.
+ * Renvoie { ok: true } si la session est stockée (ou l'était déjà), sinon
+ * { ok: false } : jeton refusé, panne réseau, réponse sans email, ou message
+ * dépassé par un plus récent. Dans tous les cas d'échec, RIEN n'est écrit (la
+ * session précédente reste intacte) ; le site renverra au prochain chargement.
+ */
+async function handleSessionSet(token, generation) {
+  try {
+    const [storedToken, storedEmail] = await Promise.all([getToken(), getEmail()]);
+    if (generation !== sessionGeneration) return { ok: false };
+
+    // Raccourci : même jeton ET email déjà là → rien à valider (évite un /auth/me
+    // à chaque chargement du site). Sans email (jeton venu de la popup de la 1.1.0),
+    // on passe par /auth/me, qui le complète.
+    if (token === storedToken && storedEmail) return { ok: true };
+
+    const user = await fetchCurrentUser(token);
+    if (generation !== sessionGeneration) return { ok: false };
+    if (typeof user?.email !== "string" || user.email === "") return { ok: false };
+
+    // Aucune attente entre le contrôle ci-dessus et cet appel : un message arrivé
+    // juste après est mis en file DERRIÈRE cette écriture dans chrome.storage, et
+    // c'est donc lui qui s'applique en dernier.
+    await setSession(token, user.email);
+    return { ok: true };
+  } catch {
+    // 401 (ApiError) ou panne réseau (TypeError) : rien n'est stocké.
+    return { ok: false };
+  }
+}
+
+/** Efface la session, sans condition. */
+async function handleSessionClear() {
+  try {
+    await clearSession();
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
+}
+
+// Canal site → service worker. Ordre des contrôles, AVANT tout traitement :
+// 1. origine EXACTE du site (sender.origin), 2. type parmi les deux attendus,
+// 3. pour session:set, jeton en chaîne non vide. Tout autre message est ignoré
+// sans réponse. La réponse au site n'est jamais que { ok } : ni jeton, ni email.
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+  if (sender.origin !== SITE_ORIGIN) return;
+
+  if (message?.type === "session:clear") {
+    sessionGeneration += 1;
+    handleSessionClear().then(sendResponse);
+    return true;
+  }
+
+  if (message?.type === "session:set") {
+    if (typeof message.token !== "string" || message.token === "") return;
+    sessionGeneration += 1;
+    handleSessionSet(message.token, sessionGeneration).then(sendResponse);
     return true;
   }
 });

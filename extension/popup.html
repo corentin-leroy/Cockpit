@@ -133,8 +133,9 @@
         color: var(--color-text);
       }
 
-      /* Masqués par défaut : popup.js révèle l'état pertinent après lecture du
-         token, pour éviter un flash de l'écran de connexion si déjà connecté. */
+      /* Masqués par défaut : popup.js révèle l'état pertinent après lecture de la
+         session, pour éviter un flash de l'invitation à se connecter si déjà
+         connecté. */
       #loading,
       #logged-out,
       #logged-in,
@@ -206,17 +207,6 @@
         cursor: not-allowed;
       }
 
-      /* Bouton secondaire (déconnexion) : discret, texte et bordure seulement. */
-      button.secondary {
-        background: transparent;
-        border-color: var(--color-border-strong);
-        color: var(--color-text-secondary);
-      }
-
-      button.secondary:hover:not(:disabled) {
-        background: var(--color-surface-3);
-      }
-
       /* Anneau de focus clavier homogène (repris du front). */
       :focus-visible {
         outline: 2px solid var(--color-accent);
@@ -227,6 +217,40 @@
         margin: 0 0 var(--space-3);
         font-size: var(--text-xs);
         color: var(--color-text-muted);
+      }
+
+      /* Invitation à se connecter sur le site (état non connecté). */
+      .intro {
+        margin: 0 0 var(--space-3);
+        font-size: var(--text-sm);
+        color: var(--color-text-secondary);
+      }
+
+      /* « Connecté en tant que … » : le compte qui recevra les offres (parade
+       * contre un jeton étranger, cf. dev-docs/extension-session-sharing.md).
+       * Information, pas un message : jamais dans #message. Un email trop long
+       * passe à la ligne n'importe où et s'arrête à DEUX lignes avec ellipse
+       * (DESIGN.md, « Typographie »). */
+      .account {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+        margin: 0 0 var(--space-3);
+        font-size: var(--text-xs);
+        color: var(--color-text-secondary);
+      }
+
+      /* Le display ci-dessus l'emporterait sur l'attribut hidden (style du
+       * navigateur) : sans email, la ligne doit vraiment disparaître. */
+      .account[hidden] {
+        display: none;
+      }
+
+      .account__email {
+        font-weight: 500;
+        color: var(--color-text);
       }
 
       #loading,
@@ -267,19 +291,21 @@
 
     <p id="loading">Chargement…</p>
 
-    <!-- État (a) : non connecté -->
-    <form id="logged-out" novalidate>
-      <label for="email">Email</label>
-      <input id="email" type="email" autocomplete="username" />
-
-      <label for="password">Mot de passe</label>
-      <input id="password" type="password" autocomplete="current-password" />
-
-      <button id="login-btn" type="submit">Se connecter</button>
-    </form>
+    <!-- État (a) : non connecté. La connexion se fait sur le site, qui transmet
+         sa session à l'extension : aucun champ ici. -->
+    <div id="logged-out">
+      <p class="intro">
+        Connectez-vous sur le site Cockpit : l'extension reprend automatiquement
+        votre session.
+      </p>
+      <button id="open-login-btn" type="button">Se connecter sur Cockpit</button>
+    </div>
 
     <!-- État (b) : connecté -->
     <div id="logged-in">
+      <!-- Rempli par popup.js (textContent) ; reste masqué sans email connu. -->
+      <p id="account" class="account" hidden></p>
+
       <p id="extract-status">Lecture de l'offre…</p>
 
       <!-- Formulaire de correction pré-rempli par l'extraction -->
@@ -307,8 +333,6 @@
 
         <button id="add-btn" type="submit">Ajouter au cockpit</button>
       </form>
-
-      <button id="logout-btn" type="button" class="secondary">Déconnexion</button>
     </div>
 
     <p id="message" role="status" aria-atomic="true"></p>

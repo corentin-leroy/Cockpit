@@ -4,9 +4,11 @@ title: Politique de confidentialité — Cockpit
 
 # Politique de confidentialité — Cockpit
 
-*Dernière mise à jour : 23 juillet 2026*
+*Dernière mise à jour : 12 octobre 2026*
 
-Cockpit est un outil de suivi de candidatures composé d'une application web et d'une extension de navigateur. Ce document décrit les données traitées, leur finalité et les droits dont vous disposez.
+*Modification du 10 octobre 2026 : l'extension de navigateur n'a plus d'écran de connexion. Elle reprend la session de l'application web, qui lui transmet votre jeton de connexion, et conserve l'adresse email du compte connecté (cf. « Connexion partagée avec l'application web »).*
+
+Cockpit est un outil de suivi de candidatures composé d'une application web, accessible à l'adresse <https://cockpitemploi.fr>, et d'une extension de navigateur. Ce document décrit les données traitées, leur finalité et les droits dont vous disposez.
 
 Cockpit est un projet personnel, sans exploitation commerciale. Aucune donnée n'est vendue, louée, ni utilisée à des fins publicitaires. Aucune publicité n'est diffusée dans le service.
 
@@ -33,6 +35,7 @@ Les tableaux que vous créez et les candidatures que vous y enregistrez : intitu
 ### Données techniques
 
 - Un **jeton de connexion** est stocké localement dans votre navigateur (`localStorage` pour l'application web, `chrome.storage.local` pour l'extension). Il permet de rester connecté, expire automatiquement au bout de 12 heures, et est effacé à la déconnexion.
+- L'extension conserve aussi, dans `chrome.storage.local`, l'**adresse email** du compte connecté, afin de l'afficher dans sa fenêtre : vous voyez ainsi avec quel compte vos offres seront enregistrées. Elle est effacée en même temps que le jeton de connexion.
 - Les **journaux du serveur** conservent temporairement les informations techniques usuelles liées aux requêtes.
 
 Cockpit n'utilise **aucun cookie publicitaire**, **aucun traceur** et **aucun outil d'analyse d'audience**.
@@ -41,9 +44,17 @@ Cockpit n'utilise **aucun cookie publicitaire**, **aucun traceur** et **aucun ou
 
 ## Ce que fait l'extension de navigateur
 
-L'extension n'observe pas votre navigation. Elle ne s'active que lorsque vous cliquez sur son icône.
+L'extension n'observe pas votre navigation. Elle ne lit une page que lorsque vous cliquez sur son icône.
 
 À ce moment précis, elle lit le contenu de la page affichée dans l'onglet actif afin d'en extraire les informations de l'offre d'emploi — en priorité les données structurées publiées par le site lui-même (format `JobPosting`). Ces informations vous sont présentées pour correction avant tout enregistrement.
+
+### Connexion partagée avec l'application web
+
+L'extension n'a pas d'écran de connexion : elle reprend la session de l'application web. Lorsque vous vous connectez sur cockpitemploi.fr, ou que vous y revenez en étant déjà connecté, le site transmet votre jeton de connexion à l'extension, directement à l'intérieur de votre navigateur. L'extension vérifie ce jeton auprès du serveur de Cockpit, puis le conserve avec l'adresse email du compte. Lorsque vous vous déconnectez du site, ou que votre session y expire, le site demande à l'extension d'effacer ce jeton et cette adresse.
+
+Ces échanges peuvent activer l'extension en arrière-plan, sans clic de votre part, mais uniquement à la demande du site cockpitemploi.fr : aucun autre site, ni aucune autre extension, ne peut communiquer avec elle. Ils ne vont que dans un sens : aucune page web ne peut lire le jeton conservé par l'extension.
+
+Si vous effacez les données du site sans vous déconnecter, l'extension conserve son jeton jusqu'à son expiration, au plus 12 heures.
 
 L'extension ne collecte aucun historique de navigation, ne lit aucune page en arrière-plan, et n'accède à aucun site en dehors de l'onglet que vous lui désignez explicitement. Elle ne communique avec aucun serveur autre que celui de Cockpit.
 
