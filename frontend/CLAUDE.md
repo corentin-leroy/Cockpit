@@ -48,6 +48,13 @@ cas d'écart. Commandes : CLAUDE.md racine. Pas de lanceur de tests frontend.
   (chargé via GET /auth/me dès qu'un token existe, rechargeable par refreshUser).
   `user` peut être null même connecté (chargement, ou /auth/me en échec) : son
   absence ne bloque JAMAIS l'app, elle masque seulement le bandeau de vérification.
+- Session transmise à l'extension (`dev-docs/extension-session-sharing.md`) :
+  `auth/extensionSession.js` est le SEUL module qui parle à l'extension
+  (`chrome.runtime.sendMessage`), appelé UNIQUEMENT par AuthContext :
+  `session:set` après chaque /auth/me réussi (`loadUser`), `session:clear` dans
+  `logout()` et sur un 401 (`onSessionExpired`). Échec toujours silencieux (garde
+  sur `chrome.runtime`, lecture de `lastError`, réponse ignorée) : ne jamais en
+  faire dépendre l'app ni afficher une erreur.
 - Routes protégées (ProtectedRoute) et routes invité (GuestRoute). Les pages
   atteintes depuis un lien email (/forgot-password, /reset-password,
   /verify-email) n'ont AUCUNE garde : le token de l'URL fait autorité, pas la
@@ -123,4 +130,8 @@ Détail et historique : `dev-docs/vite-build-variables.md`.
 - `VITE_*` est remplacé AU BUILD : changer `VITE_API_BASE_URL` impose de
   rebuilder et redéployer le front ; redémarrer ne suffit pas.
 - Prod : `VITE_API_BASE_URL=https://api.cockpitemploi.fr` (cf. `dev-docs/domain.md`).
+- `VITE_EXTENSION_ID` : DEV uniquement, dans `frontend/.env.local` (ID de
+  l'extension non empaquetée) ; absente, l'ID du Store (`constants/links.js`)
+  sert. Jamais en production. Vite lit `.env.local` aussi au build : ne jamais
+  déployer un build fait sur le poste.
 - Tout ce qui est préfixé `VITE_` est public : jamais de secret.

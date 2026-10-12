@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { getMe, login as apiLogin } from '../api/auth.js'
 import { onSessionExpired } from './authEvents.js'
 import { AuthContext } from './context.js'
+import { clearExtensionSession, sendSessionToExtension } from './extensionSession.js'
 import { getToken, removeToken, setToken, TOKEN_KEY } from './token.js'
 
 export function AuthProvider({ children }) {
@@ -21,8 +22,8 @@ export function AuthProvider({ children }) {
   // (pas connecté, chargement en cours, ou récupération en échec).
   //
   // Pourquoi un appel réseau plutôt que de lire le JWT ? Le token ne porte que
-  // l'id (claim `sub`) et il vit 60 min : un `is_verified` qui y serait figé
-  // resterait faux pendant une heure après la confirmation de l'adresse. GET
+  // l'id (claim `sub`) et il vit 12 h : un `is_verified` qui y serait figé
+  // resterait faux jusqu'à 12 h après la confirmation de l'adresse. GET
   // /auth/me donne l'état RÉEL du compte, et le backend reste la seule source
   // de vérité (un token, même déchiffrable côté client, ne se fait pas confiance).
   const [user, setUser] = useState(null)
@@ -45,9 +46,19 @@ export function AuthProvider({ children }) {
 
   // Chaîne de promesses (et non async/await) pour que les setState arrivent dans
   // des callbacks, jamais dans le corps synchrone de l'effet appelant.
+  //
+  // C'est aussi le SEUL point d'envoi de la session à l'extension : au chargement
+  // d'un utilisateur déjà connecté, après login(), et après une connexion faite
+  // dans un autre onglet, on transmet le jeton que /auth/me vient d'accepter. Il
+  // est lu AVANT l'appel : c'est lui qui a été validé, même si le stockage change
+  // pendant la requête.
   const loadUser = useCallback(() => {
+    const token = getToken()
     getMe()
-      .then(setUser)
+      .then((currentUser) => {
+        setUser(currentUser)
+        sendSessionToExtension(token)
+      })
       .catch(() => {
         // Échec NON BLOQUANT, volontairement : un 401 aurait déjà été traité par
         // apiFetch (qui purge le token et émet sessionExpired), donc on est ici
@@ -79,6 +90,8 @@ export function AuthProvider({ children }) {
         // UN JETON : arriver ici signifie donc bien qu'une session existait et
         // qu'elle a été refusée, jamais qu'une connexion a échoué.
         setSessionExpired(true)
+        // Le jeton refusé est celui que l'extension détient : elle l'efface aussi.
+        clearExtensionSession()
       }),
     [],
   )
@@ -109,9 +122,12 @@ export function AuthProvider({ children }) {
   // événement d'expiration. C'est ce qui fait qu'un utilisateur qui clique
   // « Déconnexion » ne voit pas « votre session a expiré » — il sait pourquoi il
   // est sur /login. La remise à false couvre le cas d'une déconnexion manuelle
-  // faisant suite à une expiration non encore affichée.
+  // faisant suite à une expiration non encore affichée. Tous les chemins de
+  // déconnexion passent ici (navbar, suppression de compte, reset de mot de
+  // passe) : c'est ici que l'extension est priée d'effacer sa session.
   function logout() {
     removeToken()
+    clearExtensionSession()
     setIsAuthenticated(false)
     setUser(null)
     setSessionExpired(false)
