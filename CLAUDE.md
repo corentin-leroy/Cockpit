@@ -85,9 +85,12 @@ Données et sécurité :
   côté SERVEUR ; dépassement → 409, rien n'est créé. → `dev-docs/quantity-limits.md`
 - Jetons de sécurité : SHA-256 en base, consommés par UN UPDATE conditionnel
   (usage unique même en concurrence). → `dev-docs/emails-and-tokens.md`
-- Session JWT de 12 h, irrévocable : ne pas l'allonger sans refresh tokens. → `dev-docs/jwt-session.md`
+- Session JWT de 12 h, révocable seulement par compte (`token_version`, toutes
+  sessions ensemble) : ne pas l'allonger sans refresh tokens. → `dev-docs/jwt-session.md`
+- Compte sans mot de passe (connexion Google) : échoue EXACTEMENT comme un mot de
+  passe faux (même 401, même leurre bcrypt) et n'en retrouve jamais. → `dev-docs/google-sign-in.md`
 - Supprimer un compte exige le mot de passe (le JWT ne prouve que la session) ;
-  faux → 403, pas 401. → `dev-docs/account-deletion.md`
+  faux → 403, pas 401 ; compte sans mot de passe → 409 (provisoire). → `dev-docs/account-deletion.md`
 - Jamais de secret en dur ; tout `VITE_*` est public. → `frontend/CLAUDE.md`
 Schéma, base, déploiement :
 - Toute modification de models.py : migration Alembic dans le même lot ;
@@ -149,6 +152,7 @@ renvois « cf. ») :
 - `deployment-railway.md` : « Déploiement (Railway) »
 - `domain.md` : nom de domaine (DNS, messagerie, domaines Railway, transition)
 - `extension-session-sharing.md` : partage de session site → extension (1.2.0)
+- `google-sign-in.md` : connexion avec Google (décisions, lots)
 - `frontend-kanban-dnd.md` : glisser-déposer, extrait de « Architecture frontend »
 - `landing-page.md` : landing, extraite de « Architecture frontend »
 - `rate-limit-cooldown.md` : « Blocage après un 429 », extrait de « Architecture frontend »
@@ -167,20 +171,19 @@ cette liste et rejoint l'historique : jamais de statut tenu aux deux endroits.
     (lecture de l'IP) via api.cockpitemploi.fr ;
   - retirer l'ancienne origine du site de CORS_ORIGINS quand l'ancienne URL du site
     ne sera plus servie ;
-  - ⚠ ne PAS retirer le domaine *.up.railway.app de l'API avant la publication de
-    l'extension 1.2.0 : la 1.1.0 appelle l'API à cette adresse.
-- Extension 1.1.0 (étiquette `extension-v1.1.0`, commit 40b8048) : en revue sur le
-  Chrome Web Store depuis le 2026-10-08. Apporte au public le lot 3d (bornes alignées
-  sur le backend) et les adaptateurs France Travail et Indeed, absents de la 1.0.0
-  publiée.
+  - retirer le domaine *.up.railway.app de l'API : c'est le lot 4 de l'extension
+    1.2.0 (point suivant) ; la 1.1.0 appelle l'API à cette adresse.
 - Extension 1.2.0 : partage de session site → extension (`externally_connectable`),
   popup sans connexion, domaines définitifs, script d'empaquetage. Décisions :
-  `dev-docs/extension-session-sharing.md` (ordre des lots compris). Lot 1 (script
-  d'empaquetage) livré ; lot 2 (site et extension, version 1.2.0 dans le manifeste)
-  développé en local. Reste : tests manuels dans Chrome, puis lot 3 (déploiement du
-  site, soumission de la 1.2.0 après l'approbation de la 1.1.0) et lot 4 (retrait du
-  domaine Railway de l'API).
-- Connexion Google, sur le site et le backend uniquement, après la 1.2.0.
+  `dev-docs/extension-session-sharing.md` (ordre des lots compris). Lots 1 à 3
+  faits : site déployé, 1.2.0 publiée sur le Chrome Web Store le 2026-10-15.
+  Reste : lot 4 (retrait du domaine Railway de l'API).
+- Connexion Google, sur le site et le backend uniquement. Décisions et lots :
+  `dev-docs/google-sign-in.md`. Lot 1 (backend : comptes sans mot de passe,
+  révocation par `token_version`, migration 0006) développé en local et vérifié sur
+  PostgreSQL 18.6 (2026-10-24). Reste : le déployer ; lots 2 et 3 (déployés
+  ENSEMBLE), puis le site.
+- Interblocage des réinitialisations simultanées (500) : `dev-docs/backend-tests.md`.
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
 - Formulaire de correction dans l'extension → V2

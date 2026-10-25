@@ -76,8 +76,7 @@ section « Feuille de route » du CLAUDE.md racine.
       anonyme, 500 catch-all)
     - [fait, committé] 3d : extension alignée sur les mêmes limites (troncature
       du lieu, nettoyage des URL trop longues, maxLength, ApiError.data).
-      Publication sur le Chrome Web Store : suivie dans la feuille de route du
-      CLAUDE.md racine
+      Publié avec l'extension 1.1.0 (point 13)
     - [fait] 3e : migration 0004, `notes` passe de
       `Text` à `String(5000)` (longueur tirée de MAX_NOTES_LENGTH) : la borne est
       désormais appliquée par l'API ET par la base, comme tous les autres champs
@@ -95,5 +94,11 @@ section « Feuille de route » du CLAUDE.md racine.
     - France Travail, hôte `candidat.francetravail.fr` (18b2f95, 2026-10-05)
     - Indeed, hôte `fr.indeed.com` uniquement (committé dans 274b856,
       2026-10-06)
-    Publication sur le Chrome Web Store : suivie dans la feuille de route du
-    CLAUDE.md racine
+    Publiés avec l'extension 1.1.0 (point 13)
+13. [fait, approuvée sur le Chrome Web Store le 2026-10-12] Extension 1.1.0
+    (étiquette `extension-v1.1.0`, commit 40b8048), soumise le 2026-10-08 :
+    apporte au public le lot 3d (bornes alignées sur le backend) et les
+    adaptateurs France Travail et Indeed, absents de la 1.0.0. Remplacée depuis
+    par la 1.2.0, publiée le
+    2026-10-15 (suivie dans la feuille de route du CLAUDE.md racine jusqu'à son
+    lot 4).

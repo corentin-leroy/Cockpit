@@ -126,16 +126,31 @@ il fait foi. Commandes : CLAUDE.md racine (toujours `.venv\Scripts\python.exe -m
 - `_consume_token` : UN UPDATE conditionnel ... RETURNING, PREMIÈRE instruction
   de la transaction ; jamais SELECT puis test en Python (plusieurs requêtes
   passaient), ni `FOR UPDATE` (ignoré par SQLite).
-- Vérification d'email non bloquante ; un reset réussi passe `is_verified` à True.
-  3 emails/h par (utilisateur, usage), SILENCIEUX sur /auth/forgot-password (un
-  429 trahirait l'existence du compte).
+- Vérification d'email non bloquante ; un reset réussi passe `is_verified` à True
+  et révoque les sessions (`token_version + 1`, expression SQL). 3 emails/h par
+  (utilisateur, usage), SILENCIEUX sur /auth/forgot-password (un 429 trahirait
+  l'existence du compte).
+- Compte SANS mot de passe (`hashed_password` NULL, connexion Google →
+  `dev-docs/google-sign-in.md`) : n'en retrouve jamais. Mot de passe oublié → même
+  réponse, aucun jeton, email « connectez-vous avec Google » (bouton vers /login),
+  3/h par compte, silencieux, compteur en mémoire ; lien de reset en attente → le
+  même 400 (`INVALID_LINK_DETAIL`), avant bcrypt.
 
 # Session et suppression de compte → `dev-docs/jwt-session.md`, `dev-docs/account-deletion.md`
 - JWT de 12 h (`ACCESS_TOKEN_EXPIRE_MINUTES`, seule source dans app/security.py),
-  sans état donc irrévocable : ne PAS allonger sans refresh tokens (V3).
+  sans session stockée : ne PAS allonger sans refresh tokens (V3). Révocable
+  seulement PAR COMPTE : claim `token_version` (jamais renommé, absent = 0) égal à
+  `users.token_version`, vérifié dans `get_current_user` (`type(...) is int` :
+  booléen et flottant refusés) ; écart → le 401 générique.
+- Login : un compte sans mot de passe passe par le même leurre bcrypt qu'un email
+  inconnu, et `not has_password` reste dans la condition d'échec APRÈS la
+  vérification (sinon le texte du leurre ouvrirait le compte).
 - DELETE /auth/me efface tout par cascade et exige le mot de passe courant (le JWT
   prouve la session, pas l'identité) ; faux → 403, pas 401 (un 401 ferait purger
-  un token valide côté front).
+  un token valide côté front) ; compte sans mot de passe → 409, provisoire jusqu'à
+  la reconfirmation par Google (lot 3).
+- UserRead expose `has_password` (propriété dérivée), jamais `google_sub` ni
+  `token_version`.
 
 # Base de données et migrations → `dev-docs/database.md`, `dev-docs/migrations.md`
 - Même code SQLite et PostgreSQL : ce qui dépend du moteur reste dans
@@ -149,6 +164,13 @@ il fait foi. Commandes : CLAUDE.md racine (toujours `.venv\Scripts\python.exe -m
   sinon), autogénérée PUIS relue ; valeurs EN DUR (état figé), jamais importées
   de app.models ni de limits.py ; compatible avec la version précédente du code
   (renommage ou suppression : en deux déploiements).
+- SQLite : `alembic/env.py` coupe les clés étrangères pendant toute migration
+  (`sqlite_foreign_keys_disabled`, app/database.py), sinon la recréation d'une
+  table par le mode batch déclenche les ON DELETE CASCADE (mesuré : la 0006 vidait
+  boards et jetons). La garde REFUSE des écritures non commitées (le PRAGMA y
+  serait sans effet) : committer une connexion injectée avant de migrer.
+- `alembic check` ne compare pas les `server_default` : les garder par un test
+  d'insertion « comme l'ancien code » (cf. 0006).
 - Retirer une valeur d'enum : procédure de la 0002, front déployé d'abord.
   `alembic check` ne voit pas les libellés : test à la main sur PostgreSQL 18.
 - Viser la prod : `$env:DATABASE_URL` dans la session shell seulement, retirée

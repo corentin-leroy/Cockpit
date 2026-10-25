@@ -13,7 +13,14 @@
     échouant volontairement sur son adresse (il n'épuise que SON compteur) ;
   - inscription : 20 par heure et par IP (409 et 422 comptent aussi) ;
   - mot de passe oublié : 10 par heure et par IP, EN PLUS du plafond de 3 envois par
-    heure et par compte, qui reste inchangé et silencieux.
+    heure et par compte, qui reste inchangé et silencieux ;
+  - email « connectez-vous avec Google » (mot de passe oublié sur un compte SANS mot
+    de passe) : 3 par heure et par COMPTE (`limiters.google_notice`, clé =
+    identifiant du compte), SILENCIEUX : `allow_google_notice` ne lève jamais, la
+    réponse reste identique (un 429 révélerait le compte). En mémoire parce
+    qu'aucun jeton n'est émis (cf. `dev-docs/emails-and-tokens.md`). Clés bornées
+    par le nombre de comptes sans mot de passe : une adresse inconnue n'en crée
+    aucune.
   Les seuils par IP sont LARGES volontairement : derrière une IP partagée (école,
   entreprise), des dizaines de personnes légitimes apparaissent comme une adresse.
 - RÉPONSE : 429, `{"detail": "<français>"}`, en-tête `Retry-After` (secondes entières,
@@ -29,8 +36,9 @@
   passer les ~15 requêtes simultanées (taille du pool) avant qu'aucune ne soit comptée
   (test de rafale : 20 mauvais mots de passe simultanés = exactement 5 bcrypt réels).
 - ANTI-ÉNUMÉRATION : le compteur de couple s'incrémente de la même façon que le compte
-  existe ou non (un email inconnu compte comme un mot de passe faux) : le 429 arrive au
-  même moment, avec le même corps et le même `Retry-After`. La limite par IP de
+  existe ou non (un email inconnu, ou un compte sans mot de passe, compte comme un mot
+  de passe faux) : le 429 arrive au même moment, avec le même corps et le même
+  `Retry-After`. La limite par IP de
   /auth/forgot-password peut être EXPLICITE (429) : elle ne dépend pas de l'existence
   du compte ; le plafond par compte, lui, reste silencieux. L'email du couple est celui
   du schéma, déjà normalisé : la casse ne permet pas d'esquiver.
@@ -58,7 +66,10 @@
   - MESURÉ (tracemalloc, pire cas : 10 000 clés toutes pleines) : ~14,7 Mo (connexion
     par IP, 60 horodatages par clé), ~9,8 Mo (couple), ~9,5 Mo (inscription), ~9,5 Mo
     (mot de passe oublié), soit ~43 Mo si les quatre sont au plafond ; plusieurs
-    centaines de milliers d'opérations par seconde.
+    centaines de milliers d'opérations par seconde. Le cinquième compteur
+    (`google_notice`, 3 horodatages par clé, une clé par compte sans mot de passe)
+    n'a pas été mesuré : il reste bien en deçà, ses clés ne dépendant pas de
+    l'attaquant.
 - LECTURE DE L'IP DERRIÈRE RAILWAY (`client_ip.py`). MESURÉ en production le 2026-10-01
   par un diagnostic temporaire (commits fb9f5b0 puis son revert e60d5db), sans
   hypothèse sur Railway :

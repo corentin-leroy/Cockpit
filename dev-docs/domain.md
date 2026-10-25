@@ -41,12 +41,13 @@ dans la feuille de route du CLAUDE.md racine.
 - L'extension n'est pas concernée par le CORS : ses `host_permissions` l'en
   exemptent (cf. le commentaire de `extension/api.js`). Aucune origine
   `chrome-extension://` dans CORS_ORIGINS (vérifié : la 1.1.0 fonctionne sans).
-- ⚠ Ancienne adresse de l'API, `https://cockpit-production-6afb.up.railway.app` : ne
-  PAS retirer ce domaine du service backend avant la publication de l'extension
-  1.2.0. La 1.1.0 (étiquette `extension-v1.1.0`, commit 40b8048, en revue sur le
-  Chrome Web Store depuis le 2026-10-08) appelle l'API à cette adresse, figée dans
-  `api.js` et `host_permissions` : la retirer couperait l'extension. La 1.2.0 passe
-  sur `api.cockpitemploi.fr` (cf. `dev-docs/extension-session-sharing.md`).
+- Ancienne adresse de l'API, `https://cockpit-production-6afb.up.railway.app` : la
+  1.1.0 (étiquette `extension-v1.1.0`, commit 40b8048, approuvée sur le Chrome Web
+  Store le 2026-10-12) appelle l'API à cette adresse, figée dans `api.js` et
+  `host_permissions`. La 1.2.0, publiée le 2026-10-15, passe sur
+  `api.cockpitemploi.fr` (cf. `dev-docs/extension-session-sharing.md`). Le retrait
+  de ce domaine du service backend est donc désormais possible ; il reste à faire
+  (lot 4 de la 1.2.0).
 - Ordre des retraits : l'ancienne origine de CORS_ORIGINS une fois l'ancienne URL du
-  site plus servie ; le domaine Railway de l'API seulement après la publication de
-  la 1.2.0.
+  site plus servie ; le domaine Railway de l'API au lot 4 de la 1.2.0 (possible
+  depuis sa publication, le 2026-10-15).

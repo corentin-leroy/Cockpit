@@ -11,6 +11,15 @@
   utilisateur : on ne lui apprend rien sur l'existence du compte (pas de sujet
   d'énumération ici). Un 401 signifierait « session invalide » et ferait purger
   le token côté front alors que la session est parfaitement valide.
+- Compte SANS mot de passe (connexion avec Google, `dev-docs/google-sign-in.md`) →
+  409 « Ce compte n'a pas de mot de passe : sa suppression ne peut pas être
+  confirmée de cette façon. », contrôlé AVANT bcrypt, rien n'est supprimé.
+  PROVISOIRE jusqu'au lot 3 (reconfirmation par Google, `iat` de moins de 5 min).
+  Ni 403 (aucun mot de passe n'est faux) ni 401 (la session est valide). Avant ce
+  contrôle, passlib renvoyait déjà faux sur une empreinte NULL (403, pas de 500) :
+  commodité de passlib 1.7.4 sur laquelle on ne s'appuie pas. ⚠ Les lots 2 et 3 se
+  déploient ENSEMBLE : sinon un compte créé par Google ne pourrait pas se supprimer,
+  contrairement à ce que promet `docs/privacy.md`.
 - Front : page /account (protégée, atteignable depuis la navbar), avec une zone
   de suppression nettement séparée et une modale de confirmation exigeant le mot
   de passe. Ni window.confirm ni window.alert : une boîte native ne peut pas
@@ -26,4 +35,7 @@
   et le plafond survit à un redémarrage. /auth/resend-verification, lui, est
   authentifié : il peut répondre explicitement 429. Ce plafond par COMPTE reste
   inchangé et silencieux ; les limites par IP de /auth/forgot-password s'y ajoutent
-  (cf. « Limites de débit »).
+  (cf. « Limites de débit »). Exception voulue : l'email envoyé à un compte SANS mot
+  de passe n'émet aucun jeton, son plafond (3 par heure et par compte, silencieux)
+  est donc un compteur EN MÉMOIRE, remis à zéro par un redémarrage
+  (cf. `dev-docs/emails-and-tokens.md`).

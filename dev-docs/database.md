@@ -17,6 +17,13 @@
   `pool_pre_ping=True` ne sert qu'en PostgreSQL (les hébergeurs managés coupent
   les connexions inactives ; sans ping, la première requête après une période
   creuse échoue sur une connexion morte).
+- Clés étrangères SQLite : activées sur CHAQUE connexion par l'écouteur
+  `PRAGMA foreign_keys=ON` (sur la classe `Engine`, cf. « Cascade de
+  suppression »), et COUPÉES le temps d'une migration par le gestionnaire de
+  contexte `sqlite_foreign_keys_disabled`, appelé par alembic/env.py (sans lui, la
+  recréation d'une table par le mode batch déclencherait les ON DELETE CASCADE).
+  Il refuse une connexion portant des écritures non commitées et ne fait rien
+  hors SQLite. Détail : `dev-docs/migrations.md`.
 - Convention datetime : toutes les colonnes DateTime sont NAIVES en UTC, via le
   helper `utcnow()` (security.py) — y compris les `default`/`onupdate` des
   modèles. Ne JAMAIS y mettre un `datetime.now(timezone.utc)` « aware » : SQLite

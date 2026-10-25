@@ -73,6 +73,46 @@
   50 900 lignes : ~350 ms sous verrou exclusif (1,3 s commande alembic comprise).
   Compatible avec la version précédente du code : elle ignore la colonne ; ses
   créations (NULL) s'affichent en haut et se réparent ensuite.
+- Révision 0006 (« passwordless accounts and token version », lot 1 de la connexion
+  Google, `dev-docs/google-sign-in.md`) : `users.hashed_password` devient nullable,
+  ajout de `users.google_sub` (VARCHAR(255), NULL, index UNIQUE
+  `ix_users_google_sub`, plusieurs NULL admis) et de `users.token_version` (INTEGER
+  NOT NULL, `server_default` 0, cf. `dev-docs/jwt-session.md`). Autogénérée (les
+  quatre opérations détectées telles quelles) puis relue. Aucun verrou à l'upgrade :
+  aucune donnée contrôlée ni réécrite. Le `server_default` est INDISPENSABLE :
+  l'ancienne version du code insère des utilisateurs sans la colonne ; `alembic
+  check` ne compare pas les défauts (`compare_server_default` non activé), seul
+  test_migrations.py le garde. Downgrade : `LOCK TABLE users` sous PostgreSQL, puis
+  REFUS explicite (nombre de comptes dans le message) tant qu'un compte n'a pas de
+  mot de passe ; sinon les liaisons Google sont perdues et ⚠ les sessions révoquées
+  redeviennent valables pour l'ancien code. VÉRIFIÉ sur une copie de cockpit.db
+  (3 utilisateurs, 5 tableaux, 29 candidatures, 5 jetons) par la commande Alembic
+  réelle : empreintes identiques des quatre tables après upgrade, downgrade et
+  re-upgrade, `foreign_key_check` vide, `alembic check` propre. VÉRIFIÉ sur un
+  PostgreSQL 18.6 jetable (2026-10-24), même commande : md5 des quatre tables
+  identiques après upgrade, downgrade et re-upgrade ; index UNIQUE, `token_version`
+  NOT NULL DEFAULT 0 ; plusieurs `google_sub` NULL admis, doublon refusé
+  (UniqueViolation) ; l'ANCIEN code inscrit et connecte un compte sur le schéma 0006
+  (token_version 0) et son jeton sans claim est accepté par le nouveau ; downgrade
+  refusé avec un compte sans mot de passe (révision restée à 0006, aucune ligne
+  touchée) ; `alembic check` propre.
+- ⚠ PIÈGE SQLITE, MESURÉ : le mode batch RECRÉE une table (copie, DROP de
+  l'original, renommage). Avec `PRAGMA foreign_keys=ON` (écouteur de database.py), ce
+  DROP déclenche les ON DELETE CASCADE : recréer `users` vidait boards,
+  applications et security_tokens (test de la 0006 sans garde : tableaux et jetons
+  vides). D'où la GARDE `sqlite_foreign_keys_disabled` (app/database.py), appelée
+  par `alembic/env.py` autour de toute migration SQLite : `foreign_keys=OFF` (relu
+  pour s'assurer qu'il a pris), commit, migration, `PRAGMA foreign_key_check`,
+  puis `foreign_keys=ON` dans tous les cas. Sans objet sous PostgreSQL (tables
+  modifiées en place) et en mode `--sql`.
+  - Le PRAGMA est SANS EFFET dans une transaction SQLite ouverte, sans erreur : la
+    garde REFUSE donc une connexion portant des écritures non commitées (message
+    « écritures non commitées »). Une connexion INJECTÉE (tests) doit être commitée
+    avant de migrer ; une simple lecture ne gêne pas (elle n'ouvre pas de
+    transaction SQLite).
+  - Alembic commite chaque révision SQLite séparément (DDL non transactionnel) :
+    `foreign_key_check` DÉTECTE une ligne orpheline mais n'annule pas la migration,
+    la base est alors à restaurer depuis sa sauvegarde.
 - Enums : SQLAlchemy stocke les NOMS des membres (`APPLIED`), pas les valeurs
   (`applied`) — à retenir pour toute requête SQL manuelle. Sous PostgreSQL ce
   sont des types natifs (`applicationstatus`, `tokenpurpose`) : on n'y retire
