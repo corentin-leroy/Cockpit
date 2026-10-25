@@ -95,6 +95,12 @@ REGISTER_IP_WINDOW_SECONDS = 60 * 60
 # compte (routers/auth.py, MAX_EMAILS_PER_HOUR), qui reste inchangé et silencieux.
 FORGOT_PASSWORD_MAX_PER_IP = 10
 FORGOT_PASSWORD_IP_WINDOW_SECONDS = 60 * 60
+# Mot de passe oublié sur un compte SANS mot de passe (connexion avec Google) : email
+# « connectez-vous avec Google », par COMPTE. SILENCIEUX comme MAX_EMAILS_PER_HOUR (même
+# réponse au-delà, aucun 429), mais EN MÉMOIRE : aucun jeton n'est émis, il n'y a rien à
+# compter en base. Remis à zéro par un redémarrage (accepté : 3 envois de plus).
+GOOGLE_NOTICE_MAX_PER_USER = 3
+GOOGLE_NOTICE_WINDOW_SECONDS = 60 * 60
 # Mémoire bornée : nombre maximal de CLÉS suivies par compteur. Atteint avec des
 # clés encore vivantes, la moins récemment active est oubliée (jamais de refus des
 # nouvelles clés : cela permettrait de bloquer tout le monde en remplissant la table).

@@ -194,8 +194,9 @@ class UserCreate(InputModel):
 class UserRead(BaseModel):
     """Représentation publique d'un utilisateur.
 
-    N'expose volontairement PAS hashed_password : le contrat de sortie est
-    distinct du modèle ORM, c'est tout l'intérêt de séparer schemas et models.
+    N'expose volontairement PAS hashed_password, ni google_sub ni token_version :
+    le contrat de sortie est distinct du modèle ORM, c'est tout l'intérêt de
+    séparer schemas et models.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -206,6 +207,10 @@ class UserRead(BaseModel):
     # La vérification n'est PAS bloquante : le compte est utilisable sans.
     is_verified: bool
     created_at: datetime
+    # Faux pour un compte sans mot de passe (connexion avec Google) : le front en
+    # déduit ce qu'il peut proposer (ex. la confirmation de suppression). Lu sur la
+    # propriété User.has_password, jamais sur l'empreinte.
+    has_password: bool
 
 
 class UserLogin(InputModel):
@@ -256,7 +261,7 @@ class DeleteAccountRequest(InputModel):
     """Confirmation de suppression de compte : le mot de passe courant.
 
     Le JWT ne suffit délibérément pas. Un token peut fuiter (poste laissé
-    déverrouillé, historique, sauvegarde de navigateur) et vit 60 minutes ; il
+    déverrouillé, historique, sauvegarde de navigateur) et vit 12 heures ; il
     autorise des actions réversibles, pas la destruction définitive de toutes les
     données du compte. Redemander le mot de passe exige un secret que le porteur
     d'un token volé n'a pas — c'est une ré-authentification, pas une case à

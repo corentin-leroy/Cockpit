@@ -18,9 +18,14 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.email import send_password_reset_email, send_verification_email
+from app.email import (
+    send_google_sign_in_notice_email,
+    send_password_reset_email,
+    send_verification_email,
+)
 from app.models import Board, SecurityToken, TokenPurpose, User
 from app.rate_limit import (
+    allow_google_notice,
     clear_login_failures,
     limit_forgot_password_per_ip,
     limit_login_per_ip,
@@ -42,6 +47,7 @@ from app.security import (
     DUMMY_PASSWORD_HASH,
     EMAIL_VERIFICATION_EXPIRE_HOURS,
     PASSWORD_RESET_EXPIRE_MINUTES,
+    TOKEN_VERSION_CLAIM,
     create_access_token,
     generate_url_token,
     hash_password,
@@ -71,6 +77,18 @@ MAX_EMAILS_PER_HOUR = 3
 # le renvoient (contrôle préalable et course perdue, cf. register) : le corps est
 # identique par construction.
 EMAIL_TAKEN_DETAIL = "Un compte existe déjà avec cet email."
+
+# Message du 400 « lien invalide ». Une seule constante pour les DEUX chemins qui le
+# renvoient (jeton refusé par _consume_token, compte sans mot de passe à la
+# réinitialisation) : le corps est identique par construction.
+INVALID_LINK_DETAIL = "Ce lien est invalide ou expiré. Demandez-en un nouveau."
+
+# Suppression d'un compte sans mot de passe (connexion avec Google) : PROVISOIRE,
+# jusqu'à la reconfirmation de la suppression par Google. Aucune promesse sur l'avenir.
+PASSWORDLESS_DELETE_DETAIL = (
+    "Ce compte n'a pas de mot de passe : sa suppression ne peut pas être confirmée "
+    "de cette façon."
+)
 
 
 def _recent_token_count(db: Session, user_id: int, purpose: TokenPurpose) -> int:
@@ -151,7 +169,7 @@ def _consume_token(db: Session, plain_token: str, purpose: TokenPurpose) -> int:
     if user_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Ce lien est invalide ou expiré. Demandez-en un nouveau.",
+            detail=INVALID_LINK_DETAIL,
         )
     return user_id
 
@@ -252,14 +270,21 @@ def login(payload: UserLogin, request: Request, db: Session = Depends(get_db)):
     l'email est inconnu) pour ne pas trahir l'existence d'un compte par le
     temps de réponse.
 
+    Un compte SANS mot de passe (connexion avec Google) échoue exactement de la
+    même façon : même leurre, donc même coût, même 401, et l'échec reste compté
+    pour le couple (IP, email). Rien ne révèle la nature du compte.
+
     Un compte non vérifié se connecte normalement (vérification non bloquante).
     """
     reserve_login_attempt(request, payload.email)
 
     user = db.scalar(select(User).where(User.email == payload.email))
-    hashed = user.hashed_password if user is not None else DUMMY_PASSWORD_HASH
+    has_password = user is not None and user.hashed_password is not None
+    hashed = user.hashed_password if has_password else DUMMY_PASSWORD_HASH
 
-    if not verify_password(payload.password, hashed) or user is None:
+    # `not has_password` est indispensable APRÈS la vérification : sans lui, le texte
+    # du leurre ouvrirait un compte inconnu ou sans mot de passe.
+    if not verify_password(payload.password, hashed) or not has_password:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou mot de passe incorrect.",
@@ -269,17 +294,21 @@ def login(payload: UserLogin, request: Request, db: Session = Depends(get_db)):
     clear_login_failures(request, payload.email)
 
     # `sub` (subject) = identité portée par le token ; chaîne par convention JWT.
-    access_token = create_access_token({"sub": str(user.id)})
+    # La version des sessions permet de révoquer ce jeton (cf. get_current_user).
+    access_token = create_access_token(
+        {"sub": str(user.id), TOKEN_VERSION_CLAIM: user.token_version}
+    )
     return Token(access_token=access_token)
 
 
 @router.get("/me", response_model=UserRead)
 def read_current_user(current_user: User = Depends(get_current_user)):
-    """Renvoie l'utilisateur authentifié (id, email, is_verified, created_at).
+    """Renvoie l'utilisateur authentifié (id, email, is_verified, created_at,
+    has_password).
 
-    Le JWT ne porte que l'id (claim `sub`) : le front n'a aucun moyen d'en
-    déduire l'état du compte. Cet endpoint est le seul canal qui lui dit si
-    l'adresse est vérifiée — et il reste à jour, contrairement à un état qui
+    Le JWT ne porte que l'id (claim `sub`) et la version des sessions : le front
+    n'a aucun moyen d'en déduire l'état du compte. Cet endpoint est le seul canal
+    qui lui dit si l'adresse est vérifiée — et il reste à jour, contrairement à un état qui
     serait figé dans le token à la connexion.
     """
     return current_user
@@ -309,7 +338,17 @@ def delete_current_user(
     compte n'est pas une information qu'on lui apprend. On ne renvoie pas 401,
     qui signifierait « session invalide » et ferait purger le token côté front
     alors que la session, elle, est parfaitement valide.
+
+    Compte sans mot de passe (connexion avec Google) : 409 explicite, PROVISOIRE
+    jusqu'à la reconfirmation par Google. Ni 403 (aucun mot de passe n'est faux),
+    ni 401 (la session est valide).
     """
+    if current_user.hashed_password is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=PASSWORDLESS_DELETE_DETAIL,
+        )
+
     if not verify_password(payload.password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -342,10 +381,18 @@ def forgot_password(
     Conséquence du même principe : quand le plafond d'envois est atteint, on ne
     renvoie pas un 429 — cela révélerait l'existence du compte. On s'abstient
     simplement d'envoyer, avec la même réponse.
+
+    Compte SANS mot de passe (connexion avec Google) : il n'y a rien à
+    réinitialiser, donc aucun jeton. Un email lui indique de se connecter avec
+    Google, plafonné en silence (3 par heure et par compte, compteur en mémoire
+    puisqu'aucun jeton n'est émis). La réponse reste la même.
     """
     user = db.scalar(select(User).where(User.email == payload.email))
 
-    if user is not None and (
+    if user is not None and user.hashed_password is None:
+        if allow_google_notice(user.id):
+            background_tasks.add_task(send_google_sign_in_notice_email, user.email)
+    elif user is not None and (
         _recent_token_count(db, user.id, TokenPurpose.PASSWORD_RESET)
         < MAX_EMAILS_PER_HOUR
     ):
@@ -372,6 +419,10 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     envoyé à cette adresse prouve qu'on y a accès — c'est exactement ce que
     démontre la vérification d'email. Continuer à réclamer une confirmation
     après ça n'apporterait aucune garantie supplémentaire.
+
+    Toutes les sessions ouvertes du compte sont révoquées (token_version
+    incrémenté) : un mot de passe change souvent parce qu'il a fuité, et la
+    session de qui l'a utilisé ne doit pas lui survivre.
     """
     # Consommation atomique d'abord : seule la requête gagnante va plus loin (et
     # paie bcrypt). Tout ce qui suit est dans la MÊME transaction, validée par le
@@ -379,8 +430,23 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     user_id = _consume_token(db, payload.token, TokenPurpose.PASSWORD_RESET)
 
     user = db.get(User, user_id)
+    if user.hashed_password is None:
+        # Compte sans mot de passe (connexion avec Google) : il n'en retrouve jamais,
+        # même par un lien demandé avant de perdre le sien. Même 400 qu'un jeton
+        # inconnu, AVANT bcrypt. Rien n'est commité : la consommation du lien est
+        # annulée à la fermeture de la session.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=INVALID_LINK_DETAIL,
+        )
     user.hashed_password = hash_password(payload.new_password)
     user.is_verified = True
+    # Expression SQL (`token_version + 1` évalué par la base) et non `+= 1` en
+    # Python : un autre écrivain de token_version (au lot 2, la liaison Google d'un
+    # compte non vérifié) commité entre la lecture du compte et ce flush serait
+    # écrasé, et sa révocation perdue. Deux réinitialisations par deux liens
+    # différents ne le montrent pas : une seule des deux aboutit.
+    user.token_version = User.token_version + 1
 
     # Les autres liens de reset encore en attente pour ce compte deviennent
     # caducs : après un changement de mot de passe, un ancien lien (par exemple

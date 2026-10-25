@@ -29,7 +29,7 @@ que cela impose sous SQLite.
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -77,7 +77,26 @@ class User(Base):
         String(255), unique=True, index=True, nullable=False
     )
     # On ne stocke JAMAIS le mot de passe en clair, seulement son empreinte bcrypt.
-    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    # NULL = compte SANS mot de passe (connexion avec Google) : la connexion par mot
+    # de passe y échoue exactement comme avec un mot de passe faux, et un tel compte
+    # n'en retrouve jamais (aucune réinitialisation possible).
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    # Identifiant Google du compte (claim `sub` du jeton d'identité Google), NULL si
+    # le compte n'est pas lié. Comparé tel quel : sensible à la casse, jamais
+    # normalisé. unique : un compte Google n'ouvre qu'un seul compte Cockpit
+    # (l'index unique admet plusieurs NULL). Jamais exposé par l'API.
+    google_sub: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
+
+    # Version des sessions du compte, recopiée dans chaque JWT (claim token_version,
+    # app/security.py) et comparée à chaque requête (get_current_user) :
+    # l'incrémenter révoque TOUTES les sessions ouvertes du compte (réinitialisation
+    # du mot de passe). `server_default` et pas seulement `default` : la version
+    # précédente du code, qui sert encore pendant un déploiement, insère des
+    # utilisateurs sans cette colonne (cf. migration 0006).
+    token_version: Mapped[int] = mapped_column(
+        Integer, default=0, server_default=text("0"), nullable=False
+    )
 
     # Adresse email confirmée via le lien envoyé à l'inscription. NON BLOQUANT :
     # un compte non vérifié peut se connecter et utiliser l'app normalement (le
@@ -99,6 +118,12 @@ class User(Base):
     security_tokens: Mapped[list["SecurityToken"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
+
+    @property
+    def has_password(self) -> bool:
+        """Vrai si le compte peut se connecter par mot de passe. Dérivé (pas une
+        colonne) et exposé par UserRead à la place de l'empreinte elle-même."""
+        return self.hashed_password is not None
 
 
 class SecurityToken(Base):

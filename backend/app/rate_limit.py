@@ -1,4 +1,5 @@
-"""Limites de débit sur la connexion, l'inscription et le mot de passe oublié.
+"""Limites de débit sur la connexion, l'inscription et le mot de passe oublié (dont
+l'email silencieux envoyé à un compte sans mot de passe).
 
 MENACES : deviner un mot de passe par essais répétés ; tester en masse des identifiants
 volés ailleurs ; créer des comptes en masse (chaque inscription fait envoyer un email par
@@ -49,6 +50,8 @@ from app.client_ip import get_client_ip
 from app.limits import (
     FORGOT_PASSWORD_IP_WINDOW_SECONDS,
     FORGOT_PASSWORD_MAX_PER_IP,
+    GOOGLE_NOTICE_MAX_PER_USER,
+    GOOGLE_NOTICE_WINDOW_SECONDS,
     LOGIN_IP_WINDOW_SECONDS,
     LOGIN_MAX_ATTEMPTS_PER_IP,
     LOGIN_MAX_FAILURES_PER_PAIR,
@@ -153,7 +156,7 @@ class SlidingWindowCounter:
 
 
 class RateLimiters:
-    """Les quatre règles de l'application, partageant une horloge et un interrupteur."""
+    """Les cinq règles de l'application, partageant une horloge et un interrupteur."""
 
     def __init__(self):
         self.clock: Callable[[], float] = time.monotonic
@@ -161,7 +164,7 @@ class RateLimiters:
 
         def make(name: str, limit: int, window: float) -> SlidingWindowCounter:
             # Lambdas : réassigner `self.clock` / `self.enabled` (tests) atteint les
-            # quatre compteurs.
+            # cinq compteurs.
             return SlidingWindowCounter(
                 name,
                 limit,
@@ -177,10 +180,19 @@ class RateLimiters:
         self.forgot_ip = make(
             "forgot_ip", FORGOT_PASSWORD_MAX_PER_IP, FORGOT_PASSWORD_IP_WINDOW_SECONDS
         )
+        self.google_notice = make(
+            "google_notice", GOOGLE_NOTICE_MAX_PER_USER, GOOGLE_NOTICE_WINDOW_SECONDS
+        )
 
     def reset(self) -> None:
         """Oublie tous les compteurs et restaure l'horloge réelle (tests)."""
-        for counter in (self.login_ip, self.login_pair, self.register_ip, self.forgot_ip):
+        for counter in (
+            self.login_ip,
+            self.login_pair,
+            self.register_ip,
+            self.forgot_ip,
+            self.google_notice,
+        ):
             counter.reset()
         self.clock = time.monotonic
         self.enabled = True
@@ -246,3 +258,15 @@ def reserve_login_attempt(request: Request, email: str) -> None:
 def clear_login_failures(request: Request, email: str) -> None:
     """Connexion réussie : remet à zéro le compteur du couple (IP, email)."""
     limiters.login_pair.clear(_pair_key(request, email))
+
+
+# --- Email « connectez-vous avec Google » (mot de passe oublié sur un compte sans mot de
+# --- passe), par COMPTE. Jamais de 429 : il révélerait l'existence du compte.
+
+
+def allow_google_notice(user_id: int) -> bool:
+    """Vrai si l'email peut partir ; au-delà du plafond, faux et RIEN n'est levé (la
+    réponse de /auth/forgot-password reste identique). Clé = identifiant du compte : le
+    nombre de clés est borné par le nombre de comptes sans mot de passe, une adresse
+    inconnue n'en crée aucune."""
+    return limiters.google_notice.hit(str(user_id)) is None

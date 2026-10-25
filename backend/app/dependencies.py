@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.limits import MAX_ID
 from app.models import User
-from app.security import decode_access_token
+from app.security import TOKEN_VERSION_CLAIM, decode_access_token
 
 # Identifiants reçus dans l'URL (chemin) ou la chaîne de requête. Un identifiant est
 # un entier >= 1 tenant dans le type `integer` de PostgreSQL : 0 et les négatifs
@@ -45,8 +45,10 @@ def get_current_user(
     """Renvoie l'utilisateur authentifié à partir du JWT.
 
     Lève 401 si le token est ABSENT, invalide, expiré, si le claim `sub` est
-    absent ou incohérent, ou si l'utilisateur n'existe plus en base. Le message
-    reste volontairement générique : on ne distingue pas les causes côté client.
+    absent ou incohérent, si l'utilisateur n'existe plus en base, ou si la session
+    a été RÉVOQUÉE (claim token_version différent de `users.token_version`). Le
+    message reste volontairement générique : on ne distingue pas les causes côté
+    client.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -73,5 +75,13 @@ def get_current_user(
 
     user = db.get(User, user_id)
     if user is None:
+        raise credentials_exception
+
+    # Révocation par compte. Claim absent = jeton émis avant son introduction : il
+    # vaut 0, la valeur de départ de chaque compte. `type(...) is int` et non
+    # isinstance : un booléen est un int en Python (True == 1) et un float peut
+    # être égal à un entier (1.0 == 1) ; ni l'un ni l'autre n'est une version.
+    version = payload.get(TOKEN_VERSION_CLAIM, 0)
+    if type(version) is not int or version != user.token_version:
         raise credentials_exception
     return user

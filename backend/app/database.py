@@ -6,15 +6,19 @@ DATABASE_URL :
   - production  : postgresql+psycopg://user:motdepasse@hote:5432/base
 
 Aucun code métier n'a à savoir laquelle est active : SQLAlchemy absorbe la
-différence. Ce module concentre les deux seuls points qui, eux, en dépendent —
-la normalisation de l'URL et les options de connexion propres à chaque moteur.
+différence. Ce module concentre les points qui, eux, en dépendent : la
+normalisation de l'URL, les options de connexion propres à chaque moteur, et les
+clés étrangères de SQLite (activées à chaque connexion, coupées le temps d'une
+migration).
 """
 
 import os
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 
@@ -98,6 +102,67 @@ def _enable_sqlite_foreign_keys(dbapi_connection, connection_record) -> None:
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
+
+
+@contextmanager
+def sqlite_foreign_keys_disabled(connection: Connection) -> Iterator[None]:
+    """Coupe les clés étrangères SQLite le temps d'une migration (alembic/env.py).
+
+    Le mode batch d'Alembic RECRÉE une table sous SQLite : copie, DROP de l'original,
+    renommage. Avec l'écouteur ci-dessus (`foreign_keys=ON`), ce DROP déclenche les
+    ON DELETE CASCADE : recréer `users` viderait `boards`, `applications` et
+    `security_tokens` (mesuré). PostgreSQL modifie ses tables en place : sans objet,
+    la garde ne fait rien.
+
+    Piège du PRAGMA : DANS une transaction SQLite ouverte, `foreign_keys=OFF` est
+    sans effet, sans aucune erreur. La garde REFUSE donc une connexion qui porte des
+    écritures non commitées, au lieu de laisser croire qu'elle protège. C'est la
+    transaction du PILOTE qui compte, pas celle de SQLAlchemy : une simple lecture
+    ouvre la seconde (autobegin) mais pas la première, et laisse le PRAGMA agir.
+
+    Le commit qui suit le PRAGMA est nécessaire : sans lui, Alembic verrait la
+    transaction SQLAlchemy ouverte par le PRAGMA comme « externe » et ne
+    committerait jamais la migration.
+
+    En sortie normale, `PRAGMA foreign_key_check` vérifie qu'aucune ligne n'est
+    devenue orpheline pendant la coupure. Sous SQLite, Alembic commite chaque
+    révision séparément (DDL non transactionnel) : ce contrôle DÉTECTE, il
+    n'annule pas ; la base est alors à restaurer depuis sa sauvegarde. Dans tous
+    les cas, les clés étrangères sont rétablies à la sortie.
+    """
+    if connection.dialect.name != "sqlite":
+        yield
+        return
+
+    if connection.connection.dbapi_connection.in_transaction:
+        raise RuntimeError(
+            "Migration SQLite refusée : la connexion porte des écritures non "
+            "commitées. PRAGMA foreign_keys=OFF y serait sans effet, et la "
+            "recréation d'une table déclencherait les ON DELETE CASCADE. "
+            "Committez avant de migrer."
+        )
+    connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+    state = connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one()
+    connection.commit()
+    if state != 0:
+        raise RuntimeError(
+            "Migration SQLite refusée : PRAGMA foreign_keys=OFF est resté sans effet."
+        )
+
+    try:
+        yield
+        orphans = connection.exec_driver_sql("PRAGMA foreign_key_check").all()
+        if orphans:
+            raise RuntimeError(
+                f"PRAGMA foreign_key_check : {len(orphans)} ligne(s) orpheline(s) "
+                f"après la migration (première : table {orphans[0][0]}). Restaurez la "
+                "base depuis sa sauvegarde."
+            )
+    finally:
+        # Rien de ce que la migration n'a pas commité elle-même n'est validé ici.
+        connection.rollback()
+        connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+        connection.commit()
 
 
 class Base(DeclarativeBase):

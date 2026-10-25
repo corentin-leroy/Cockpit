@@ -2,7 +2,8 @@
 
 Ce module est la SEULE frontière avec le fournisseur d'envoi (Brevo) : le reste
 du code n'appelle que les fonctions de haut niveau (`send_password_reset_email`,
-`send_verification_email`) et ignore tout de l'API sous-jacente. Changer de
+`send_verification_email`, `send_google_sign_in_notice_email`) et ignore tout de
+l'API sous-jacente. Changer de
 fournisseur = ne toucher qu'à ce fichier.
 
 Mode DEV : si BREVO_API_KEY est absente, aucun appel réseau n'est fait et le
@@ -127,6 +128,26 @@ def send_password_reset_email(to_email: str, token: str) -> None:
         link=link,
     )
     _send(to_email, "Réinitialisez votre mot de passe Cockpit", html, dev_link=link)
+
+
+def send_google_sign_in_notice_email(to_email: str) -> None:
+    """Répond à « mot de passe oublié » pour un compte SANS mot de passe (connexion
+    avec Google). Aucun jeton ni lien de réinitialisation : un tel compte n'a pas de
+    mot de passe à retrouver. Le bouton mène à la page de connexion du site."""
+    link = f"{_get_frontend_url()}/login"
+    html = _layout(
+        title="Votre compte se connecte avec Google",
+        body=(
+            "Vous avez demandé à réinitialiser le mot de passe de votre compte "
+            "Cockpit. Ce compte n'a pas de mot de passe : il se connecte avec "
+            "Google. Sur la page de connexion, choisissez « Continuer avec "
+            "Google ». Si vous n'êtes pas à l'origine de cette demande, ignorez "
+            "cet email."
+        ),
+        button_label="Se connecter",
+        link=link,
+    )
+    _send(to_email, "Connexion à votre compte Cockpit", html, dev_link=link)
 
 
 def send_verification_email(to_email: str, token: str) -> None:

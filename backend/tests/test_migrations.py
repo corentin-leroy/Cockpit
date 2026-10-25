@@ -19,7 +19,10 @@ from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
+
+from app.database import sqlite_foreign_keys_disabled
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 
@@ -91,6 +94,9 @@ def _seed_applications(connection, statuses: list[str]) -> None:
                 f"VALUES ('t{index}', 'c', 'manual', '{status}', 1, '{now}', '{now}')"
             )
         )
+    # Commit OBLIGATOIRE avant de migrer : la garde d'env.py refuse une connexion
+    # portant des écritures non commitées (cf. test_the_guard_refuses_...).
+    connection.commit()
 
 
 def _stored_statuses(connection) -> list[str]:
@@ -143,6 +149,7 @@ def _seed_notes(connection, notes: list[str | None]) -> None:
             text("UPDATE applications SET notes = :note WHERE id = :id"),
             {"note": note, "id": index},
         )
+    connection.commit()
 
 
 def _stored_notes(connection) -> list[str | None]:
@@ -236,6 +243,7 @@ def _seed_rows_0005(connection) -> None:
                 "u": updated_at,
             },
         )
+    connection.commit()
 
 
 def _ordered_like_before_0005(connection) -> list[tuple]:
@@ -328,3 +336,255 @@ def test_migrations_can_be_fully_downgraded(migration_engine):
         command.downgrade(config, "base")
         remaining = set(inspect(connection).get_table_names())
     assert remaining <= {"alembic_version"}, f"Tables restantes : {remaining}"
+
+
+# ---------------------------------------------------------------------------
+# Garde SQLite d'env.py (app.database.sqlite_foreign_keys_disabled)
+# ---------------------------------------------------------------------------
+# Sous SQLite, le mode batch recrée une table : copie, DROP de l'original, renommage.
+# Avec `PRAGMA foreign_keys=ON` (écouteur de database.py), ce DROP vide les tables
+# enfants par ON DELETE CASCADE. La garde coupe donc les clés étrangères le temps de
+# la migration, ce qui n'a d'effet que HORS transaction : d'où son refus bruyant.
+
+
+class _MigrationFailed(Exception):
+    pass
+
+
+def _foreign_keys(connection) -> int:
+    return connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one()
+
+
+def _children(connection) -> int:
+    return connection.exec_driver_sql("SELECT count(*) FROM child").scalar_one()
+
+
+def _parent_with_children(connection) -> None:
+    """Un parent et deux enfants en ON DELETE CASCADE, commités."""
+    connection.exec_driver_sql("CREATE TABLE parent (id INTEGER PRIMARY KEY)")
+    connection.exec_driver_sql(
+        "CREATE TABLE child (id INTEGER PRIMARY KEY, "
+        "parent_id INTEGER REFERENCES parent (id) ON DELETE CASCADE)"
+    )
+    connection.exec_driver_sql("INSERT INTO parent (id) VALUES (1)")
+    connection.exec_driver_sql("INSERT INTO child (parent_id) VALUES (1), (1)")
+    connection.commit()
+
+
+def _recreate_parent(connection) -> None:
+    """Ce que fait le mode batch d'Alembic sur la table parente."""
+    connection.exec_driver_sql("CREATE TABLE _tmp_parent (id INTEGER PRIMARY KEY)")
+    connection.exec_driver_sql("INSERT INTO _tmp_parent (id) SELECT id FROM parent")
+    connection.exec_driver_sql("DROP TABLE parent")
+    connection.exec_driver_sql("ALTER TABLE _tmp_parent RENAME TO parent")
+    connection.commit()
+
+
+def test_recreating_a_parent_table_cascades_without_the_guard(migration_engine):
+    """TÉMOIN du piège : sans la garde, la recréation de la table parente efface ses
+    enfants. Si ce test échoue un jour, la garde n'a plus lieu d'être."""
+    with migration_engine.connect() as connection:
+        _parent_with_children(connection)
+        assert _foreign_keys(connection) == 1
+
+        _recreate_parent(connection)
+
+        assert _children(connection) == 0
+
+
+def test_the_guard_keeps_the_children_and_restores_foreign_keys(migration_engine):
+    with migration_engine.connect() as connection:
+        _parent_with_children(connection)
+
+        with sqlite_foreign_keys_disabled(connection):
+            assert _foreign_keys(connection) == 0
+            _recreate_parent(connection)
+
+        assert _children(connection) == 2
+        assert _foreign_keys(connection) == 1
+
+
+def test_the_guard_restores_foreign_keys_when_the_migration_fails(migration_engine):
+    with migration_engine.connect() as connection:
+        with pytest.raises(_MigrationFailed):
+            with sqlite_foreign_keys_disabled(connection):
+                raise _MigrationFailed
+
+        assert _foreign_keys(connection) == 1
+
+
+def test_the_guard_refuses_uncommitted_writes(migration_engine):
+    """Dans une transaction ouverte, `PRAGMA foreign_keys=OFF` est SANS EFFET (mesuré) :
+    la garde serait inopérante en silence. Elle refuse donc, sans rien exécuter.
+    Une simple LECTURE ne l'empêche pas : elle n'ouvre pas de transaction SQLite."""
+    with migration_engine.connect() as connection:
+        _parent_with_children(connection)
+        connection.exec_driver_sql("INSERT INTO parent (id) VALUES (2)")  # non commité
+
+        with pytest.raises(RuntimeError, match="non commitées"):
+            with sqlite_foreign_keys_disabled(connection):
+                pytest.fail("la garde aurait dû refuser avant d'exécuter la migration")
+
+        assert _foreign_keys(connection) == 1
+
+
+def test_a_migration_refuses_a_connection_with_uncommitted_writes(migration_engine):
+    """Même refus de bout en bout, par `command.upgrade` : la révision ne bouge pas."""
+    with migration_engine.connect() as connection:
+        config = _alembic_config(connection)
+        command.upgrade(config, "0001")
+        connection.execute(
+            text(
+                "INSERT INTO users (email, hashed_password, is_verified, created_at) "
+                "VALUES ('seed@example.com', 'x', 1, '2026-01-01 00:00:00')"
+            )
+        )
+
+        with pytest.raises(RuntimeError, match="non commitées"):
+            command.upgrade(config, "head")
+
+        version = connection.execute(text("SELECT version_num FROM alembic_version"))
+        assert version.scalar_one() == "0001"
+
+
+def test_the_guard_fails_loudly_on_a_foreign_key_violation(migration_engine):
+    """Contrôle final (`PRAGMA foreign_key_check`) : une ligne orpheline apparue
+    pendant que les clés étaient coupées fait échouer la commande."""
+    with migration_engine.connect() as connection:
+        _parent_with_children(connection)
+
+        with pytest.raises(RuntimeError, match="foreign_key_check"):
+            with sqlite_foreign_keys_disabled(connection):
+                connection.exec_driver_sql("INSERT INTO child (parent_id) VALUES (99)")
+                connection.commit()
+
+        assert _foreign_keys(connection) == 1
+
+
+# ---------------------------------------------------------------------------
+# Migration 0006 : comptes sans mot de passe, google_sub, token_version
+# ---------------------------------------------------------------------------
+# Sous SQLite, la 0006 RECRÉE `users` (mode batch) : c'est elle qui rend la garde
+# ci-dessus indispensable. Sans garde, tableaux, candidatures et jetons disparaîtraient.
+
+_USER_COLUMNS_BEFORE_0006 = "id, email, hashed_password, is_verified, created_at"
+
+
+def _seed_rows_0006(connection) -> None:
+    """Jeu de la 0005 (1 utilisateur, 2 tableaux, 10 candidatures dont 2 archivées),
+    plus un second utilisateur et un jeton de sécurité. Niveau de schéma 0005."""
+    _seed_rows_0005(connection)
+    connection.execute(
+        text(
+            "INSERT INTO users (email, hashed_password, is_verified, created_at) "
+            "VALUES ('autre@example.com', '$2b$12$empreinte', 0, '2026-02-01 00:00:00')"
+        )
+    )
+    connection.execute(
+        text(
+            "INSERT INTO security_tokens "
+            "(token_hash, purpose, user_id, expires_at, consumed_at, created_at) "
+            "VALUES (:h, 'PASSWORD_RESET', 1, '2026-01-02 00:00:00', NULL, "
+            "'2026-01-01 00:00:00')"
+        ),
+        {"h": "a" * 64},
+    )
+    connection.commit()
+
+
+def _snapshot_0006(connection) -> dict:
+    """Toutes les lignes des tables applicatives ; pour `users`, ses seules colonnes
+    d'avant la 0006."""
+    snapshot = {
+        "users": connection.execute(
+            text(f"SELECT {_USER_COLUMNS_BEFORE_0006} FROM users ORDER BY id")
+        ).all()
+    }
+    for table in ("boards", "applications", "security_tokens"):
+        snapshot[table] = connection.execute(text(f"SELECT * FROM {table} ORDER BY id")).all()
+    return snapshot
+
+
+def _users_nullability(connection) -> dict[str, bool]:
+    return {c["name"]: c["nullable"] for c in inspect(connection).get_columns("users")}
+
+
+def test_migration_0006_keeps_every_row_in_both_directions(migration_engine):
+    """Aller-retour sans perte : aucune ligne d'aucune table n'est modifiée ni perdue
+    (la recréation de `users` ne cascade pas). Les comptes existants reçoivent
+    token_version = 0 et google_sub NULL ; leur empreinte de mot de passe est intacte."""
+    with migration_engine.connect() as connection:
+        config = _alembic_config(connection)
+        command.upgrade(config, "0005")
+        _seed_rows_0006(connection)
+        before = _snapshot_0006(connection)
+        assert [len(before[t]) for t in ("users", "boards", "applications", "security_tokens")] == [
+            2, 2, 10, 1,
+        ]
+
+        command.upgrade(config, "0006")
+
+        assert _snapshot_0006(connection) == before
+        added = connection.execute(
+            text("SELECT google_sub, token_version FROM users ORDER BY id")
+        ).all()
+        assert [tuple(r) for r in added] == [(None, 0), (None, 0)]
+        assert _users_nullability(connection)["hashed_password"] is True
+        indexes = {i["name"]: i["unique"] for i in inspect(connection).get_indexes("users")}
+        assert indexes["ix_users_google_sub"] in (True, 1)
+
+        command.downgrade(config, "0005")
+
+        assert _snapshot_0006(connection) == before
+        nullability = _users_nullability(connection)
+        assert set(nullability) == {"id", "email", "hashed_password", "is_verified", "created_at"}
+        assert nullability["hashed_password"] is False
+
+
+def test_migration_0006_lets_the_previous_code_insert_users(migration_engine):
+    """`server_default` de token_version : la version PRÉCÉDENTE du code sert encore
+    pendant le déploiement et insère des utilisateurs SANS les nouvelles colonnes.
+    Seul ce test le garde : `alembic check` ne compare pas les valeurs par défaut.
+    L'index unique de google_sub admet plusieurs NULL, mais pas deux fois le même sub."""
+    with migration_engine.connect() as connection:
+        config = _alembic_config(connection)
+        command.upgrade(config, "0006")
+        for email in ("a@example.com", "b@example.com"):
+            connection.execute(
+                text(
+                    "INSERT INTO users (email, hashed_password, is_verified, created_at) "
+                    "VALUES (:e, 'x', 0, '2026-01-01 00:00:00')"
+                ),
+                {"e": email},
+            )
+
+        rows = connection.execute(text("SELECT google_sub, token_version FROM users ORDER BY id"))
+        assert [tuple(r) for r in rows] == [(None, 0), (None, 0)]
+
+        connection.execute(text("UPDATE users SET google_sub = '1234567890' WHERE id = 1"))
+        with pytest.raises(IntegrityError):
+            connection.execute(text("UPDATE users SET google_sub = '1234567890' WHERE id = 2"))
+
+
+def test_migration_0006_downgrade_refuses_while_an_account_has_no_password(migration_engine):
+    """GARDE-FOU du downgrade : NOT NULL ne peut pas être rétabli sur un compte sans
+    mot de passe (et l'ancien code planterait dessus). Refus explicite, la révision
+    reste à 0006, la ligne est intacte."""
+    with migration_engine.connect() as connection:
+        config = _alembic_config(connection)
+        command.upgrade(config, "0006")
+        connection.execute(
+            text(
+                "INSERT INTO users (email, hashed_password, google_sub, is_verified, created_at) "
+                "VALUES ('google@example.com', NULL, '42', 1, '2026-01-01 00:00:00')"
+            )
+        )
+        connection.commit()
+
+        with pytest.raises(RuntimeError, match=r"1 compte\(s\) sans mot de passe"):
+            command.downgrade(config, "0005")
+
+        version = connection.execute(text("SELECT version_num FROM alembic_version"))
+        assert version.scalar_one() == "0006"
+        row = connection.execute(text("SELECT email, hashed_password, google_sub FROM users"))
+        assert tuple(row.one()) == ("google@example.com", None, "42")

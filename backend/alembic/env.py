@@ -1,6 +1,6 @@
 """Environnement Alembic : relie les migrations aux modèles et à la base de l'app.
 
-Trois choix structurants, à connaître avant de toucher à ce fichier :
+Quatre choix structurants, à connaître avant de toucher à ce fichier :
 
 1. L'URL de la base vient de `app.database.DATABASE_URL`, jamais d'alembic.ini.
    C'est la valeur EXACTE que voit l'application, déjà passée par
@@ -17,6 +17,13 @@ Trois choix structurants, à connaître avant de toucher à ce fichier :
 3. Une connexion peut être INJECTÉE via `config.attributes["connection"]` (motif
    documenté par Alembic). C'est ce qui permet à tests/test_migrations.py de
    migrer sa propre base en mémoire, sans variable d'environnement ni fichier.
+
+4. Sous SQLite, les clés étrangères sont COUPÉES le temps de la migration
+   (`sqlite_foreign_keys_disabled`, app/database.py) : la recréation d'une table
+   par le mode batch déclencherait sinon les ON DELETE CASCADE. La garde refuse
+   une connexion portant des écritures non commitées (le PRAGMA y serait sans
+   effet) : une connexion injectée doit donc être commitée avant de migrer. Le
+   mode `--sql` n'ouvre aucune connexion et n'est pas concerné.
 """
 
 import sys
@@ -30,7 +37,12 @@ from alembic import context  # noqa: E402
 from sqlalchemy.engine import Connection, make_url  # noqa: E402
 
 import app.models  # noqa: E402,F401  (enregistre les tables dans Base.metadata)
-from app.database import DATABASE_URL, Base, engine  # noqa: E402
+from app.database import (  # noqa: E402
+    DATABASE_URL,
+    Base,
+    engine,
+    sqlite_foreign_keys_disabled,
+)
 
 config = context.config
 
@@ -94,16 +106,18 @@ def run_migrations_online() -> None:
     connexion que l'application, aucune divergence à maintenir."""
     injected = config.attributes.get("connection")
     if injected is not None:
-        _configure(injected)
-        with context.begin_transaction():
-            context.run_migrations()
+        with sqlite_foreign_keys_disabled(injected):
+            _configure(injected)
+            with context.begin_transaction():
+                context.run_migrations()
         return
 
     _announce_target()
     with engine.connect() as connection:
-        _configure(connection)
-        with context.begin_transaction():
-            context.run_migrations()
+        with sqlite_foreign_keys_disabled(connection):
+            _configure(connection)
+            with context.begin_transaction():
+                context.run_migrations()
 
 
 if context.is_offline_mode():

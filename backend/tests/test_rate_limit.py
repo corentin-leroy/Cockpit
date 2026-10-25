@@ -204,19 +204,19 @@ def test_simultaneous_hits_never_exceed_the_limit(make_counter):
 
 
 # ---------------------------------------------------------------------------
-# Les quatre règles de l'application : seuils voulus, horloge injectable
+# Les cinq règles de l'application : seuils voulus, horloge injectable
 # ---------------------------------------------------------------------------
 
+_RULES = [
+    ("login_ip", 60, 60),  # 60 tentatives par minute et par IP
+    ("login_pair", 5, 15 * 60),  # 5 échecs par quart d'heure et par (IP, email)
+    ("register_ip", 20, 3600),  # 20 inscriptions par heure et par IP
+    ("forgot_ip", 10, 3600),  # 10 demandes par heure et par IP
+    ("google_notice", 3, 3600),  # 3 emails « connectez-vous avec Google » par heure et par compte
+]
 
-@pytest.mark.parametrize(
-    "attribute,limit,window",
-    [
-        ("login_ip", 60, 60),  # 60 tentatives par minute et par IP
-        ("login_pair", 5, 15 * 60),  # 5 échecs par quart d'heure et par (IP, email)
-        ("register_ip", 20, 3600),  # 20 inscriptions par heure et par IP
-        ("forgot_ip", 10, 3600),  # 10 demandes par heure et par IP
-    ],
-)
+
+@pytest.mark.parametrize("attribute,limit,window", _RULES)
 def test_application_rules_use_the_decided_thresholds(clock, attribute, limit, window):
     counter = getattr(limiters, attribute)
 
@@ -226,6 +226,26 @@ def test_application_rules_use_the_decided_thresholds(clock, attribute, limit, w
     assert counter.hit("k") is not None
     clock.advance(1)
     assert counter.hit("k") is None
+
+
+def test_reset_forgets_every_rule_of_the_registry(clock):
+    """La remise à zéro entre deux tests (conftest) doit atteindre CHAQUE compteur :
+    un compteur oublié fuirait d'un test à l'autre (les identifiants repartent de 1)."""
+    registry = RateLimiters()
+    registry.clock = clock
+    for attribute, limit, _ in _RULES:
+        counter = getattr(registry, attribute)
+        for _ in range(limit):
+            counter.hit("k")
+        assert counter.hit("k") is not None, attribute
+
+    registry.reset()
+    # reset() rétablit l'horloge réelle, bien en avance sur la factice : sans la
+    # réinstaller, les tentatives non effacées paraîtraient expirées.
+    registry.clock = clock
+
+    for attribute, _, _ in _RULES:
+        assert getattr(registry, attribute).hit("k") is None, attribute
 
 
 def test_registry_clock_and_enabled_switch_reach_every_counter(clock):

@@ -126,6 +126,8 @@ def test_simultaneous_password_resets_with_the_same_token_give_one_200(file_data
         with Session(file_database) as session:
             user = session.get(User, user_id)
             assert user.is_verified is True
+            # Une seule révocation des sessions : les perdantes n'incrémentent rien.
+            assert user.token_version == 1, f"manche {round_number}"
             # Un seul bcrypt : si une perdante avait écrit après la gagnante, le mot
             # de passe de la gagnante ne serait plus celui de la base.
             assert verify_password(passwords[winner], user.hashed_password), (

@@ -20,6 +20,13 @@ _pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # --- Configuration JWT ---
 JWT_ALGORITHM = "HS256"  # signature symétrique : un seul secret partagé
 
+# Claim portant la version des sessions du compte (`users.token_version`), comparée
+# à chaque requête par get_current_user : incrémenter la colonne révoque toutes les
+# sessions du compte. Un jeton SANS ce claim (émis avant son introduction) vaut 0.
+# Nom explicite et non `ver`, que d'autres émetteurs emploient pour la version du
+# FORMAT du jeton. Ne jamais le renommer : les jetons en circulation le portent.
+TOKEN_VERSION_CLAIM = "token_version"
+
 
 def _positive_int_env(name: str, default: int) -> int:
     """Lit une variable d'environnement entière et strictement positive.
@@ -50,12 +57,14 @@ def _positive_int_env(name: str, default: int) -> int:
 # Durée de vie du jeton de session, en minutes. Défaut : 720 (12 heures), pour
 # couvrir une journée d'utilisation sans reconnexion.
 #
-# COMPROMIS ASSUMÉ : ces jetons sont SANS ÉTAT (rien n'est stocké côté serveur,
-# la signature suffit à les valider). Ils sont donc IRRÉVOCABLES — se déconnecter
-# efface le jeton du navigateur, mais une copie volée reste valable jusqu'à son
-# expiration. Cette durée est par conséquent la SEULE borne à l'exploitation d'un
-# jeton dérobé : la porter à 12 h multiplie par douze la fenêtre d'attaque. Voir
-# la note sur les refresh tokens dans CLAUDE.md avant de l'allonger davantage.
+# COMPROMIS ASSUMÉ : aucune session n'est stockée côté serveur. Un jeton n'est
+# révocable que PAR COMPTE, toutes sessions ensemble (claim token_version, cf.
+# TOKEN_VERSION_CLAIM), ce que fait une réinitialisation du mot de passe. Se
+# déconnecter efface seulement le jeton du navigateur : une copie volée reste
+# valable jusqu'à son expiration, tant que le compte ne révoque rien. Cette durée
+# borne donc l'exploitation d'un jeton dérobé : la porter à 12 h multiplie par
+# douze la fenêtre d'attaque. Voir la note sur les refresh tokens dans CLAUDE.md
+# avant de l'allonger davantage.
 #
 # Configurable pour pouvoir être resserrée sans redéploiement — typiquement en
 # réaction à un incident, où l'on veut réduire la fenêtre tout de suite. Une
@@ -139,7 +148,8 @@ def create_access_token(data: dict) -> str:
     """Forge un JWT signé (HS256) à partir de `data`.
 
     Ajoute automatiquement le claim `exp` (expiration). L'appelant fournit le
-    claim `sub` (identifiant utilisateur, sous forme de chaîne).
+    claim `sub` (identifiant utilisateur, sous forme de chaîne) et le claim
+    TOKEN_VERSION_CLAIM (`users.token_version` au moment de l'émission).
     """
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)

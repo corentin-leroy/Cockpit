@@ -111,8 +111,8 @@ def test_login_failures_are_indistinguishable(client):
 # --- Expiration du jeton de session ---------------------------------------
 #
 # La durée de vie est passée de 60 minutes à 12 heures (ACCESS_TOKEN_EXPIRE_MINUTES).
-# Les jetons étant SANS ÉTAT, donc irrévocables, cette expiration est la seule
-# borne à l'exploitation d'un jeton volé : c'est désormais le mécanisme de
+# Sans session stockée, et révocables seulement par compte (test_token_version.py),
+# les jetons ont pour borne cette expiration face à un vol : c'est le mécanisme de
 # sécurité le plus important de la chaîne d'authentification, et il n'était
 # couvert par aucun test. Une régression ici (validation de `exp` désactivée,
 # durée mal lue) serait totalement silencieuse — tout continuerait de fonctionner,
