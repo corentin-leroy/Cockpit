@@ -5,7 +5,7 @@
 Suivi de candidatures en kanban, multi-tableaux, avec une extension navigateur
 qui capture une offre depuis n'importe quel site d'annonces en un clic.
 
-### → [Voir l'application en ligne](https://cockpit-front-production.up.railway.app)
+### → [Voir l'application en ligne](https://cockpitemploi.fr)
 
 ![Le kanban de suivi des candidatures : cinq colonnes de statuts, de « Repérée » à
 « Acceptée », et la barre latérale de sélection des tableaux](docs/kanban-light.png)
