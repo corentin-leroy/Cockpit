@@ -202,3 +202,10 @@ il fait foi. Commandes : CLAUDE.md racine (toujours `.venv\Scripts\python.exe -m
 - Courses (`*_race.py`) : SQLite FICHIER (la base en mémoire à connexion unique
   ne permet pas de vraie concurrence). Cascade, positions, plafonds : assertions
   sur l'ÉTAT STOCKÉ ; remplissage par insertion directe en base, pas par des POST.
+
+# Base de dev remplie → `dev-docs/seed-dev.md`
+- `.venv\Scripts\python.exe -m scripts.seed_dev [--reset]` depuis backend/, après
+  `alembic upgrade head` : compte `demo@cockpit.example` (mot de passe PUBLIC, dev
+  seulement) et données factices ; `--reset` ne supprime QUE ce compte.
+- Refus avant toute connexion si le moteur de l'application n'est pas SQLite,
+  DATABASE_URL définie ou non (le .env compte) ; jamais l'URL dans le message.

@@ -139,7 +139,7 @@ CLAUDE.md par dossier (chargés automatiquement, cf. « Où trouver quoi ») :
 - `backend/CLAUDE.md` : architecture backend et règles opérationnelles (ordre des
   cartes, cascade, plafonds, archivage, validation, messages d'erreur, limites de
   débit, emails et jetons, session, base, migrations, variables
-  d'environnement, dépendances, déploiement, tests).
+  d'environnement, dépendances, déploiement, tests, base de dev remplie).
 - `frontend/CLAUDE.md` : direction visuelle, architecture frontend, glisser-déposer,
   landing, blocage après un 429, suppression de compte, variables Vite.
 - `extension/CLAUDE.md` : extension Chrome (URL figée, tokens de la popup,
@@ -172,6 +172,7 @@ renvois « cf. ») :
 - `vite-build-variables.md` : « Variables Vite »
 - `roadmap.md` : historique de la feuille de route (« Roadmap V1 »)
 - `background-sessions.md` : sessions d'arrière-plan et worktrees (préparation, interdits)
+- `seed-dev.md` : script de remplissage de la base de dev (compte de test, garde-fous)
 « Direction visuelle » et « Architecture frontend » (hors extraits ci-dessus) :
 `frontend/CLAUDE.md`. « Architecture backend » : `backend/CLAUDE.md`.
 
