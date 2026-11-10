@@ -123,6 +123,18 @@ Frontend, style, extension :
 - Extension : URL de l'API figée, jamais configurable (canal d'exfiltration du
   token). → `extension/CLAUDE.md`
 
+# Sessions d'arrière-plan et worktrees
+Détail, raisons et commandes exactes : `dev-docs/background-sessions.md`.
+- Le worktree part d'`origin/main`, pas du main local : pousser avant la session.
+- Propriétaire : jamais `claude --bg` ni `claude agents` depuis un shell visant la prod.
+- Au départ, `DATABASE_URL` hors SQLite locale → rien qui touche une base ; le signaler.
+- `backend\.venv` recréé par le Python 3.13 système (chemin absolu), jamais copié.
+- Jamais `python` nu : celui du PATH est le `.venv` racine du dossier principal.
+- Ni `.env`, ni base, ni `.worktreeinclude` (inutiles aux tests ; vraie clé Brevo).
+- Front : `npm ci` puis `npm run lint`, seule vérification (pas de tests front).
+- Aucun uvicorn ni vite : port 8000 disputé, front sur 5174 refusé par le CORS.
+- Fin : rien de committé ; le rapport donne le chemin du worktree et sa branche.
+
 # Index de la documentation
 CLAUDE.md par dossier (chargés automatiquement, cf. « Où trouver quoi ») :
 - `backend/CLAUDE.md` : architecture backend et règles opérationnelles (ordre des
@@ -160,6 +172,7 @@ renvois « cf. ») :
 - `rate-limit-cooldown.md` : « Blocage après un 429 », extrait de « Architecture frontend »
 - `vite-build-variables.md` : « Variables Vite »
 - `roadmap.md` : historique de la feuille de route (« Roadmap V1 »)
+- `background-sessions.md` : sessions d'arrière-plan et worktrees (préparation, interdits)
 « Direction visuelle » et « Architecture frontend » (hors extraits ci-dessus) :
 `frontend/CLAUDE.md`. « Architecture backend » : `backend/CLAUDE.md`.
 
