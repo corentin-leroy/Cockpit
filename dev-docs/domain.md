@@ -1,7 +1,6 @@
 # Nom de domaine (cockpitemploi.fr)
-Configuration du domaine et règles de transition depuis les adresses Railway
-d'origine. L'avancement de la bascule (ce qui reste à faire) est suivi uniquement
-dans la feuille de route du CLAUDE.md racine.
+Configuration du domaine et historique de la transition depuis les adresses
+Railway d'origine.
 
 - Domaine `cockpitemploi.fr`, acheté chez OVH, qui n'est que le REGISTRAIRE : la
   zone DNS est déléguée à Cloudflare. Les enregistrements se modifient dans
@@ -9,7 +8,8 @@ dans la feuille de route du CLAUDE.md racine.
 - Adresses (domaines personnalisés ajoutés dans Railway) :
   - site, service frontend : `https://cockpitemploi.fr`
   - API, service backend : `https://api.cockpitemploi.fr`
-  Les domaines `*.up.railway.app` d'origine restent actifs (cf. « Transition »).
+  Ce sont les seules adresses : les domaines Railway d'origine ont été supprimés le
+  2026-11-10 (cf. « Transition »).
 - Enregistrements Railway en « DNS only » (nuage gris) : aucun proxy Cloudflare.
   ⚠ Activer le proxy Cloudflare (nuage orange) sur l'API ajouterait un
   intermédiaire : le nombre de proxys de confiance (`TRUSTED_PROXY_COUNT`) changerait
@@ -28,26 +28,33 @@ dans la feuille de route du CLAUDE.md racine.
   domaine sera authentifié dans Brevo (ce n'est pas le cas aujourd'hui), FUSIONNER
   l'include de Brevo dans ce même TXT, ne jamais créer un second enregistrement SPF.
 - Variables de production (posées) :
-  - backend `CORS_ORIGINS=https://cockpitemploi.fr,https://cockpit-front-production.up.railway.app`
-    (format exact : `dev-docs/environment-variables.md`)
+  - backend `CORS_ORIGINS=https://cockpitemploi.fr`
+    (format exact : `dev-docs/environment-variables.md`). L'extension n'est pas
+    concernée par le CORS : ses `host_permissions` l'en exemptent (cf. le
+    commentaire de `extension/api.js`). Aucune origine `chrome-extension://` dans
+    CORS_ORIGINS (vérifié : la 1.1.0 fonctionnait sans).
   - backend `FRONTEND_URL=https://cockpitemploi.fr` (liens des emails)
   - frontend `VITE_API_BASE_URL=https://api.cockpitemploi.fr`, figée au build :
     toute modification impose un rebuild (cf. `dev-docs/vite-build-variables.md`)
 
 # Transition
-- Ancienne URL du site, `https://cockpit-front-production.up.railway.app` : son
-  origine reste dans CORS_ORIGINS tant que cette URL sert le site (sinon le site
-  servi à cette adresse ne peut plus appeler l'API). Elle ne concerne QUE le site.
-- L'extension n'est pas concernée par le CORS : ses `host_permissions` l'en
-  exemptent (cf. le commentaire de `extension/api.js`). Aucune origine
-  `chrome-extension://` dans CORS_ORIGINS (vérifié : la 1.1.0 fonctionne sans).
-- Ancienne adresse de l'API, `https://cockpit-production-6afb.up.railway.app` : la
-  1.1.0 (étiquette `extension-v1.1.0`, commit 40b8048, approuvée sur le Chrome Web
-  Store le 2026-10-12) appelle l'API à cette adresse, figée dans `api.js` et
-  `host_permissions`. La 1.2.0, publiée le 2026-10-15, passe sur
-  `api.cockpitemploi.fr` (cf. `dev-docs/extension-session-sharing.md`). Le retrait
-  de ce domaine du service backend est donc désormais possible ; il reste à faire
-  (lot 4 de la 1.2.0).
-- Ordre des retraits : l'ancienne origine de CORS_ORIGINS une fois l'ancienne URL du
-  site plus servie ; le domaine Railway de l'API au lot 4 de la 1.2.0 (possible
-  depuis sa publication, le 2026-10-15).
+Historique d'une transition TERMINÉE le 2026-11-10. Anciennes adresses, supprimées :
+- site : `https://cockpit-front-production.up.railway.app`
+- API : `https://cockpit-production-6afb.up.railway.app`
+
+Déroulé :
+- 2026-10-09 : bascule vers `cockpitemploi.fr` (domaines personnalisés ajoutés,
+  variables de production posées). Les domaines Railway d'origine restaient
+  actifs, et l'origine de l'ancienne URL du site restait dans CORS_ORIGINS tant
+  que cette URL servait le site (sinon le site servi à cette adresse ne pouvait
+  plus appeler l'API).
+- 2026-10-10 : « VÉRIFICATION APRÈS DÉPLOIEMENT » de `dev-docs/rate-limiting.md`
+  (lecture de l'IP) refaite via `api.cockpitemploi.fr` : 6 étapes conformes.
+- 2026-10-12 : extension 1.1.0 (étiquette `extension-v1.1.0`, commit 40b8048)
+  approuvée sur le Chrome Web Store. Elle appelait l'ancienne adresse de l'API,
+  figée dans `api.js` et `host_permissions` : ce domaine devait rester actif.
+- 2026-10-15 : extension 1.2.0 publiée, sur `api.cockpitemploi.fr` (cf.
+  `dev-docs/extension-session-sharing.md`). Le retrait du domaine Railway de l'API
+  devenait possible (lot 4 de la 1.2.0).
+- 2026-11-10 : les deux anciens domaines supprimés dans Railway ; CORS_ORIGINS
+  réduit à `https://cockpitemploi.fr`.

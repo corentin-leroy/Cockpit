@@ -99,6 +99,19 @@ section « Feuille de route » du CLAUDE.md racine.
     (étiquette `extension-v1.1.0`, commit 40b8048), soumise le 2026-10-08 :
     apporte au public le lot 3d (bornes alignées sur le backend) et les
     adaptateurs France Travail et Indeed, absents de la 1.0.0. Remplacée depuis
-    par la 1.2.0, publiée le
-    2026-10-15 (suivie dans la feuille de route du CLAUDE.md racine jusqu'à son
-    lot 4).
+    par la 1.2.0, publiée le 2026-10-15 (point 14).
+14. [fait, publiée sur le Chrome Web Store le 2026-10-15, lot 4 fait le
+    2026-11-10] Extension 1.2.0 : partage de session site → extension
+    (`externally_connectable`), popup sans connexion, domaines définitifs, script
+    d'empaquetage. Décisions et ordre des lots :
+    `dev-docs/extension-session-sharing.md`.
+    - lot 1 : script d'empaquetage et `config.js` (b9dce86)
+    - lot 2 : site (c28fab3) puis extension (34dd71b), développés et testés ensemble
+    - lot 3 : site déployé, puis 1.2.0 publiée le 2026-10-15
+    - lot 4 : domaine Railway d'origine de l'API supprimé le 2026-11-10
+15. [fait, terminée le 2026-11-10] Bascule vers cockpitemploi.fr (déroulé daté :
+    `dev-docs/domain.md`, « Transition ») : bascule le 2026-10-09 (domaines
+    personnalisés, variables de production) ; « VÉRIFICATION APRÈS DÉPLOIEMENT » de
+    `dev-docs/rate-limiting.md` refaite le 2026-10-10 via api.cockpitemploi.fr
+    (6 étapes conformes) ; domaines Railway d'origine du site et de l'API supprimés
+    et CORS_ORIGINS réduit à `https://cockpitemploi.fr` le 2026-11-10.

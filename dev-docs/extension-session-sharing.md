@@ -105,10 +105,6 @@ feuille de route du CLAUDE.md racine.
     être inatteignable.
 
 # Limites acceptées
-- L'ancienne URL Railway du site (`cockpit-front-production.up.railway.app`) ne
-  partage PAS la session : elle n'est pas dans `externally_connectable` (et le
-  paquet Store refuse toute occurrence de `railway`). Un utilisateur connecté à
-  cette adresse garde une extension déconnectée.
 - Si l'utilisateur efface les données du site sans se déconnecter, aucun
   `session:clear` n'est envoyé et la popup n'a plus de bouton de déconnexion :
   l'extension garde son jeton jusqu'à son expiration (12 h au plus, cf.
@@ -129,5 +125,6 @@ feuille de route du CLAUDE.md racine.
    ci-dessous).
 
 # Conséquence sur le domaine
-- La publication de la 1.2.0 conditionne le retrait du domaine Railway de l'API
-  (cf. `dev-docs/domain.md`, « Transition »).
+- La publication de la 1.2.0 conditionnait le retrait du domaine Railway d'origine
+  de l'API, appelé par la 1.1.0 (déroulé et dates : `dev-docs/domain.md`,
+  « Transition »).

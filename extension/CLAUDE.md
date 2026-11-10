@@ -7,9 +7,9 @@
   d'authentification.
 - Dev local : UNIQUEMENT par `package_extension.py dev` (copie réécrite dans
   `dist/dev/`). Jamais de valeur locale dans les sources, même temporairement.
-- Depuis la 1.2.0, l'API est `api.cockpitemploi.fr`. La 1.1.0 publiée appelle encore
-  l'ancien domaine Railway de l'API : ne pas le retirer du backend avant la
-  publication de la 1.2.0 (cf. `dev-docs/domain.md`). L'extension n'a pas à figurer
+- Depuis la 1.2.0, l'API est `api.cockpitemploi.fr`. Le domaine Railway d'origine
+  de l'API, qu'appelait la 1.1.0, est supprimé depuis le 2026-11-10 (cf.
+  `dev-docs/domain.md`, « Transition »). L'extension n'a pas à figurer
   dans CORS_ORIGINS : `host_permissions` l'exempte du CORS (vérifié avec la 1.1.0).
 
 ## Partage de session avec le site (depuis la 1.2.0)

@@ -165,19 +165,6 @@ renvois « cf. ») :
 Seuls les points OUVERTS figurent ici ; l'historique des lots terminés (dates,
 commits, vérifications) est dans `dev-docs/roadmap.md`. Un point terminé quitte
 cette liste et rejoint l'historique : jamais de statut tenu aux deux endroits.
-- Bascule vers cockpitemploi.fr (configuration et transition : `dev-docs/domain.md`).
-  Domaines personnalisés actifs et variables de production posées. Reste :
-  - refaire la « VÉRIFICATION APRÈS DÉPLOIEMENT » de `dev-docs/rate-limiting.md`
-    (lecture de l'IP) via api.cockpitemploi.fr ;
-  - retirer l'ancienne origine du site de CORS_ORIGINS quand l'ancienne URL du site
-    ne sera plus servie ;
-  - retirer le domaine *.up.railway.app de l'API : c'est le lot 4 de l'extension
-    1.2.0 (point suivant) ; la 1.1.0 appelle l'API à cette adresse.
-- Extension 1.2.0 : partage de session site → extension (`externally_connectable`),
-  popup sans connexion, domaines définitifs, script d'empaquetage. Décisions :
-  `dev-docs/extension-session-sharing.md` (ordre des lots compris). Lots 1 à 3
-  faits : site déployé, 1.2.0 publiée sur le Chrome Web Store le 2026-10-15.
-  Reste : lot 4 (retrait du domaine Railway de l'API).
 - Connexion Google, sur le site et le backend uniquement. Décisions et lots :
   `dev-docs/google-sign-in.md`. Lot 1 (backend : comptes sans mot de passe,
   révocation par `token_version`, migration 0006) développé en local et vérifié sur

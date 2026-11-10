@@ -12,9 +12,8 @@
   valeur sans guillemets : un `"` ferait partie de l'origine, qui ne correspondrait
   jamais, et le front serait bloqué) ; casse non normalisée (minuscules, comme
   l'en-tête Origin) ; ni chemin ni port. Vide ou absente : http://localhost:5173.
-  Prod : `https://cockpitemploi.fr,https://cockpit-front-production.up.railway.app`
-  (l'ancienne origine tant que l'ancienne URL du site est servie, cf.
-  `dev-docs/domain.md`). Jamais d'origine `chrome-extension://` : l'extension est
+  Prod : `https://cockpitemploi.fr` (cf. `dev-docs/domain.md`). Jamais d'origine
+  `chrome-extension://` : l'extension est
   exemptée du CORS par ses `host_permissions` (vérifié avec la 1.1.0).
 - FRONTEND_URL : base des liens emails (défaut http://localhost:5173). Prod :
   `https://cockpitemploi.fr`. La changer laisse les liens déjà envoyés sur
