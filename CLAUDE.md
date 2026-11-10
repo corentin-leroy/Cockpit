@@ -125,9 +125,8 @@ Frontend, style, extension :
 
 # Sessions d'arrière-plan et worktrees
 Détail, raisons et commandes exactes : `dev-docs/background-sessions.md`.
-- Le worktree part d'`origin/main`, pas du main local : pousser avant la session.
-- Propriétaire : jamais `claude --bg` ni `claude agents` depuis un shell visant la prod.
 - Au départ, `DATABASE_URL` hors SQLite locale → rien qui touche une base ; le signaler.
+  Tester son seul préfixe, jamais afficher sa valeur (sortie ni rapport) : mot de passe.
 - `backend\.venv` recréé par le Python 3.13 système (chemin absolu), jamais copié.
 - Jamais `python` nu : celui du PATH est le `.venv` racine du dossier principal.
 - Ni `.env`, ni base, ni `.worktreeinclude` (inutiles aux tests ; vraie clé Brevo).
@@ -186,6 +185,10 @@ cette liste et rejoint l'historique : jamais de statut tenu aux deux endroits.
   PostgreSQL 18.6 (2026-10-24). Reste : le déployer ; lots 2 et 3 (déployés
   ENSEMBLE), puis le site.
 - Interblocage des réinitialisations simultanées (500) : `dev-docs/backend-tests.md`.
+- `.venv` à la racine du dossier principal (le `python` du PATH) : identifier son
+  rôle, puis le supprimer s'il ne sert à rien. Cf. `dev-docs/background-sessions.md`.
+- Docstring de `backend/tests/conftest.py` à corriger : elle décrit un `create_all`
+  lancé à l'import de `app.main`, qui n'existe plus (schéma géré par Alembic).
 
 # Hors périmètre V1 (ne pas implémenter sans demande explicite)
 - Formulaire de correction dans l'extension → V2

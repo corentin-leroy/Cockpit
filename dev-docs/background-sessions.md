@@ -16,11 +16,17 @@ copie créée par Claude Code sous `.claude/worktrees/` (dossier ignoré par git
   poste).
 
 ## Au début de la session : contrôle de DATABASE_URL
-- Première vérification : `$env:DATABASE_URL`, héritée du shell.
-  - absente, vide, ou URL commençant par `sqlite:` (base SQLite locale) → on
-    continue ;
-  - toute autre valeur → ne RIEN lancer qui touche une base (tests compris,
-    alembic, uvicorn, scripts) et le signaler dans le rapport.
+- Première vérification : `DATABASE_URL`, héritée du shell, contrôlée sur le
+  SEUL préfixe de sa valeur. Commande qui ne renvoie que `True` ou `False` :
+  `[string]::IsNullOrEmpty($env:DATABASE_URL) -or $env:DATABASE_URL.StartsWith('sqlite:')`
+  - `True` (absente, vide, ou URL commençant par `sqlite:`, base SQLite locale)
+    → on continue ;
+  - `False` (toute autre valeur) → ne RIEN lancer qui touche une base (tests
+    compris, alembic, uvicorn, scripts) et le signaler dans le rapport.
+- JAMAIS afficher la valeur de DATABASE_URL, ni dans une sortie de commande
+  (pas de `$env:DATABASE_URL` seul, ni `echo`, ni `Get-ChildItem env:`), ni
+  dans le rapport : une URL PostgreSQL contient le mot de passe de la base. Le
+  rapport dit seulement « absente », « SQLite locale » ou « autre valeur ».
 - Raison : `tests/conftest.py` remplace la variable pour pytest, mais alembic et
   l'application la lisent telle quelle (`app/database.py` ; `alembic/env.py` la
   fait primer sur le .env, cf. `dev-docs/migrations.md`). La règle ne fait pas
