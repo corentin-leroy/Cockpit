@@ -67,6 +67,8 @@ Frontend (depuis frontend/) :
 
 # Règles critiques
 Une ligne par règle, sa raison en quelques mots ; le détail est dans le renvoi.
+Git :
+- Jamais de commit ni de push, y compris en session d'arrière-plan ou dans un worktree : le propriétaire gère lui-même commits et push (le travail reste non commité).
 Données et sécurité :
 - Ressource d'autrui → 404, jamais 403 (ne pas confirmer un id) ; une candidature
   appartient à son user par la chaîne application → board → user. → `backend/CLAUDE.md`
