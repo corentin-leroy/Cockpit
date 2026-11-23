@@ -29,3 +29,5 @@ dist/
 .pytest_cache/
 .claude/
 skills-lock.json
+.coverage
+htmlcov/

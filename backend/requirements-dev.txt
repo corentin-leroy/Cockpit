@@ -13,3 +13,5 @@
 pytest==9.1.1
 # httpx : requis par le TestClient de Starlette/FastAPI (client HTTP in-process).
 httpx==0.28.1
+# pytest-cov : mesure de couverture (`pytest --cov=app`) ; installe coverage.
+pytest-cov==7.1.0
