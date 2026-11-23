@@ -110,6 +110,15 @@ feuille de route du CLAUDE.md racine.
   l'extension garde son jeton jusqu'à son expiration (12 h au plus, cf.
   `dev-docs/jwt-session.md`).
 
+# Limites levées
+- SANS OBJET depuis le 2026-11-10 : pendant la transition, l'ancienne URL Railway du
+  site (`cockpit-front-production.up.railway.app`) ne partageait PAS la session (hors
+  `externally_connectable`, et le paquet Store refuse toute occurrence de `railway`) :
+  un utilisateur connecté à cette adresse gardait une extension déconnectée. Cette
+  adresse a été supprimée dans Railway le 2026-11-10 : le site n'est plus servi qu'à
+  `cockpitemploi.fr`, l'hôte exact de `externally_connectable` (déroulé :
+  `dev-docs/domain.md`, « Transition »).
+
 # Ordre des lots
 1. Script d'empaquetage et `config.js`, SANS changement de comportement (les sources
    gardent les valeurs de la 1.1.0 : la cible `store` échoue donc sur `railway`
@@ -122,7 +131,8 @@ feuille de route du CLAUDE.md racine.
 3. Déploiement du site (échec silencieux tant que la 1.2.0 n'est pas publiée), puis
    soumission de la 1.2.0 au Store APRÈS l'approbation de la 1.1.0.
 4. Après la publication de la 1.2.0 : retrait du domaine Railway de l'API (cf.
-   ci-dessous).
+   ci-dessous). FAIT le 2026-11-10 (le domaine Railway du site est parti le même
+   jour).
 
 # Conséquence sur le domaine
 - La publication de la 1.2.0 conditionnait le retrait du domaine Railway d'origine
